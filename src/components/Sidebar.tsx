@@ -7,9 +7,11 @@ import { BusinessType, BUSINESS_TYPE_LABELS, navForBusinessType } from "@/lib/bu
 
 export function Sidebar({
   email,
+  businessName,
   businessType = "BOTH",
 }: {
   email?: string | null;
+  businessName?: string | null;
   businessType?: BusinessType;
 }) {
   const pathname = usePathname();
@@ -31,6 +33,11 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-mark">CBManagement</div>
+        {businessName ? (
+          <div className="brand-business" title={businessName}>
+            {businessName}
+          </div>
+        ) : null}
         <div className="brand-sub">
           {businessType === "RETAIL"
             ? "Retail POS · stock · receipts"

@@ -19,7 +19,11 @@ export default async function AppLayout({
   return (
     <div className="app-shell">
       <ThemeScript theme={theme} />
-      <Sidebar email={user?.email} businessType={businessType} />
+      <Sidebar
+        email={user?.email}
+        businessName={company.name}
+        businessType={businessType}
+      />
       <main className="main">{children}</main>
     </div>
   );

@@ -22,7 +22,7 @@ One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 ## App URL + user metrics
 
 - **App URL:** https://cbmanagement.vercel.app
-- **User metrics:** **TBD** — platform snapshot (≥25 qualified external users) to be pasted after evidence is collected. Cohort members and ids containing `kureen-cyber` will be excluded per program rules.
+- **User metrics snapshot (UTC):** 2026-08-13 — **7** qualified external users (cohort members and ids containing `kureen-cyber` excluded). Gate is ≥25; will re-snapshot before Sunday merge.
 
 ## Investor touch log (redact PII)
 

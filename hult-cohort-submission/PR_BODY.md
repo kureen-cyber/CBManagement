@@ -1,5 +1,5 @@
 ## Summary
-Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live and a draft investor deck + one-pager are in-repo. ≥25 external-user metrics snapshot and investor touch log remain **TBD** — do not treat this draft as final submission.
+Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live; draft investor deck + one-pager are in-repo. External users are in progress (7 as of this snapshot). Investor touch log remains **TBD** and will be updated before the Sunday merge deadline — do not treat this draft as final submission.
 
 ## Investor deck link (in repo)
 `venture-kureen-cyber/docs/pitch-deck.pdf` (12-slide draft; editable source in product repo `docs/pitch-deck.html`)  
@@ -10,10 +10,13 @@ One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 
 ## App URL + user metrics
 - **App URL:** https://cbmanagement.vercel.app
-- **User metrics:** **TBD** — paste date-stamped platform snapshot (≥25 qualified external users; exclude cohort members and ids containing `kureen-cyber`) after evidence is collected.
+- **User metrics snapshot (UTC):** 2026-08-13
+  - **Qualified external users:** 7
+  - **Exclusions:** cohort members and ids containing `kureen-cyber` excluded
+  - **Note:** Gate is ≥25; will re-snapshot before Sunday merge when count is higher
 
 ## Investor touch log (redact PII)
-**TBD** — log ≥1 qualified touch in `venture-kureen-cyber/INVESTOR_LOG.md` (PII redacted), then paste the redacted entry here.
+**TBD** — ≥1 qualified touch to be logged in `venture-kureen-cyber/INVESTOR_LOG.md` (PII redacted) before Sunday merge; then paste the redacted entry here.
 
 ## Agent usage
 - Research: Cohort venture curriculum deliverables; fork/upstream branch `projects/summer26/phase-2-venture`; inventory of CBManagement production + existing business plan DOCX

@@ -26,8 +26,8 @@
 |---|----------|------|--------|----------------------|
 | 1 | Market research packet | Problem, **5 interviews**, TAM/SAM/SOM + sources, ≥5 competitors, ICP, wedge | **Missing** | Create `docs/market-research.md` — human must do interviews |
 | 2 | Business plan | ~15pp sections (exec → risks) + PDF preferred | **Partial** | DOCX exists: `docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx` — export/add `docs/business-plan.pdf` (+ optional `.md`) |
-| 3 | Pitch deck PDF | 10–15 slides: problem, solution, market, traction, model, team, ask | **Missing** | Create `docs/pitch-deck.pdf` |
-| 4 | One-pager PDF | 1-page compressed story | **Missing** | Create `docs/one-pager.pdf` |
+| 3 | Pitch deck PDF | 10–15 slides: problem, solution, market, traction, model, team, ask | **Done (draft)** | `docs/pitch-deck.pdf` |
+| 4 | One-pager PDF | 1-page compressed story | **Done (draft)** | `docs/one-pager.pdf` |
 | 5 | Financial model | 3-yr revenue/cost (subscription-only) | **Partial** | Inside revised business plan DOCX — also add `docs/financial-model.md` or `.csv` for PR clarity |
 | 6 | Investor log | ≥1 qualified touchpoint | **Missing** | Create `INVESTOR_LOG.md` after real outreach |
 | 7 | Investor email / outreach | Cold emails with deck | **Missing** | Send outreach; keep redacted copies for evidence |
@@ -43,7 +43,7 @@
 | 17 | Core ERP modules | Dashboard, CRM, quotes, jobs, invoices, etc. | **Done (local)** | Next.js app on branch `cursor/pos-supabase-demo-f92d` |
 | 18 | Pricing (subscription-only) | No setup fees | **Done** | README + revised business plan |
 | 19 | Cohort proof PR | `submissions/kureen-cyber-p2-venture.md` (or participants path) | **Not opened** | Open only after gates 1–3 + artifacts ready |
-| 20 | ≥25 external users evidence | Metrics API or analytics snapshot date-stamped | **Missing** | Add `/api/metrics` + acquire users |
+| 20 | ≥25 external users evidence | Metrics API or analytics snapshot date-stamped | **In progress** | Snapshot 2026-08-13: 7 users; re-count before merge |
 | 21 | Signup business type | Retail / Service / Both dropdown | **Done** | `/signup` + onboarding cookie/company |
 | 22 | Retail-only dashboard | POS-first home | **Done** | Retail dashboard + filtered nav |
 | 23 | Settings | General / Taxes / Printers | **Done** | `/settings` — theme, layout, language, VAT, receipts |
@@ -90,9 +90,9 @@ Fill these when opening the cohort PR:
 
 | Field | Value |
 |-------|-------|
-| Production URL | _TBD_ |
+| Production URL | https://cbmanagement.vercel.app |
 | Repo | https://github.com/kureen-cyber/CBManagement |
-| Metrics snapshot | _TBD — date + qualified_users ≥ 25_ |
+| Metrics snapshot | 2026-08-13 UTC — qualified_users = 7 (gate ≥25; update before Sunday) |
 | Market research | `docs/market-research.md` |
 | Business plan | `docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx` / PDF |
 | Pitch deck | `docs/pitch-deck.pdf` |

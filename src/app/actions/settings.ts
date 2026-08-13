@@ -15,10 +15,16 @@ export async function updateGeneralSettings(formData: FormData) {
   const theme = parseTheme(formData.get("theme"));
   const language = parseLanguage(formData.get("language"));
   const homeLayout = parseHomeLayout(formData.get("homeLayout"));
+  const businessName = String(formData.get("businessName") || "").trim();
 
   await prisma.company.update({
     where: { id: company.id },
-    data: { theme, language, homeLayout },
+    data: {
+      theme,
+      language,
+      homeLayout,
+      ...(businessName ? { name: businessName } : {}),
+    },
   });
 
   const cookieStore = await cookies();

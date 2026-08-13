@@ -25,6 +25,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function SettingsPanel({
+  businessName,
   theme,
   language,
   homeLayout,
@@ -32,6 +33,7 @@ export function SettingsPanel({
   receiptPrinting,
   printerName,
 }: {
+  businessName: string;
   theme: Theme;
   language: LanguageCode;
   homeLayout: HomeLayout;
@@ -106,7 +108,19 @@ export function SettingsPanel({
       {tab === "general" ? (
         <Panel style={{ padding: "1.25rem" }}>
           <form className="stack" onSubmit={onGeneral}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Appearance</h2>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Business</h2>
+            <label className="field">
+              Business name
+              <input
+                name="businessName"
+                type="text"
+                defaultValue={businessName}
+                required
+                placeholder="Your business name"
+              />
+            </label>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
             <fieldset className="settings-fieldset">
               <legend>Theme</legend>
               <div className="row">

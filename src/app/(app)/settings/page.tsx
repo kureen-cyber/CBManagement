@@ -21,6 +21,7 @@ export default async function SettingsPage() {
       />
       <Suspense fallback={<div className="muted">Loading settings…</div>}>
         <SettingsPanel
+          businessName={company.name}
           theme={parseTheme(company.theme)}
           language={parseLanguage(company.language)}
           homeLayout={parseHomeLayout(company.homeLayout)}

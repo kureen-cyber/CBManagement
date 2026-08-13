@@ -21,6 +21,8 @@ npm run dev
 
 Open [http://localhost:3001](http://localhost:3001) → **Create account / Sign up**.
 
+Local `npm run db:setup` loads sample data for development only. Production deploys start with an empty database (no demo company or figures).
+
 ## Features (V1)
 
 - Dashboard, Customers, Quotations, Jobs, Invoices, Payments, Expenses, Inventory, Suppliers, Employees, Reports

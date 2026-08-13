@@ -6,8 +6,9 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function resolveDatabaseUrl(): string | undefined {
   // On Vercel, SQLite must live in /tmp (writable). Copy the built DB once per instance.
+  // Filename bumped so new deploys do not reuse an old /tmp copy that still has demo data.
   if (process.env.VERCEL && (!process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith("file:"))) {
-    const target = "/tmp/cbmanagement.db";
+    const target = "/tmp/cbmanagement-live.db";
     const candidates = [
       path.join(process.cwd(), "prisma", "prod.db"),
       path.join(process.cwd(), "prisma", "dev.db"),
@@ -18,7 +19,7 @@ function resolveDatabaseUrl(): string | undefined {
         fs.copyFileSync(source, target);
       }
     }
-    return "file:/tmp/cbmanagement.db";
+    return `file:${target}`;
   }
   return process.env.DATABASE_URL;
 }

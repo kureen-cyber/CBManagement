@@ -9,7 +9,7 @@
 | Artifact | Status | Path |
 |----------|--------|------|
 | Business plan | Present (DOCX) | `venture-kureen-cyber/docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx` |
-| Pitch / investor deck | Present (draft PDF) | `venture-kureen-cyber/docs/pitch-deck.pdf` |
+| Pitch / investor deck | Draft PDF in package; **PR body path empty** until filled | `venture-kureen-cyber/docs/pitch-deck.pdf` |
 | One-pager | Present (draft PDF) | `venture-kureen-cyber/docs/one-pager.pdf` |
 | Market research | **TBD** | `venture-kureen-cyber/docs/market-research.md` (placeholder) |
 | Investor log | **TBD** (before Sunday merge) | `venture-kureen-cyber/INVESTOR_LOG.md` |

@@ -1,9 +1,8 @@
 ## Summary
-Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live; draft investor deck + one-pager are in-repo. External users are in progress (**7 as of 13-08-2026**). Investor touch log remains **TBD** and will be updated before the Sunday merge deadline — do not treat this draft as final submission.
+Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Opened today against `projects/summer26/phase-2-venture` (not `main`) so the platform scan can see it. Deck path is empty on purpose and will be filled before Sunday 16 Aug 2026, 17:00 Eastern merge.
 
 ## Investor deck link (in repo)
-`venture-kureen-cyber/docs/pitch-deck.pdf` (12-slide draft; editable source in product repo `docs/pitch-deck.html`)  
-One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
+
 
 ## Business plan path
 `venture-kureen-cyber/docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx`
@@ -13,19 +12,21 @@ One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 - **User metrics snapshot:** as of 13-08-2026
   - **Qualified external users:** 7
   - **Exclusions:** cohort members and ids containing `kureen-cyber` excluded
-  - **Note:** Gate is ≥25; will re-snapshot before Sunday merge when count is higher
+  - **Note:** Pass gate is ≥25; re-snapshot before Sunday merge. Metrics in this body are not a reason to delay opening the PR.
 
 ## Investor touch log (redact PII)
-**TBD** — ≥1 qualified touch to be logged in `venture-kureen-cyber/INVESTOR_LOG.md` (PII redacted) before Sunday merge; then paste the redacted entry here.
+**TBD** — ≥1 qualified touch to be logged in `venture-kureen-cyber/INVESTOR_LOG.md` (PII redacted) before Sunday merge.
 
 ## Agent usage
-- Research: Cohort venture curriculum deliverables; fork/upstream branch `projects/summer26/phase-2-venture`; inventory of CBManagement production + existing business plan DOCX
-- Dev: Scaffolded `venture-kureen-cyber/` package; linked live production URL; copied business plan; generated draft pitch deck + one-pager PDFs from HTML sources
-- QA: Verified https://cbmanagement.vercel.app/login returns HTTP 200; confirmed deck PDF is 12 pages; prepared push script for participant-authenticated cohort PR (agent token cannot write `kureen-cyber/hult-cohort-program`)
+- Research: Live program page + cohort `program.ts` (base `projects/summer26/phase-2-venture`, deadline Sunday week 5 17:00 ET); confirmed three `main` submissions are the invisible-scan failure mode.
+- Dev: Venture package under `venture-kureen-cyber/` + `submissions/kureen-cyber-p2-venture.md`; production app already live; deck path left empty to fill as we go.
+- QA: `GET https://cbmanagement.vercel.app` → 307 to `/login`; `/login` and `/signup` return HTTP 200.
 
 ## Test plan
-- [ ] Open https://cbmanagement.vercel.app/signup and create an account
-- [ ] Sign in → Dashboard / POS / Inventory / Reports / Settings load
-- [ ] Open business plan DOCX from `venture-kureen-cyber/docs/`
-- [ ] Open `venture-kureen-cyber/docs/pitch-deck.pdf` and review ask / traction slides
-- [ ] *(Later)* Update PR body with investor log + user metrics; mark ready for review
+- [x] Confirm PR base is `projects/summer26/phase-2-venture` (not `main`)
+- [x] Open https://cbmanagement.vercel.app/login (HTTP 200)
+- [x] Open https://cbmanagement.vercel.app/signup (HTTP 200)
+- [ ] Fill investor deck path in this PR body when the deck file is ready
+- [ ] Update user metrics snapshot before Sunday merge
+- [ ] Add redacted investor touch to `venture-kureen-cyber/INVESTOR_LOG.md` and this body
+- [ ] Do not merge until submitter explicitly requests merge

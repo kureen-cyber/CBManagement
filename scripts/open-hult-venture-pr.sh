@@ -27,13 +27,12 @@ git commit -m "Draft P2 Venture submission for kureen-cyber (CBManagement)"
 echo "==> Pushing branch…"
 git push -u origin participants/summer26/phase-2-venture/kureen-cyber
 
-echo "==> Opening draft PR to upstream…"
+echo "==> Opening PR to upstream (base projects/summer26/phase-2-venture, not main)…"
 gh pr create \
   --repo rogerSuperBuilderAlpha/hult-cohort-program \
   --base projects/summer26/phase-2-venture \
   --head kureen-cyber:participants/summer26/phase-2-venture/kureen-cyber \
   --title "[P2-Venture] Submission — kureen-cyber" \
-  --draft \
   --body-file "$SRC/PR_BODY.md"
 
-echo "Done. Review the draft PR URL above, then update TBD sections after deck + user evidence."
+echo "Done. Fill the empty deck path + investor log before Sunday 16 Aug 2026, 17:00 Eastern."

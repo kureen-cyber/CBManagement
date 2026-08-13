@@ -4,7 +4,7 @@
 **Venture:** CBManagement (Caribbean small-business ERP)  
 **Target repo for proof PR:** `rogerSuperBuilderAlpha/hult-cohort-program`  
 **Title pattern:** `[P2-Venture] Submission — kureen-cyber`  
-**Due (cohort docs):** Wed Aug 19, 2026 (17:00 Eastern)  
+**Due:** Sunday 16 Aug 2026, 17:00 Eastern (`projects/summer26/phase-2-venture`, not `main`)  
 **Last updated:** 13-08-2026
 
 ---
@@ -16,7 +16,7 @@
 | Production app live | Public deploy URL | **Done** | https://cbmanagement.vercel.app |
 | ≥25 verified external users | Unique non-cohort users + real action + date-stamped snapshot | **In progress** | **7** external users as of **13-08-2026**; need ≥25 before Sunday merge |
 | ≥1 qualified investor touch | Angel/VC/corp dev/family office; logged + PII redacted in public PR | **Missing** | `INVESTOR_LOG.md` placeholder; fill before Sunday merge |
-| Proof-of-work PR merged | PR into `hult-cohort-program` | **Not started** | Intentionally not opened yet |
+| Proof-of-work PR merged | PR into `hult-cohort-program` on `projects/summer26/phase-2-venture` | **Open today** | Deck path empty; fill before Sunday merge |
 
 ---
 
@@ -42,7 +42,7 @@
 | 16 | POS module | Cart + checkout + stock | **Done** | `/pos` + receipts + stock CSV export |
 | 17 | Core ERP modules | Dashboard, CRM, quotes, jobs, invoices, etc. | **Done (local)** | Next.js app on branch `cursor/pos-supabase-demo-f92d` |
 | 18 | Pricing (subscription-only) | No setup fees | **Done** | README + revised business plan |
-| 19 | Cohort proof PR | `submissions/kureen-cyber-p2-venture.md` (or participants path) | **Not opened** | Open only after gates 1–3 + artifacts ready |
+| 19 | Cohort proof PR | `submissions/kureen-cyber-p2-venture.md` + `venture-kureen-cyber/` | **Open today** | Base `projects/summer26/phase-2-venture`; deck path empty until filled |
 | 20 | ≥25 external users evidence | Metrics API or analytics snapshot date-stamped | **In progress** | Snapshot 13-08-2026: 7 users; re-count before merge |
 | 21 | Signup business type | Retail / Service / Both dropdown | **Done** | `/signup` + onboarding cookie/company |
 | 22 | Retail-only dashboard | POS-first home | **Done** | Retail dashboard + filtered nav |
@@ -68,7 +68,7 @@
 3. **Complete 5 customer interviews** → `docs/market-research.md`  
 4. **Pitch deck + one-pager PDFs**  
 5. **≥1 qualified investor engagement** → `INVESTOR_LOG.md` (redact PII for public PR)  
-6. **Open + merge proof PR** to `rogerSuperBuilderAlpha/hult-cohort-program`
+6. **Open + merge proof PR** to `rogerSuperBuilderAlpha/hult-cohort-program` on `projects/summer26/phase-2-venture` by Sunday 16 Aug 17:00 ET
 
 ### Production-grade gaps (curriculum bar)
 7. Privacy policy page  

@@ -1,31 +1,31 @@
-# Hult Cohort — Phase 2 Venture PR (draft)
+# Hult Cohort — Phase 2 Venture PR
 
-This folder is the **draft submission package** for:
+Official tracking PR (open today, fill as we go):
 
-`rogerSuperBuilderAlpha/hult-cohort-program`  
-Branch: `participants/summer26/phase-2-venture/kureen-cyber`  
-PR title: `[P2-Venture] Submission — kureen-cyber`  
-Base: `projects/summer26/phase-2-venture`
+- Repo: `rogerSuperBuilderAlpha/hult-cohort-program`
+- Title: `[P2-Venture] Submission — kureen-cyber`
+- Head: `participants/summer26/phase-2-venture/kureen-cyber`
+- Base: **`projects/summer26/phase-2-venture`** (not `main` — PRs to `main` scanned as invisible last week)
+- Deadline: **Sunday 16 Aug 2026, 17:00 Eastern**
+- Requirements: https://site-nine-rouge-68.vercel.app/program/phase-2-venture
 
-## Why it lives here first
+Deck path in the PR body is **empty** until we fill it.
 
-The cloud agent can push to `kureen-cyber/CBManagement` but **cannot push** to `kureen-cyber/hult-cohort-program` (403). Review the package here, then open the cohort PR from your GitHub login.
+## Open the cohort PR (run as kureen-cyber)
 
-## Open the cohort draft PR (you run once)
+This Cursor GitHub App install can only write `kureen-cyber/CBManagement`. The cohort fork is not in the install, so the cloud agent cannot push the participant branch.
+
+**Option A — add the fork to Cursor, then re-run the agent**
+
+1. GitHub → Settings → Applications → **Cursor** → Repository access  
+2. Add **`hult-cohort-program`** (your fork)  
+3. Re-run the venture agent on this repo
+
+**Option B — open it from your machine (one command)**
 
 ```bash
 cd /path/to/CBManagement
 bash scripts/open-hult-venture-pr.sh
 ```
 
-Requires: `gh` authenticated as **kureen-cyber**, network access.
-
-## Still needed from you (do not invent)
-
-1. Confirm production URL (agent used: https://cbmanagement.vercel.app) — OK?
-2. Review investor deck / one-pager PDFs under `hult-cohort-submission/venture-kureen-cyber/docs/` (edit HTML in product `docs/` if needed)
-3. Confirm business plan path — currently the DOCX in that same `docs/` folder
-4. Investor touch log (redacted) — paste into `INVESTOR_LOG.md` before Sunday merge
-5. Grow external users to ≥25 and re-snapshot (current: **7** as of 13-08-2026)
-
-After investor log + ≥25 users are ready, say “update the venture PR” and we refresh the TBD sections.
+Requires `gh` logged in as **kureen-cyber**.

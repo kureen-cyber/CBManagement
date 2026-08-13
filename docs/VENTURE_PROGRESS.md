@@ -32,8 +32,8 @@
 | 6 | Investor log | ≥1 qualified touchpoint | **Missing** | Create `INVESTOR_LOG.md` after real outreach |
 | 7 | Investor email / outreach | Cold emails with deck | **Missing** | Send outreach; keep redacted copies for evidence |
 | 8 | Production deploy | Live HTTPS URL in README | **Done** | https://cbmanagement.vercel.app |
-| 9 | Real auth | Supabase accounts (not demo-only) | **Partial** | Keys/URL in `.env.local`; schema/RLS SQL prepared; app still on SQLite for business data |
-| 10 | Supabase SQL schema + RLS | Tables, FKs, RLS, policies, seed | **Done (SQL ready)** | `supabase/schema.sql`, `reset.sql`, `SCHEMA_INVENTORY.md` — confirm fully applied in dashboard |
+| 9 | Real auth | Supabase accounts (not demo-only) | **Done** | Supabase Auth on production |
+| 10 | Supabase SQL schema + RLS | Tables, FKs, RLS, policies, seed | **Done (SQL ready)** | `supabase/schema.sql` — app runtime now on Neon Postgres |
 | 11 | Privacy policy page | Required for production-grade | **Missing** | Add `/privacy` page |
 | 12 | Error monitoring | Sentry or equivalent | **Missing** | Add Sentry (or similar) |
 | 13 | ≥5 automated tests | Critical path | **Missing** | Add Vitest/Jest/Playwright tests |

@@ -59,4 +59,6 @@ Subscription only for now (no setup fees).
 
 ## Stack
 
-Next.js · TypeScript · Tailwind · Prisma/SQLite · Supabase Auth · Vercel
+Next.js · TypeScript · Tailwind · Prisma / **Postgres** · Supabase Auth · Vercel
+
+Business data (inventory, sales, customers, settings) is stored in Postgres so it persists across devices. See `docs/DATABASE_CLAIM.md` to claim the database to a permanent Neon account.

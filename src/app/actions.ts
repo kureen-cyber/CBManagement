@@ -72,6 +72,42 @@ export async function createProduct(formData: FormData) {
   revalidatePath("/inventory");
   revalidatePath("/pos");
   revalidatePath("/");
+
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    unit: product.unit,
+    unitCost: product.unitCost,
+    unitPrice: product.unitPrice,
+    stockQty: product.stockQty,
+    minStock: product.minStock,
+    trackStock: product.trackStock,
+    isService: product.isService,
+  };
+}
+
+export async function deleteProduct(productId: string) {
+  const id = String(productId || "").trim();
+  if (!id) return { error: "Missing product" };
+
+  const product = await prisma.product.findUnique({ where: { id } });
+  if (!product) return { error: "Item not found" };
+
+  await prisma.$transaction([
+    prisma.stockMovement.deleteMany({ where: { productId: id } }),
+    prisma.saleLine.updateMany({ where: { productId: id }, data: { productId: null } }),
+    prisma.invoiceLine.updateMany({ where: { productId: id }, data: { productId: null } }),
+    prisma.quotationLine.updateMany({ where: { productId: id }, data: { productId: null } }),
+    prisma.jobMaterial.updateMany({ where: { productId: id }, data: { productId: null } }),
+    prisma.product.delete({ where: { id } }),
+  ]);
+
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  revalidatePath("/");
+
+  return { ok: true as const, id };
 }
 
 export async function createEmployee(formData: FormData) {

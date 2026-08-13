@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { completePosSale, createCustomer, createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
+import { ItemMenu } from "@/components/ItemMenu";
 
 type Product = {
   id: string;
@@ -20,7 +22,7 @@ type Customer = { id: string; name: string };
 type CartLine = { productId: string; name: string; unitPrice: number; quantity: number };
 
 export function PosTerminal({
-  products,
+  products: initialProducts,
   customers,
   retailMode = false,
 }: {
@@ -28,6 +30,8 @@ export function PosTerminal({
   customers: Customer[];
   retailMode?: boolean;
 }) {
+  const router = useRouter();
+  const [products, setProducts] = useState(initialProducts);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [method, setMethod] = useState("CASH");
   const [customerId, setCustomerId] = useState("");
@@ -38,6 +42,10 @@ export function PosTerminal({
   const [query, setQuery] = useState("");
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,6 +81,40 @@ export function PosTerminal({
     );
   }
 
+  function onProductDeleted(id: string) {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setCart((prev) => prev.filter((l) => l.productId !== id));
+    router.refresh();
+  }
+
+  function onCreateProduct(formData: FormData) {
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const created = await createProduct(formData);
+      if (created?.id) {
+        setProducts((prev) => {
+          if (prev.some((p) => p.id === created.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: created.id,
+              name: created.name,
+              unit: created.unit,
+              unitPrice: created.unitPrice,
+              stockQty: created.stockQty,
+              trackStock: created.trackStock,
+              isService: created.isService,
+            },
+          ].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setShowProductForm(false);
+        setMessage(`Added ${created.name} to inventory`);
+      }
+      router.refresh();
+    });
+  }
+
   function checkout() {
     setMessage(null);
     setError(null);
@@ -90,6 +132,7 @@ export function PosTerminal({
       setCart([]);
       setMessage(`Receipt ${result.number} — ${formatTTD(result.total ?? 0)}`);
       if (result.saleId) setReceiptHref(`/pos/receipt/${result.saleId}`);
+      router.refresh();
     });
   }
 
@@ -151,7 +194,7 @@ export function PosTerminal({
       {showProductForm ? (
         <div className="panel" style={{ padding: "1rem" }}>
           <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory item</h3>
-          <form action={createProduct} className="form-grid">
+          <form action={onCreateProduct} className="form-grid">
             <label className="field">
               Name
               <input name="name" required placeholder="Soft drink 500ml" />
@@ -179,8 +222,8 @@ export function PosTerminal({
             <input type="hidden" name="unit" value="each" />
             <input type="hidden" name="trackStock" value="on" />
             <div className="full">
-              <button className="btn btn-primary btn-sm" type="submit">
-                Save item
+              <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Save item"}
               </button>
             </div>
           </form>
@@ -196,20 +239,26 @@ export function PosTerminal({
           />
           <div className="product-grid">
             {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="product-tile"
-                onClick={() => addProduct(p)}
-              >
-                <div className="name">{p.name}</div>
-                <div className="meta money">{formatTTD(p.unitPrice)}</div>
-                <div className="meta">
-                  {p.isService || !p.trackStock
-                    ? "Service"
-                    : `Stock ${p.stockQty} ${p.unit}`}
-                </div>
-              </button>
+              <div key={p.id} className="product-tile-wrap">
+                <ItemMenu
+                  productId={p.id}
+                  productName={p.name}
+                  onDeleted={onProductDeleted}
+                />
+                <button
+                  type="button"
+                  className="product-tile"
+                  onClick={() => addProduct(p)}
+                >
+                  <div className="name">{p.name}</div>
+                  <div className="meta money">{formatTTD(p.unitPrice)}</div>
+                  <div className="meta">
+                    {p.isService || !p.trackStock
+                      ? "Service"
+                      : `Stock ${p.stockQty} ${p.unit}`}
+                  </div>
+                </button>
+              </div>
             ))}
             {filtered.length === 0 ? (
               <div className="muted">No products match.</div>

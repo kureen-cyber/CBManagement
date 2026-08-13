@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CBManagement — Investor Pitch Deck</title>
+  <style>
+    @page { size: 13.333in 7.5in; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #142426;
+      background: #0b3d40;
+    }
+    .slide {
+      width: 13.333in;
+      height: 7.5in;
+      padding: 0.7in 0.85in;
+      page-break-after: always;
+      break-after: page;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(900px 420px at 0% 0%, rgba(61, 184, 188, 0.18), transparent 55%),
+        radial-gradient(700px 380px at 100% 10%, rgba(196, 92, 38, 0.16), transparent 50%),
+        linear-gradient(145deg, #f4faf9 0%, #eef6f5 45%, #f7f3eb 100%);
+    }
+    .slide.dark {
+      background:
+        radial-gradient(900px 420px at 10% -10%, rgba(61, 184, 188, 0.22), transparent 50%),
+        radial-gradient(700px 380px at 100% 0%, rgba(196, 92, 38, 0.18), transparent 45%),
+        linear-gradient(160deg, #064e51 0%, #0a5558 55%, #083f42 100%);
+      color: #f4fbfb;
+    }
+    .brand {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0a6b6e;
+      margin: 0 0 0.35in;
+    }
+    .dark .brand { color: #9ad9db; }
+    h1 {
+      font-size: 52px;
+      line-height: 1.05;
+      margin: 0 0 0.25in;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    h2 {
+      font-size: 36px;
+      margin: 0 0 0.28in;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #064e51;
+    }
+    .dark h2 { color: #fff; }
+    .subtitle {
+      font-size: 22px;
+      line-height: 1.35;
+      max-width: 10in;
+      color: #3d5558;
+      margin: 0;
+    }
+    .dark .subtitle { color: rgba(244,251,251,0.88); }
+    .tag {
+      display: inline-block;
+      padding: 0.12in 0.22in;
+      border-radius: 999px;
+      background: #c45c26;
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 0.25in;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35in;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.28in;
+    }
+    .card {
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(10,107,110,0.18);
+      border-radius: 18px;
+      padding: 0.28in 0.3in;
+      box-shadow: 0 10px 30px rgba(6,78,81,0.08);
+    }
+    .dark .card {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.14);
+      box-shadow: none;
+    }
+    .card h3 {
+      margin: 0 0 0.12in;
+      font-size: 20px;
+      color: #0a6b6e;
+    }
+    .dark .card h3 { color: #9ad9db; }
+    .card p, .card li {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.4;
+      color: #2a3d40;
+    }
+    .dark .card p, .dark .card li { color: rgba(244,251,251,0.9); }
+    ul { padding-left: 0.22in; margin: 0.08in 0 0; }
+    li { margin: 0.08in 0; }
+    .footer {
+      position: absolute;
+      left: 0.85in;
+      right: 0.85in;
+      bottom: 0.35in;
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #6a7d80;
+    }
+    .dark .footer { color: rgba(244,251,251,0.55); }
+    .big-number {
+      font-size: 42px;
+      font-weight: 800;
+      color: #c45c26;
+      line-height: 1;
+      margin: 0.08in 0;
+    }
+    .dark .big-number { color: #e07a45; }
+    .muted { color: #5c6b6e; font-size: 15px; }
+    .dark .muted { color: rgba(244,251,251,0.7); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 16px;
+      margin-top: 0.1in;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.14in 0.12in;
+      border-bottom: 1px solid rgba(10,107,110,0.18);
+    }
+    th { color: #0a6b6e; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .cta {
+      display: inline-block;
+      margin-top: 0.3in;
+      padding: 0.16in 0.3in;
+      background: #0a6b6e;
+      color: white;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 18px;
+      text-decoration: none;
+    }
+    .ask-box {
+      margin-top: 0.25in;
+      padding: 0.28in;
+      border-radius: 18px;
+      background: linear-gradient(120deg, #0a6b6e, #0e7a7d);
+      color: white;
+    }
+    .ask-box h3 { margin: 0 0 0.1in; color: white; font-size: 22px; }
+    .ask-box p { margin: 0; font-size: 18px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Title -->
+  <section class="slide dark">
+    <div class="tag">Investor pitch · Hult Cohort 2026</div>
+    <div class="brand">CBManagement</div>
+    <h1>Run your entire<br/>business from<br/>one place.</h1>
+    <p class="subtitle">
+      Affordable cloud ERP + POS for small businesses in Trinidad &amp; Tobago
+      and the Caribbean — built for WhatsApp-era operators, not enterprise IT teams.
+    </p>
+    <p style="margin-top:0.45in;font-size:18px;opacity:0.9">
+      Live product · https://cbmanagement.vercel.app
+    </p>
+    <div class="footer"><span>CBManagement</span><span>1 / 12</span></div>
+  </section>
+
+  <!-- 2. Problem -->
+  <section class="slide">
+    <div class="brand">Problem</div>
+    <h2>Caribbean SMEs run on chaos stacks</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Today’s reality</h3>
+        <ul>
+          <li>WhatsApp for orders &amp; customer chat</li>
+          <li>Spreadsheets for stock &amp; jobs</li>
+          <li>Notebooks for expenses</li>
+          <li>Separate tools for invoicing</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What breaks</h3>
+        <ul>
+          <li>Lost information between chats &amp; books</li>
+          <li>Late invoices and weak collections</li>
+          <li>No clear cash-flow visibility</li>
+          <li>Hard to know if a job actually made money</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:0.35in">
+      Enterprise ERPs are too expensive and too complex. Generic global tools ignore TTD pricing,
+      local VAT, and how Caribbean service + retail shops actually work.
+    </p>
+    <div class="footer"><span>CBManagement</span><span>2 / 12</span></div>
+  </section>
+
+  <!-- 3. Solution -->
+  <section class="slide">
+    <div class="brand">Solution</div>
+    <h2>One business OS for retail &amp; service</h2>
+    <div class="grid-3">
+      <div class="card"><h3>Sell</h3><p>POS, receipts, fixed-price services, VAT/tax controls, printers.</p></div>
+      <div class="card"><h3>Operate</h3><p>Customers, inventory categories, jobs/quotations, suppliers, employees.</p></div>
+      <div class="card"><h3>Know</h3><p>Plain-language dashboard + colourful reports: income, expenses, by item/category.</p></div>
+    </div>
+    <div class="card" style="margin-top:0.3in">
+      <h3>Designed for signup reality</h3>
+      <p>Choose <strong>Retail</strong>, <strong>Service</strong>, or <strong>Both</strong> — the app shapes navigation and home layout around how you earn.</p>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>3 / 12</span></div>
+  </section>
+
+  <!-- 4. Product -->
+  <section class="slide">
+    <div class="brand">Product</div>
+    <h2>Live production app</h2>
+    <div class="grid-2">
+      <div>
+        <ul style="font-size:18px;line-height:1.55;color:#2a3d40">
+          <li>Supabase Auth (real accounts)</li>
+          <li>Postgres-backed business data</li>
+          <li>POS + inventory + services</li>
+          <li>Invoices, payments, expenses</li>
+          <li>Settings: theme, language, VAT, printers</li>
+          <li>Reports with search by item &amp; category</li>
+        </ul>
+        <a class="cta" href="https://cbmanagement.vercel.app">cbmanagement.vercel.app</a>
+      </div>
+      <div class="card">
+        <h3>V1 modules shipped</h3>
+        <p>Dashboard · Customers · Quotations · Jobs · Invoices · Payments · Expenses · Inventory · Suppliers · Employees · Reports · POS · Settings</p>
+        <p class="muted" style="margin-top:0.2in">Built with Next.js, TypeScript, Prisma, Supabase Auth, Postgres, Vercel.</p>
+      </div>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>4 / 12</span></div>
+  </section>
+
+  <!-- 5. Market -->
+  <section class="slide">
+    <div class="brand">Market</div>
+    <h2>Caribbean SME software, starting in T&amp;T</h2>
+    <div class="grid-3">
+      <div class="card">
+        <h3>ICP</h3>
+        <p>Trades, contractors, repair shops, bakeries, hardware, beauty, and mixed retail/service businesses that outgrew notebooks.</p>
+      </div>
+      <div class="card">
+        <h3>Beachhead</h3>
+        <p>Trinidad &amp; Tobago first — TTD pricing, local VAT, WhatsApp-era workflows — then wider Caribbean.</p>
+      </div>
+      <div class="card">
+        <h3>Why now</h3>
+        <p>Cloud + phone adoption is high; operators want simple SaaS, not accountant software or US-priced POS stacks.</p>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:0.35in">
+      Market sizing detail lives in the business plan; interview packet is being completed for cohort submission.
+    </p>
+    <div class="footer"><span>CBManagement</span><span>5 / 12</span></div>
+  </section>
+
+  <!-- 6. Competition -->
+  <section class="slide">
+    <div class="brand">Competition</div>
+    <h2>Where we win</h2>
+    <table>
+      <thead>
+        <tr><th>Alternative</th><th>Gap</th><th>CBManagement wedge</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>WhatsApp + Excel</td><td>No system of record</td><td>One app for sell → stock → cash</td></tr>
+        <tr><td>Global POS tools</td><td>USD pricing, retail-only bias</td><td>TTD SaaS; retail + service together</td></tr>
+        <tr><td>Enterprise ERP</td><td>Cost + implementation burden</td><td>Self-serve, no setup fees</td></tr>
+        <tr><td>Accounting-only apps</td><td>Weak ops/POS/jobs</td><td>Operations-first dashboard</td></tr>
+      </tbody>
+    </table>
+    <div class="footer"><span>CBManagement</span><span>6 / 12</span></div>
+  </section>
+
+  <!-- 7. Business model -->
+  <section class="slide">
+    <div class="brand">Business model</div>
+    <h2>Subscription-only SaaS</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Pricing (TTD, VAT-exclusive)</h3>
+        <table>
+          <tr><td>Starter</td><td><strong>TT$99 / mo</strong></td><td>TT$999 / yr</td></tr>
+          <tr><td>Business (flagship)</td><td><strong>TT$199 / mo</strong></td><td>TT$1,999 / yr</td></tr>
+          <tr><td>Professional</td><td><strong>TT$399 / mo</strong></td><td>TT$3,999 / yr</td></tr>
+          <tr><td>Enterprise</td><td><strong>TT$750+ / mo</strong></td><td>TT$7,500+ / yr</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Model notes</h3>
+        <ul>
+          <li>No setup / onboarding fees</li>
+          <li>Blended ARPU target ≈ TT$199</li>
+          <li>Extra seats ~TT$25–40 / user / mo</li>
+          <li>Annual ≈ 2 months free vs monthly</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>7 / 12</span></div>
+  </section>
+
+  <!-- 8. Traction -->
+  <section class="slide">
+    <div class="brand">Traction</div>
+    <h2>Shipped in production</h2>
+    <div class="grid-3">
+      <div class="card"><div class="big-number">Live</div><p>Public HTTPS app on Vercel with real signup/sign-in.</p></div>
+      <div class="card"><div class="big-number">V1</div><p>Full SME module set: POS, inventory, jobs, invoices, reports.</p></div>
+      <div class="card"><div class="big-number">TTD</div><p>Native currency, VAT toggle, Caribbean-first UX copy.</p></div>
+    </div>
+    <div class="card" style="margin-top:0.3in">
+      <h3>Near-term traction goals</h3>
+      <p>≥25 qualified external users (cohort pass gate) · first paying Business subscriber · WhatsApp/trade group pilots in T&amp;T.</p>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>8 / 12</span></div>
+  </section>
+
+  <!-- 9. Go-to-market -->
+  <section class="slide">
+    <div class="brand">Go-to-market</div>
+    <h2>Win shops where they already gather</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Channels</h3>
+        <ul>
+          <li>Direct outreach to trades &amp; retailers</li>
+          <li>WhatsApp business groups</li>
+          <li>Facebook / Instagram local ads &amp; demos</li>
+          <li>Accountant &amp; consultant partnerships</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Motion</h3>
+        <ul>
+          <li>14–30 day free trial</li>
+          <li>Industry templates (trades first)</li>
+          <li>Retail POS-first onboarding</li>
+          <li>Service job + invoice workflows</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>9 / 12</span></div>
+  </section>
+
+  <!-- 10. Financials -->
+  <section class="slide">
+    <div class="brand">Financials (conservative)</div>
+    <h2>3-year subscription ramp</h2>
+    <div class="grid-3">
+      <div class="card"><h3>Year 1</h3><div class="big-number">~15</div><p>Avg paying customers · EOY ~25 · ARPU TT$199</p></div>
+      <div class="card"><h3>Year 2</h3><div class="big-number">~50</div><p>Avg paying customers · EOY ~70</p></div>
+      <div class="card"><h3>Year 3</h3><div class="big-number">~120</div><p>Avg paying customers · EOY ~160</p></div>
+    </div>
+    <div class="card" style="margin-top:0.28in">
+      <h3>Assumptions</h3>
+      <p>~3% monthly logo churn · founder-led Year 1 · seed capital midpoint TT$30k (range TT$25–40k) · VAT excluded from plan figures.</p>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>10 / 12</span></div>
+  </section>
+
+  <!-- 11. Team / ask -->
+  <section class="slide">
+    <div class="brand">Team &amp; ask</div>
+    <h2>Founder-led build, capital to accelerate</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Team</h3>
+        <ul>
+          <li><strong>@kureen-cyber</strong> — founder / builder</li>
+          <li>Hult Cohort Developer Program Summer Pilot 2026</li>
+          <li>Shipping agent-assisted product development</li>
+        </ul>
+      </div>
+      <div class="ask-box">
+        <h3>The ask</h3>
+        <p><strong>TT$25,000–40,000</strong> seed to fund customer acquisition, local support, and product hardening (monitoring, privacy, multi-tenant depth) while converting trial SMEs to paid Business plans.</p>
+      </div>
+    </div>
+    <div class="footer"><span>CBManagement</span><span>11 / 12</span></div>
+  </section>
+
+  <!-- 12. Close -->
+  <section class="slide dark">
+    <div class="brand">CBManagement</div>
+    <h1>One place to run<br/>the Caribbean SME.</h1>
+    <p class="subtitle">
+      Live now at https://cbmanagement.vercel.app · Signup open · Investor conversations welcome.
+    </p>
+    <div class="grid-3" style="margin-top:0.45in">
+      <div class="card"><h3>Product</h3><p>ERP + POS for retail &amp; service</p></div>
+      <div class="card"><h3>Model</h3><p>TTD subscriptions, no setup fees</p></div>
+      <div class="card"><h3>Next</h3><p>Users · paid pilots · Caribbean expansion</p></div>
+    </div>
+    <div class="footer"><span>CBManagement · Confidential</span><span>12 / 12</span></div>
+  </section>
+
+</body>
+</html>

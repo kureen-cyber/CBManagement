@@ -26,6 +26,22 @@ export const EXPENSE_CATEGORIES = [
   "Other",
 ] as const;
 
+/** Categories for inventory items and fixed-price services on POS */
+export const PRODUCT_CATEGORIES = [
+  "General",
+  "Retail",
+  "Food & drink",
+  "Electronics",
+  "Clothing",
+  "Hardware",
+  "Beauty",
+  "Service — labour",
+  "Service — repair",
+  "Service — consult",
+  "Service — fixed price",
+  "Other",
+] as const;
+
 export function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

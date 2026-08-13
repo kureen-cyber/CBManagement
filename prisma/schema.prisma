@@ -67,6 +67,8 @@ model Product {
   name        String
   sku         String?
   description String?
+  /// Retail / service category for POS + reports
+  category    String  @default("General")
   unit        String  @default("each")
   unitCost    Int     @default(0)
   unitPrice   Int     @default(0)

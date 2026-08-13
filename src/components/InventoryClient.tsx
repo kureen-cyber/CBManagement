@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
+import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { ItemMenu } from "@/components/ItemMenu";
 import { Panel } from "@/components/ui";
 
@@ -11,6 +12,7 @@ export type InventoryProduct = {
   id: string;
   name: string;
   sku: string | null;
+  category: string;
   unit: string;
   unitCost: number;
   unitPrice: number;
@@ -32,6 +34,7 @@ export function InventoryClient({
   const [products, setProducts] = useState(initialProducts);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [isService, setIsService] = useState(false);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -50,6 +53,7 @@ export function InventoryClient({
               id: created.id,
               name: created.name,
               sku: created.sku,
+              category: created.category,
               unit: created.unit,
               unitCost: created.unitCost,
               unitPrice: created.unitPrice,
@@ -62,6 +66,7 @@ export function InventoryClient({
           ].sort((a, b) => a.name.localeCompare(b.name));
         });
         setMessage(`Saved “${created.name}”`);
+        setIsService(false);
       }
       router.refresh();
     });
@@ -78,11 +83,21 @@ export function InventoryClient({
         <form action={onCreate} className="form-grid">
           <label className="field">
             Name
-            <input name="name" required />
+            <input name="name" required placeholder="Item or fixed-price service" />
           </label>
           <label className="field">
             SKU
             <input name="sku" />
+          </label>
+          <label className="field">
+            Category
+            <select name="category" defaultValue="General" required>
+              {PRODUCT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="field">
             Unit
@@ -104,30 +119,46 @@ export function InventoryClient({
             <input name="unitCost" type="number" step="0.01" defaultValue="0" />
           </label>
           <label className="field">
-            Unit price
+            Unit price (fixed)
             <input name="unitPrice" type="number" step="0.01" defaultValue="0" />
           </label>
-          <label className="field">
-            Opening stock
-            <input name="stockQty" type="number" step="0.01" defaultValue="0" />
-          </label>
-          <label className="field">
-            Min stock
-            <input name="minStock" type="number" step="0.01" defaultValue="10" />
-          </label>
+          {!isService ? (
+            <>
+              <label className="field">
+                Opening stock
+                <input name="stockQty" type="number" step="0.01" defaultValue="0" />
+              </label>
+              <label className="field">
+                Min stock
+                <input name="minStock" type="number" step="0.01" defaultValue="10" />
+              </label>
+            </>
+          ) : null}
           <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
-            <input name="trackStock" type="checkbox" defaultChecked /> Track stock
+            <input
+              name="isService"
+              type="checkbox"
+              checked={isService}
+              onChange={(e) => setIsService(e.target.checked)}
+            />{" "}
+            Service (fixed price — also shows on POS)
           </label>
-          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
-            <input name="isService" type="checkbox" /> Service (no stock)
-          </label>
+          {!isService ? (
+            <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+              <input name="trackStock" type="checkbox" defaultChecked /> Track stock
+            </label>
+          ) : null}
           <div className="full">
             <button className="btn btn-primary" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save item"}
             </button>
           </div>
         </form>
-        {message ? <div className="badge badge-ok" style={{ marginTop: "0.75rem" }}>{message}</div> : null}
+        {message ? (
+          <div className="badge badge-ok" style={{ marginTop: "0.75rem" }}>
+            {message}
+          </div>
+        ) : null}
       </Panel>
 
       <div className="inventory-grid">
@@ -138,7 +169,9 @@ export function InventoryClient({
               <ItemMenu productId={p.id} productName={p.name} onDeleted={onDeleted} />
               <div className="name">{p.name}</div>
               <div className="muted" style={{ fontSize: "0.8rem" }}>
-                {p.sku || (p.isService ? "Service" : p.unit)}
+                {p.category}
+                {p.sku ? ` · ${p.sku}` : ""}
+                {p.isService ? " · Service" : ""}
                 {p.supplierName ? ` · ${p.supplierName}` : ""}
               </div>
               <div className="row" style={{ marginTop: "0.75rem", justifyContent: "space-between" }}>
@@ -156,10 +189,10 @@ export function InventoryClient({
                 </div>
               </div>
               <div style={{ marginTop: "0.75rem" }}>
-                {low ? (
-                  <span className="badge badge-warn">Low stock</span>
-                ) : p.isService ? (
+                {p.isService ? (
                   <span className="badge badge-info">Service</span>
+                ) : low ? (
+                  <span className="badge badge-warn">Low stock</span>
                 ) : (
                   <span className="badge badge-ok">OK</span>
                 )}
@@ -167,9 +200,7 @@ export function InventoryClient({
             </div>
           );
         })}
-        {products.length === 0 ? (
-          <div className="muted">No inventory items yet.</div>
-        ) : null}
+        {products.length === 0 ? <div className="muted">No inventory items yet.</div> : null}
       </div>
     </div>
   );

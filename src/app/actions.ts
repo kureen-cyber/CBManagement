@@ -41,16 +41,18 @@ export async function createProduct(formData: FormData) {
   const trackStock = formData.get("trackStock") === "on";
   const isService = formData.get("isService") === "on";
   const opening = Number(formData.get("stockQty") || 0);
+  const category = String(formData.get("category") || "General").trim() || "General";
 
   const product = await prisma.product.create({
     data: {
       name: String(formData.get("name") || "").trim(),
       sku: String(formData.get("sku") || "") || null,
+      category,
       unit: String(formData.get("unit") || "each"),
       unitCost: dollarsToCents(formData.get("unitCost")),
       unitPrice: dollarsToCents(formData.get("unitPrice")),
       minStock: Number(formData.get("minStock") || 0),
-      stockQty: opening,
+      stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
       supplierId: String(formData.get("supplierId") || "") || null,
@@ -71,12 +73,14 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath("/inventory");
   revalidatePath("/pos");
+  revalidatePath("/reports");
   revalidatePath("/");
 
   return {
     id: product.id,
     name: product.name,
     sku: product.sku,
+    category: product.category,
     unit: product.unit,
     unitCost: product.unitCost,
     unitPrice: product.unitPrice,

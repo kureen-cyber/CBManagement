@@ -5,11 +5,13 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { completePosSale, createCustomer, createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
+import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { ItemMenu } from "@/components/ItemMenu";
 
 type Product = {
   id: string;
   name: string;
+  category: string;
   unit: string;
   unitPrice: number;
   stockQty: number;
@@ -40,18 +42,31 @@ export function PosTerminal({
   const [receiptHref, setReceiptHref] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [registerAsService, setRegisterAsService] = useState(false);
 
   useEffect(() => {
     setProducts(initialProducts);
   }, [initialProducts]);
 
+  const categories = useMemo(() => {
+    const set = new Set(products.map((p) => p.category || "General"));
+    return ["ALL", ...[...set].sort()];
+  }, [products]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) => p.name.toLowerCase().includes(q));
-  }, [products, query]);
+    return products.filter((p) => {
+      if (categoryFilter !== "ALL" && (p.category || "General") !== categoryFilter) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.category || "").toLowerCase().includes(q)
+      );
+    });
+  }, [products, query, categoryFilter]);
 
   const total = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
 
@@ -100,6 +115,7 @@ export function PosTerminal({
             {
               id: created.id,
               name: created.name,
+              category: created.category,
               unit: created.unit,
               unitPrice: created.unitPrice,
               stockQty: created.stockQty,
@@ -109,6 +125,7 @@ export function PosTerminal({
           ].sort((a, b) => a.name.localeCompare(b.name));
         });
         setShowProductForm(false);
+        setRegisterAsService(false);
         setMessage(`Added ${created.name} to inventory`);
       }
       router.refresh();
@@ -193,11 +210,21 @@ export function PosTerminal({
 
       {showProductForm ? (
         <div className="panel" style={{ padding: "1rem" }}>
-          <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory item</h3>
+          <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory / service</h3>
           <form action={onCreateProduct} className="form-grid">
             <label className="field">
               Name
-              <input name="name" required placeholder="Soft drink 500ml" />
+              <input name="name" required placeholder="Soft drink or Oil change" />
+            </label>
+            <label className="field">
+              Category
+              <select name="category" defaultValue="General" required>
+                {PRODUCT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="field">
               SKU
@@ -211,16 +238,29 @@ export function PosTerminal({
               Unit cost (TT$)
               <input name="unitCost" type="number" step="0.01" defaultValue="6" />
             </label>
-            <label className="field">
-              Opening stock
-              <input name="stockQty" type="number" step="1" defaultValue="20" />
-            </label>
-            <label className="field">
-              Min stock
-              <input name="minStock" type="number" step="1" defaultValue="5" />
+            {!registerAsService ? (
+              <>
+                <label className="field">
+                  Opening stock
+                  <input name="stockQty" type="number" step="1" defaultValue="20" />
+                </label>
+                <label className="field">
+                  Min stock
+                  <input name="minStock" type="number" step="1" defaultValue="5" />
+                </label>
+              </>
+            ) : null}
+            <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+              <input
+                name="isService"
+                type="checkbox"
+                checked={registerAsService}
+                onChange={(e) => setRegisterAsService(e.target.checked)}
+              />
+              Fixed-price service (lists on POS)
             </label>
             <input type="hidden" name="unit" value="each" />
-            <input type="hidden" name="trackStock" value="on" />
+            {!registerAsService ? <input type="hidden" name="trackStock" value="on" /> : null}
             <div className="full">
               <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
                 {pending ? "Saving…" : "Save item"}
@@ -232,11 +272,25 @@ export function PosTerminal({
 
       <div className="pos-layout">
         <div className="stack">
-          <input
-            placeholder="Search products…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="row">
+            <input
+              placeholder="Search products or services…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{ maxWidth: 200 }}
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c === "ALL" ? "All categories" : c}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="product-grid">
             {filtered.map((p) => (
               <div key={p.id} className="product-tile-wrap">
@@ -253,6 +307,8 @@ export function PosTerminal({
                   <div className="name">{p.name}</div>
                   <div className="meta money">{formatTTD(p.unitPrice)}</div>
                   <div className="meta">
+                    {p.category}
+                    {" · "}
                     {p.isService || !p.trackStock
                       ? "Service"
                       : `Stock ${p.stockQty} ${p.unit}`}

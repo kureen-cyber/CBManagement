@@ -22,6 +22,7 @@ export default async function InventoryPage() {
           id: p.id,
           name: p.name,
           sku: p.sku,
+          category: p.category,
           unit: p.unit,
           unitCost: p.unitCost,
           unitPrice: p.unitPrice,

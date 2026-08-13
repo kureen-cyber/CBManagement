@@ -4,18 +4,46 @@ import { useMemo, useState } from "react";
 import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
 
+export type SaleLineReport = {
+  id: string;
+  description: string;
+  category: string;
+  isService: boolean;
+  quantity: number;
+  lineTotal: number;
+  soldAt: string;
+  saleNumber: string;
+  method: string;
+};
+
 export type ReportsData = {
   income: number;
   expenses: number;
   receivables: number;
   pos: number;
+  posRetail: number;
+  posService: number;
+  serviceIncome: number;
+  otherIncome: number;
   profit: number;
   expenseByCategory: { category: string; amount: number }[];
   paymentMethods: { method: string; amount: number }[];
+  incomeByCategory: { category: string; amount: number; kind: string }[];
+  salesByItem: { name: string; category: string; qty: number; amount: number; isService: boolean }[];
+  salesByCategory: { category: string; qty: number; amount: number }[];
+  saleLines: SaleLineReport[];
   weekly: { label: string; income: number; expenses: number }[];
 };
 
-type TabId = "overview" | "income" | "expenses" | "receivables" | "pos";
+type TabId =
+  | "overview"
+  | "income"
+  | "expenses"
+  | "receivables"
+  | "pos"
+  | "by-item"
+  | "by-category"
+  | "sales-summary";
 
 const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "overview", label: "Overview", color: "#0a6b6e" },
@@ -23,9 +51,12 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "expenses", label: "Expenses", color: "#c45c26" },
   { id: "receivables", label: "Receivables", color: "#5b4db8" },
   { id: "pos", label: "POS", color: "#0e7cc0" },
+  { id: "by-item", label: "By item", color: "#db2777" },
+  { id: "by-category", label: "By category", color: "#b45309" },
+  { id: "sales-summary", label: "Sales summary", color: "#0f766e" },
 ];
 
-const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777"];
+const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777", "#0f766e"];
 
 function DonutChart({
   slices,
@@ -155,17 +186,50 @@ function MetricStrip({
   );
 }
 
+function SearchBar({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      className="report-search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+    />
+  );
+}
+
 export function ReportsDashboard({ data }: { data: ReportsData }) {
   const [tab, setTab] = useState<TabId>("overview");
+  const [itemQuery, setItemQuery] = useState("");
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [summaryQuery, setSummaryQuery] = useState("");
 
   const overviewSlices = useMemo(
     () => [
-      { label: "Income", value: data.income, color: "#1f7a4d" },
+      { label: "POS retail", value: data.posRetail, color: "#0e7cc0" },
+      { label: "POS / service sales", value: data.posService, color: "#5b4db8" },
+      { label: "Other income", value: data.otherIncome, color: "#1f7a4d" },
       { label: "Expenses", value: data.expenses, color: "#c45c26" },
-      { label: "Receivables", value: data.receivables, color: "#5b4db8" },
-      { label: "POS", value: data.pos, color: "#0e7cc0" },
+      { label: "Receivables", value: data.receivables, color: "#b45309" },
     ],
     [data],
+  );
+
+  const incomeSlices = useMemo(
+    () =>
+      data.incomeByCategory.map((e, i) => ({
+        label: e.category,
+        value: e.amount,
+        color: CHART_COLORS[i % CHART_COLORS.length],
+      })),
+    [data.incomeByCategory],
   );
 
   const expenseSlices = useMemo(
@@ -178,15 +242,33 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
     [data.expenseByCategory],
   );
 
-  const methodSlices = useMemo(
-    () =>
-      data.paymentMethods.map((m, i) => ({
-        label: m.method,
-        value: m.amount,
-        color: CHART_COLORS[(i + 2) % CHART_COLORS.length],
-      })),
-    [data.paymentMethods],
-  );
+  const filteredItems = useMemo(() => {
+    const q = itemQuery.trim().toLowerCase();
+    if (!q) return data.salesByItem;
+    return data.salesByItem.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q),
+    );
+  }, [data.salesByItem, itemQuery]);
+
+  const filteredCategories = useMemo(() => {
+    const q = categoryQuery.trim().toLowerCase();
+    if (!q) return data.salesByCategory;
+    return data.salesByCategory.filter((r) => r.category.toLowerCase().includes(q));
+  }, [data.salesByCategory, categoryQuery]);
+
+  const filteredLines = useMemo(() => {
+    const q = summaryQuery.trim().toLowerCase();
+    if (!q) return data.saleLines;
+    return data.saleLines.filter(
+      (r) =>
+        r.description.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        r.saleNumber.toLowerCase().includes(q) ||
+        r.method.toLowerCase().includes(q),
+    );
+  }, [data.saleLines, summaryQuery]);
 
   return (
     <div className="stack reports-dashboard">
@@ -194,12 +276,12 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
         <div className="reports-hero-copy">
           <h2>This month at a glance</h2>
           <p className="muted">
-            Colourful charts of income, spend, receivables, and POS — switch tabs below for details.
+            POS retail + service income together, with search by item, category, and sales summary.
           </p>
         </div>
         <MetricStrip
           items={[
-            { label: "Income", value: formatTTD(data.income), tone: "#1f7a4d" },
+            { label: "Total income", value: formatTTD(data.income), tone: "#1f7a4d" },
             { label: "Expenses", value: formatTTD(data.expenses), tone: "#c45c26" },
             { label: "Profit", value: formatTTD(data.profit), tone: data.profit >= 0 ? "#0a6b6e" : "#b42318" },
             { label: "POS", value: formatTTD(data.pos), tone: "#0e7cc0" },
@@ -250,7 +332,7 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
           </p>
           <div className="kpi-grid" style={{ marginTop: "1rem" }}>
             <div className="report-stat sea">
-              <div className="label">Income</div>
+              <div className="label">Total income</div>
               <div className="value money">{formatTTD(data.income)}</div>
             </div>
             <div className="report-stat accent">
@@ -272,19 +354,51 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
       {tab === "income" ? (
         <Panel className="report-tab-panel">
           <h3>Income</h3>
-          <p className="muted">Payments received this month, by method.</p>
-          <DonutChart slices={methodSlices.length ? methodSlices : [{ label: "No payments", value: 0, color: "#ccc" }]} />
+          <p className="muted">
+            POS retail sales and service income are both included, broken down by category.
+          </p>
+          <div className="kpi-grid" style={{ marginTop: "0.75rem", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            <div className="report-stat blue">
+              <div className="label">POS retail</div>
+              <div className="value money">{formatTTD(data.posRetail)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Service income</div>
+              <div className="value money">{formatTTD(data.serviceIncome)}</div>
+            </div>
+            <div className="report-stat sea">
+              <div className="label">Other payments</div>
+              <div className="value money">{formatTTD(data.otherIncome)}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: "1rem" }}>
+            <DonutChart
+              slices={
+                incomeSlices.length
+                  ? incomeSlices
+                  : [{ label: "No income", value: 0, color: "#ccc" }]
+              }
+            />
+          </div>
           <div className="stack" style={{ marginTop: "1rem" }}>
-            {data.paymentMethods.map((m) => (
-              <div key={m.method} className="row" style={{ justifyContent: "space-between" }}>
-                <span>{m.method}</span>
-                <strong className="money">{formatTTD(m.amount)}</strong>
+            {data.incomeByCategory.map((row) => (
+              <div key={`${row.kind}-${row.category}`} className="row" style={{ justifyContent: "space-between" }}>
+                <span>
+                  {row.category}
+                  <span className="muted" style={{ marginLeft: "0.45rem", fontSize: "0.8rem" }}>
+                    {row.kind}
+                  </span>
+                </span>
+                <strong className="money">{formatTTD(row.amount)}</strong>
               </div>
             ))}
-            {data.paymentMethods.length === 0 ? (
+            {data.incomeByCategory.length === 0 ? (
               <div className="muted">No income recorded this month yet.</div>
             ) : null}
-            <div className="row" style={{ justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "0.75rem" }}>
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "0.75rem" }}
+            >
               <strong>Total income</strong>
               <strong className="money">{formatTTD(data.income)}</strong>
             </div>
@@ -296,7 +410,13 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
         <Panel className="report-tab-panel">
           <h3>Expenses</h3>
           <p className="muted">Where money went this month.</p>
-          <DonutChart slices={expenseSlices.length ? expenseSlices : [{ label: "No expenses", value: 0, color: "#ccc" }]} />
+          <DonutChart
+            slices={
+              expenseSlices.length
+                ? expenseSlices
+                : [{ label: "No expenses", value: 0, color: "#ccc" }]
+            }
+          />
           <div className="stack" style={{ marginTop: "1rem" }}>
             {data.expenseByCategory.map((e) => (
               <div key={e.category} className="row" style={{ justifyContent: "space-between" }}>
@@ -307,10 +427,6 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
             {data.expenseByCategory.length === 0 ? (
               <div className="muted">No expenses recorded this month yet.</div>
             ) : null}
-            <div className="row" style={{ justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "0.75rem" }}>
-              <strong>Total expenses</strong>
-              <strong className="money">{formatTTD(data.expenses)}</strong>
-            </div>
           </div>
         </Panel>
       ) : null}
@@ -323,23 +439,179 @@ export function ReportsDashboard({ data }: { data: ReportsData }) {
             <div className="label">Outstanding</div>
             <div className="value money">{formatTTD(data.receivables)}</div>
           </div>
-          <p className="insight" style={{ marginTop: "1rem" }}>
-            Collecting receivables improves cash flow without new sales.
-          </p>
         </Panel>
       ) : null}
 
       {tab === "pos" ? (
         <Panel className="report-tab-panel">
           <h3>Point of sale</h3>
-          <p className="muted">Counter and retail sales completed this month.</p>
-          <div className="report-stat blue" style={{ maxWidth: 320, marginTop: "0.75rem" }}>
-            <div className="label">POS total</div>
-            <div className="value money">{formatTTD(data.pos)}</div>
+          <p className="muted">Counter sales this month, including fixed-price services sold on POS.</p>
+          <div className="kpi-grid" style={{ marginTop: "0.75rem", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            <div className="report-stat blue">
+              <div className="label">POS total</div>
+              <div className="value money">{formatTTD(data.pos)}</div>
+            </div>
+            <div className="report-stat sea">
+              <div className="label">Retail items</div>
+              <div className="value money">{formatTTD(data.posRetail)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Services on POS</div>
+              <div className="value money">{formatTTD(data.posService)}</div>
+            </div>
           </div>
-          <p className="insight" style={{ marginTop: "1rem" }}>
-            POS totals include tax when tax is enabled in Settings.
-          </p>
+        </Panel>
+      ) : null}
+
+      {tab === "by-item" ? (
+        <Panel className="report-tab-panel">
+          <h3>Search by item</h3>
+          <SearchBar value={itemQuery} onChange={setItemQuery} placeholder="Search item name or category…" />
+          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Qty</th>
+                  <th>Sales</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((r) => (
+                  <tr key={`${r.name}-${r.category}`}>
+                    <td>
+                      <strong>{r.name}</strong>
+                    </td>
+                    <td>{r.category}</td>
+                    <td>{r.isService ? "Service" : "Retail"}</td>
+                    <td>{r.qty}</td>
+                    <td className="money">{formatTTD(r.amount)}</td>
+                  </tr>
+                ))}
+                {filteredItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      No matching items this month.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "by-category" ? (
+        <Panel className="report-tab-panel">
+          <h3>Search by category</h3>
+          <SearchBar value={categoryQuery} onChange={setCategoryQuery} placeholder="Search category…" />
+          <div style={{ marginTop: "1rem" }}>
+            <DonutChart
+              slices={filteredCategories.map((c, i) => ({
+                label: c.category,
+                value: c.amount,
+                color: CHART_COLORS[i % CHART_COLORS.length],
+              }))}
+            />
+          </div>
+          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Qty sold</th>
+                  <th>Sales</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategories.map((r) => (
+                  <tr key={r.category}>
+                    <td>
+                      <strong>{r.category}</strong>
+                    </td>
+                    <td>{r.qty}</td>
+                    <td className="money">{formatTTD(r.amount)}</td>
+                  </tr>
+                ))}
+                {filteredCategories.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="muted">
+                      No matching categories this month.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "sales-summary" ? (
+        <Panel className="report-tab-panel">
+          <h3>Sales summary</h3>
+          <p className="muted">Line-by-line POS and service sales for this month.</p>
+          <SearchBar
+            value={summaryQuery}
+            onChange={setSummaryQuery}
+            placeholder="Search receipt, item, category, or method…"
+          />
+          <div className="kpi-grid" style={{ marginTop: "0.85rem", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            <div className="report-stat sea">
+              <div className="label">Lines</div>
+              <div className="value">{filteredLines.length}</div>
+            </div>
+            <div className="report-stat blue">
+              <div className="label">Qty</div>
+              <div className="value">
+                {filteredLines.reduce((s, l) => s + l.quantity, 0)}
+              </div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Total</div>
+              <div className="value money">
+                {formatTTD(filteredLines.reduce((s, l) => s + l.lineTotal, 0))}
+              </div>
+            </div>
+          </div>
+          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Receipt</th>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Qty</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLines.map((r) => (
+                  <tr key={r.id}>
+                    <td>{new Date(r.soldAt).toLocaleString("en-TT")}</td>
+                    <td>{r.saleNumber}</td>
+                    <td>
+                      <strong>{r.description}</strong>
+                    </td>
+                    <td>{r.category}</td>
+                    <td>{r.isService ? "Service" : "Retail"}</td>
+                    <td>{r.quantity}</td>
+                    <td className="money">{formatTTD(r.lineTotal)}</td>
+                  </tr>
+                ))}
+                {filteredLines.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      No sales lines match.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </Panel>
       ) : null}
     </div>

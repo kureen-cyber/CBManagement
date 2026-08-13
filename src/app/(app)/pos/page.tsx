@@ -43,6 +43,7 @@ export default async function PosPage() {
         products={products.map((p) => ({
           id: p.id,
           name: p.name,
+          category: p.category,
           unit: p.unit,
           unitPrice: p.unitPrice,
           stockQty: p.stockQty,

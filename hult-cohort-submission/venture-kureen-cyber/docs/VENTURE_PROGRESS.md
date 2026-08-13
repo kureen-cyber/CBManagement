@@ -5,7 +5,7 @@
 **Target repo for proof PR:** `rogerSuperBuilderAlpha/hult-cohort-program`  
 **Title pattern:** `[P2-Venture] Submission — kureen-cyber`  
 **Due (cohort docs):** Wed Aug 19, 2026 (17:00 Eastern)  
-**Last updated:** 2026-08-13
+**Last updated:** 13-08-2026
 
 ---
 
@@ -14,7 +14,7 @@
 | Gate | Required | Status | Notes |
 |------|----------|--------|-------|
 | Production app live | Public deploy URL | **Done** | https://cbmanagement.vercel.app |
-| ≥25 verified external users | Unique non-cohort users + real action + date-stamped snapshot | **In progress** | **7** external users as of **2026-08-13** UTC; need ≥25 before Sunday merge |
+| ≥25 verified external users | Unique non-cohort users + real action + date-stamped snapshot | **In progress** | **7** external users as of **13-08-2026**; need ≥25 before Sunday merge |
 | ≥1 qualified investor touch | Angel/VC/corp dev/family office; logged + PII redacted in public PR | **Missing** | `INVESTOR_LOG.md` placeholder; fill before Sunday merge |
 | Proof-of-work PR merged | PR into `hult-cohort-program` | **Not started** | Intentionally not opened yet |
 
@@ -43,7 +43,7 @@
 | 17 | Core ERP modules | Dashboard, CRM, quotes, jobs, invoices, etc. | **Done (local)** | Next.js app on branch `cursor/pos-supabase-demo-f92d` |
 | 18 | Pricing (subscription-only) | No setup fees | **Done** | README + revised business plan |
 | 19 | Cohort proof PR | `submissions/kureen-cyber-p2-venture.md` (or participants path) | **Not opened** | Open only after gates 1–3 + artifacts ready |
-| 20 | ≥25 external users evidence | Metrics API or analytics snapshot date-stamped | **In progress** | Snapshot 2026-08-13: 7 users; re-count before merge |
+| 20 | ≥25 external users evidence | Metrics API or analytics snapshot date-stamped | **In progress** | Snapshot 13-08-2026: 7 users; re-count before merge |
 | 21 | Signup business type | Retail / Service / Both dropdown | **Done** | `/signup` + onboarding cookie/company |
 | 22 | Retail-only dashboard | POS-first home | **Done** | Retail dashboard + filtered nav |
 | 23 | Settings | General / Taxes / Printers | **Done** | `/settings` — theme, layout, language, VAT, receipts |
@@ -92,7 +92,7 @@ Fill these when opening the cohort PR:
 |-------|-------|
 | Production URL | https://cbmanagement.vercel.app |
 | Repo | https://github.com/kureen-cyber/CBManagement |
-| Metrics snapshot | 2026-08-13 UTC — qualified_users = 7 (gate ≥25; update before Sunday) |
+| Metrics snapshot | as of 13-08-2026 — qualified_users = 7 (gate ≥25; update before Sunday) |
 | Market research | `docs/market-research.md` |
 | Business plan | `docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx` / PDF |
 | Pitch deck | `docs/pitch-deck.pdf` |

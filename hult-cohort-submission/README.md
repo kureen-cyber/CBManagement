@@ -26,6 +26,6 @@ Requires: `gh` authenticated as **kureen-cyber**, network access.
 2. Review investor deck / one-pager PDFs under `hult-cohort-submission/venture-kureen-cyber/docs/` (edit HTML in product `docs/` if needed)
 3. Confirm business plan path — currently the DOCX in that same `docs/` folder
 4. Investor touch log (redacted) — paste into `INVESTOR_LOG.md` before Sunday merge
-5. Grow external users to ≥25 and re-snapshot (current: **7** as of 2026-08-13 UTC)
+5. Grow external users to ≥25 and re-snapshot (current: **7** as of 13-08-2026)
 
 After investor log + ≥25 users are ready, say “update the venture PR” and we refresh the TBD sections.

@@ -13,7 +13,7 @@
 | One-pager | Present (draft PDF) | `venture-kureen-cyber/docs/one-pager.pdf` |
 | Market research | **TBD** | `venture-kureen-cyber/docs/market-research.md` (placeholder) |
 | Investor log | **TBD** (before Sunday merge) | `venture-kureen-cyber/INVESTOR_LOG.md` |
-| External-user metrics | **7** as of 2026-08-13 UTC (gate ≥25) | Re-snapshot before Sunday merge |
+| External-user metrics | **7** as of 13-08-2026 (gate ≥25) | Re-snapshot before Sunday merge |
 | Production app | Live | https://cbmanagement.vercel.app |
 
 ## Product summary

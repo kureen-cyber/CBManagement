@@ -1,5 +1,5 @@
 ## Summary
-Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live; draft investor deck + one-pager are in-repo. External users are in progress (7 as of this snapshot). Investor touch log remains **TBD** and will be updated before the Sunday merge deadline — do not treat this draft as final submission.
+Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live; draft investor deck + one-pager are in-repo. External users are in progress (**7 as of 13-08-2026**). Investor touch log remains **TBD** and will be updated before the Sunday merge deadline — do not treat this draft as final submission.
 
 ## Investor deck link (in repo)
 `venture-kureen-cyber/docs/pitch-deck.pdf` (12-slide draft; editable source in product repo `docs/pitch-deck.html`)  
@@ -10,7 +10,7 @@ One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 
 ## App URL + user metrics
 - **App URL:** https://cbmanagement.vercel.app
-- **User metrics snapshot (UTC):** 2026-08-13
+- **User metrics snapshot:** as of 13-08-2026
   - **Qualified external users:** 7
   - **Exclusions:** cohort members and ids containing `kureen-cyber` excluded
   - **Note:** Gate is ≥25; will re-snapshot before Sunday merge when count is higher

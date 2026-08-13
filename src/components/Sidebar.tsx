@@ -7,11 +7,9 @@ import { BusinessType, BUSINESS_TYPE_LABELS, navForBusinessType } from "@/lib/bu
 
 export function Sidebar({
   email,
-  demo,
   businessType = "BOTH",
 }: {
   email?: string | null;
-  demo?: boolean;
   businessType?: BusinessType;
 }) {
   const pathname = usePathname();
@@ -25,7 +23,6 @@ export function Sidebar({
       const supabase = createClient();
       await supabase.auth.signOut();
     }
-    await fetch("/auth/demo", { method: "DELETE" });
     router.push("/login");
     router.refresh();
   }
@@ -53,9 +50,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={[active ? "active" : "", item.href === "/demo" ? "demo-link" : ""]
-                .filter(Boolean)
-                .join(" ") || undefined}
+              className={active ? "active" : undefined}
             >
               {item.label}
             </Link>
@@ -63,13 +58,7 @@ export function Sidebar({
         })}
       </nav>
       <div style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", opacity: 0.85 }}>
-        {demo ? (
-          <div>Demo mode — sample data</div>
-        ) : email ? (
-          <div>{email}</div>
-        ) : (
-          <div>Local session</div>
-        )}
+        {email ? <div>{email}</div> : <div>Local session</div>}
         <button
           type="button"
           className="btn btn-secondary btn-sm"

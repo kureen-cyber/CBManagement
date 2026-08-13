@@ -109,8 +109,8 @@ export default function SignupPage() {
           </select>
         </label>
         {businessType === "RETAIL" ? (
-          <div className="demo-banner">
-            Retail mode opens on a Loyverse-style POS: sell, register customers, manage stock, and print receipts.
+          <div className="info-banner">
+            Retail mode opens on POS: sell, register customers, manage stock, and print receipts.
           </div>
         ) : null}
         <label className="field">
@@ -146,10 +146,6 @@ export default function SignupPage() {
         Already have an account?{" "}
         <Link href="/login" style={{ color: "var(--sea)", fontWeight: 700 }}>
           Sign in
-        </Link>
-        {" · "}
-        <Link href="/demo" style={{ color: "var(--accent)", fontWeight: 700 }}>
-          Try Demo
         </Link>
       </p>
     </Panel>

@@ -22,7 +22,16 @@ async function main() {
   await prisma.company.deleteMany();
 
   await prisma.company.create({
-    data: { name: "Island Works Ltd.", currency: "TTD", vatRate: 0.125, businessType: "BOTH" },
+    data: {
+      name: "Island Works Ltd.",
+      currency: "TTD",
+      vatRate: 0.125,
+      businessType: "BOTH",
+      theme: "light",
+      language: "en",
+      homeLayout: "RETAIL_SERVICE",
+      receiptPrinting: true,
+    },
   });
 
   const abc = await prisma.customer.create({

@@ -21,7 +21,6 @@ export async function createCustomer(formData: FormData) {
     },
   });
   revalidatePath("/customers");
-  revalidatePath("/demo");
   revalidatePath("/pos");
   revalidatePath("/");
 }
@@ -370,6 +369,10 @@ export async function completePosSale(input: {
   });
 
   const subtotal = built.reduce((s, l) => s + l.lineTotal, 0);
+  const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
+  const vatRate = company?.vatRate ?? 0.125;
+  const taxAmount = Math.round(subtotal * vatRate);
+  const total = subtotal + taxAmount;
 
   const sale = await prisma.sale.create({
     data: {
@@ -377,9 +380,9 @@ export async function completePosSale(input: {
       customerId: input.customerId || null,
       status: "COMPLETED",
       subtotal,
-      taxAmount: 0,
-      total: subtotal,
-      amountPaid: subtotal,
+      taxAmount,
+      total,
+      amountPaid: total,
       method: input.method || "CASH",
       notes: input.notes || null,
       lines: {
@@ -417,7 +420,7 @@ export async function completePosSale(input: {
     await prisma.payment.create({
       data: {
         customerId: input.customerId,
-        amount: subtotal,
+        amount: total,
         method: input.method || "CASH",
         reference: sale.number,
         notes: "POS sale",
@@ -431,7 +434,7 @@ export async function completePosSale(input: {
       await prisma.payment.create({
         data: {
           customerId: walkIn.id,
-          amount: subtotal,
+          amount: total,
           method: input.method || "CASH",
           reference: sale.number,
           notes: "POS walk-in sale",
@@ -445,7 +448,6 @@ export async function completePosSale(input: {
   revalidatePath("/inventory");
   revalidatePath("/payments");
   revalidatePath("/");
-  revalidatePath("/demo");
 
-  return { saleId: sale.id, number: sale.number, total: subtotal, method: input.method || "CASH" };
+  return { saleId: sale.id, number: sale.number, total, method: input.method || "CASH" };
 }

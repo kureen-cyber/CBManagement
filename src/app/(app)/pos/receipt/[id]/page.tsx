@@ -20,6 +20,7 @@ export default async function ReceiptPage({
   if (!sale) notFound();
 
   const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
+  const canPrint = company?.receiptPrinting !== false;
 
   return (
     <div className="stack">
@@ -28,7 +29,7 @@ export default async function ReceiptPage({
         description={sale.number}
         actions={
           <>
-            <PrintButton />
+            <PrintButton enabled={canPrint} />
             <Link className="btn btn-secondary" href="/pos">
               Back to POS
             </Link>
@@ -92,6 +93,16 @@ export default async function ReceiptPage({
         </table>
 
         <div className="row" style={{ justifyContent: "space-between", marginTop: "1rem" }}>
+          <span>Subtotal</span>
+          <span className="money">{formatTTD(sale.subtotal)}</span>
+        </div>
+        {sale.taxAmount > 0 ? (
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span>VAT ({((company?.vatRate ?? 0.125) * 100).toFixed(1)}%)</span>
+            <span className="money">{formatTTD(sale.taxAmount)}</span>
+          </div>
+        ) : null}
+        <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
           <strong>Total paid</strong>
           <strong className="money" style={{ fontSize: "1.25rem" }}>
             {formatTTD(sale.total)}

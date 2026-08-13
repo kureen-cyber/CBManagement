@@ -28,7 +28,7 @@ export default async function PosPage() {
         title={isRetailOnly(businessType) ? "POS Terminal" : "Point of Sale"}
         description={
           isRetailOnly(businessType)
-            ? "Ring up sales, register customers & stock, print receipts — Loyverse-style."
+            ? "Ring up sales, register customers & stock, and print receipts."
             : "Ring up products and services. Stock updates automatically."
         }
         actions={

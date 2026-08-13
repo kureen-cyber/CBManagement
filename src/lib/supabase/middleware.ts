@@ -9,11 +9,9 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     path.startsWith("/login") ||
     path.startsWith("/signup") ||
-    path.startsWith("/demo") ||
-    path.startsWith("/auth") ||
-    path === "/";
+    path.startsWith("/auth");
 
-  // Without Supabase, allow demo browsing everywhere
+  // Without Supabase: require login unless demo mode is explicitly enabled
   if (!isSupabaseConfigured()) {
     if (!isDemoModeEnabled() && !isPublic && !path.startsWith("/_next")) {
       const url = request.nextUrl.clone();
@@ -46,9 +44,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const demoCookie = request.cookies.get("cbm_demo")?.value === "1";
-
-  if (!user && !demoCookie && !isPublic) {
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", path);

@@ -3,7 +3,7 @@ import { isSupabaseConfigured } from "@/lib/constants";
 
 export function createClient() {
   if (!isSupabaseConfigured()) {
-    throw new Error("Supabase is not configured. Use Demo mode or set env vars.");
+    throw new Error("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
   }
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

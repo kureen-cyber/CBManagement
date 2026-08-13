@@ -31,7 +31,7 @@ export async function RetailDashboard() {
     <div className="stack">
       <PageHeader
         title="Retail POS"
-        description="Sell fast — register customers, manage stock, print receipts. Loyverse-style workflow."
+        description="Sell fast — register customers, manage stock, and print receipts."
         actions={
           <>
             <Link className="btn btn-primary" href="/pos">
@@ -44,7 +44,7 @@ export async function RetailDashboard() {
         }
       />
 
-      <div className="demo-banner">
+      <div className="info-banner">
         Retail mode focuses on <strong>POS</strong>: ring up sales, keep inventory accurate, and export stock lists anytime.
       </div>
 

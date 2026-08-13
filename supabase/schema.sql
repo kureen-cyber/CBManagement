@@ -28,9 +28,22 @@ create table if not exists public.companies (
   name text not null,
   currency text not null default 'TTD',
   vat_rate numeric(6,4) not null default 0.125,
+  business_type text not null default 'BOTH',
+  theme text not null default 'light',
+  language text not null default 'en',
+  home_layout text not null default 'RETAIL',
+  receipt_printing boolean not null default true,
+  printer_name text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.companies add column if not exists business_type text not null default 'BOTH';
+alter table public.companies add column if not exists theme text not null default 'light';
+alter table public.companies add column if not exists language text not null default 'en';
+alter table public.companies add column if not exists home_layout text not null default 'RETAIL';
+alter table public.companies add column if not exists receipt_printing boolean not null default true;
+alter table public.companies add column if not exists printer_name text;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,

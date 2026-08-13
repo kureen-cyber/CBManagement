@@ -3,7 +3,9 @@ import { startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { getBusinessType } from "@/lib/session-business";
+import { getCompany } from "@/lib/company";
 import { isRetailOnly } from "@/lib/business-type";
+import { parseHomeLayout } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { RetailDashboard } from "@/components/RetailDashboard";
 
@@ -11,7 +13,10 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const businessType = await getBusinessType();
-  if (isRetailOnly(businessType)) {
+  const company = await getCompany();
+  const homeLayout = parseHomeLayout(company.homeLayout);
+
+  if (isRetailOnly(businessType) || (businessType === "BOTH" && homeLayout === "RETAIL")) {
     return <RetailDashboard />;
   }
 
@@ -121,9 +126,6 @@ export default async function DashboardPage() {
         description="Plain numbers. No accounting jargon."
         actions={
           <>
-            <Link className="btn btn-secondary" href="/demo">
-              Demo tour
-            </Link>
             {businessType !== "SERVICE" ? (
               <Link className="btn btn-secondary" href="/pos">
                 Open POS
@@ -131,6 +133,9 @@ export default async function DashboardPage() {
             ) : null}
             <Link className="btn btn-primary" href="/invoices">
               New invoice
+            </Link>
+            <Link className="btn btn-secondary" href="/settings">
+              Settings
             </Link>
           </>
         }

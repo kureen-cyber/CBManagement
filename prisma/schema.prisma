@@ -14,6 +14,15 @@ model Company {
   vatRate      Float    @default(0.125)
   /// RETAIL | SERVICE | BOTH
   businessType String   @default("BOTH")
+  /// light | dark
+  theme        String   @default("light")
+  /// en | es | fr
+  language     String   @default("en")
+  /// RETAIL | RETAIL_SERVICE — home screen item layout
+  homeLayout   String   @default("RETAIL")
+  /// Allow printing receipts from POS
+  receiptPrinting Boolean @default(true)
+  printerName  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

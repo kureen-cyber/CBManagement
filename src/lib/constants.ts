@@ -11,7 +11,7 @@ export const NAV_ITEMS = [
   { href: "/suppliers", label: "Suppliers" },
   { href: "/employees", label: "Employees" },
   { href: "/reports", label: "Reports" },
-  { href: "/demo", label: "Demo" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 export const EXPENSE_CATEGORIES = [
@@ -39,7 +39,8 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
+/** Demo browsing is off in production unless explicitly enabled. */
 export function isDemoModeEnabled(): boolean {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "false") return false;
-  return true;
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return true;
+  return false;
 }

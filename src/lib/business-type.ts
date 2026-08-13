@@ -21,7 +21,7 @@ export function isServiceFocused(type: BusinessType): boolean {
   return type === "SERVICE" || type === "BOTH";
 }
 
-/** Nav items shown for each business type (Loyverse-style retail keeps POS front-and-center). */
+/** Nav items shown for each business type (retail keeps POS front-and-center). */
 export function navForBusinessType(type: BusinessType) {
   const retail = [
     { href: "/", label: "Dashboard" },
@@ -31,7 +31,7 @@ export function navForBusinessType(type: BusinessType) {
     { href: "/payments", label: "Payments" },
     { href: "/expenses", label: "Expenses" },
     { href: "/reports", label: "Reports" },
-    { href: "/demo", label: "Demo" },
+    { href: "/settings", label: "Settings" },
   ] as const;
 
   const service = [
@@ -46,7 +46,7 @@ export function navForBusinessType(type: BusinessType) {
     { href: "/suppliers", label: "Suppliers" },
     { href: "/employees", label: "Employees" },
     { href: "/reports", label: "Reports" },
-    { href: "/demo", label: "Demo" },
+    { href: "/settings", label: "Settings" },
   ] as const;
 
   const both = [
@@ -62,7 +62,7 @@ export function navForBusinessType(type: BusinessType) {
     { href: "/suppliers", label: "Suppliers" },
     { href: "/employees", label: "Employees" },
     { href: "/reports", label: "Reports" },
-    { href: "/demo", label: "Demo" },
+    { href: "/settings", label: "Settings" },
   ] as const;
 
   if (type === "RETAIL") return retail;

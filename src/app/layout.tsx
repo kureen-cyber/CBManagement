@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 
@@ -20,11 +21,15 @@ export const metadata: Metadata = {
     "Simple, affordable business operating system for small businesses in Trinidad & Tobago and the Caribbean.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const theme = cookieStore.get("cbm_theme")?.value === "dark" ? "dark" : "light";
+  const lang = cookieStore.get("cbm_lang")?.value || "en";
+
   return (
-    <html lang="en">
+    <html lang={lang} data-theme={theme} style={{ colorScheme: theme }}>
       <body className={`${fraunces.variable} ${manrope.variable}`}>{children}</body>
     </html>
   );

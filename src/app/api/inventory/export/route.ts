@@ -4,7 +4,7 @@ import { fromCents } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
-/** CSV export of stock inventory (Loyverse-style stock list). */
+/** CSV export of stock inventory. */
 export async function GET() {
   const products = await prisma.product.findMany({
     where: { isService: false },

@@ -8,9 +8,8 @@ Simple business OS for small businesses in Trinidad & Tobago and the Caribbean.
 
 **Live app:** [https://cbmanagement.vercel.app](https://cbmanagement.vercel.app)
 
-- Demo (no account): [https://cbmanagement.vercel.app/demo](https://cbmanagement.vercel.app/demo)
 - Sign up: [https://cbmanagement.vercel.app/signup](https://cbmanagement.vercel.app/signup) — choose Retail / Service / Both
-- Retail POS demo: sign in page → **Retail POS**
+- Sign in: [https://cbmanagement.vercel.app/login](https://cbmanagement.vercel.app/login)
 
 ## Quick start (local)
 
@@ -20,14 +19,14 @@ npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) → **Demo**, or use **Create account / Sign up**.
+Open [http://localhost:3001](http://localhost:3001) → **Create account / Sign up**.
 
 ## Features (V1)
 
 - Dashboard, Customers, Quotations, Jobs, Invoices, Payments, Expenses, Inventory, Suppliers, Employees, Reports
-- **POS** — cart, receipts, stock updates, CSV stock export (Loyverse-style for retail accounts)
+- **POS** — cart, receipts, stock updates, CSV stock export
 - **Business type on signup** — Retail / Service / Both (retail gets POS-first dashboard)
-- **Demo tab** — browse sample data without login
+- **Settings** — General (theme, home layout, language), Taxes (VAT), Printers (receipt printing)
 - **Supabase Auth** — email/password sign-in & sign-up
 
 ## Supabase Auth setup
@@ -37,16 +36,13 @@ Open [http://localhost:3001](http://localhost:3001) → **Demo**, or use **Creat
 3. Set:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
-NEXT_PUBLIC_DEMO_MODE=true
 ```
 
 4. In Supabase → Authentication → URL configuration, add:
    - `http://localhost:3001/auth/callback`
    - `https://cbmanagement.vercel.app/auth/callback`
-
-Without Supabase keys, the app still runs in local/demo mode.
 
 ## Pricing (proposed)
 

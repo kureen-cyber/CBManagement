@@ -1,7 +1,9 @@
-import { cookies } from "next/headers";
 import { Sidebar } from "@/components/Sidebar";
+import { ThemeScript } from "@/components/ThemeScript";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessType } from "@/lib/session-business";
+import { getCompany } from "@/lib/company";
+import { parseTheme } from "@/lib/settings";
 
 export default async function AppLayout({
   children,
@@ -10,17 +12,14 @@ export default async function AppLayout({
 }) {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  const cookieStore = await cookies();
-  const demo = cookieStore.get("cbm_demo")?.value === "1";
   const businessType = await getBusinessType();
+  const company = await getCompany();
+  const theme = parseTheme(company.theme);
 
   return (
     <div className="app-shell">
-      <Sidebar
-        email={user?.email}
-        demo={demo || (!user && true)}
-        businessType={businessType}
-      />
+      <ThemeScript theme={theme} />
+      <Sidebar email={user?.email} businessType={businessType} />
       <main className="main">{children}</main>
     </div>
   );

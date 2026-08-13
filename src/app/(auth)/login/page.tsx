@@ -22,7 +22,7 @@ function LoginForm() {
     setLoading(true);
     try {
       if (!configured) {
-        setError("Supabase is not configured. Use Enter Demo instead, or add env vars.");
+        setError("Supabase is not configured. Add env vars to enable sign-in.");
         return;
       }
       const { createClient } = await import("@/lib/supabase/client");
@@ -53,21 +53,6 @@ function LoginForm() {
     }
   }
 
-  async function enterDemo(type: "RETAIL" | "SERVICE" | "BOTH") {
-    setLoading(true);
-    await fetch("/auth/demo", { method: "POST" });
-    await fetch("/api/onboarding", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        businessName: "Island Works Ltd.",
-        businessType: type,
-      }),
-    });
-    router.push(type === "RETAIL" ? "/pos" : "/demo");
-    router.refresh();
-  }
-
   return (
     <Panel className="auth-card">
       <div className="brand-mark" style={{ fontSize: "1.8rem" }}>
@@ -86,8 +71,8 @@ function LoginForm() {
       </Link>
 
       {!configured ? (
-        <div className="demo-banner" style={{ marginTop: "1rem" }}>
-          Supabase keys are not set yet. You can still browse with Demo.
+        <div className="info-banner" style={{ marginTop: "1rem" }}>
+          Supabase keys are not set yet. Add them to enable sign-in.
         </div>
       ) : null}
 
@@ -119,38 +104,6 @@ function LoginForm() {
           {loading ? "Signing in…" : "Sign in"}
         </button>
       </form>
-
-      <div className="stack" style={{ marginTop: "1rem" }}>
-        <div className="muted" style={{ fontSize: "0.82rem" }}>
-          Try demo as:
-        </div>
-        <div className="row">
-          <button
-            className="btn btn-accent btn-sm"
-            type="button"
-            disabled={loading}
-            onClick={() => enterDemo("RETAIL")}
-          >
-            Retail POS
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            type="button"
-            disabled={loading}
-            onClick={() => enterDemo("SERVICE")}
-          >
-            Service
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            type="button"
-            disabled={loading}
-            onClick={() => enterDemo("BOTH")}
-          >
-            Both
-          </button>
-        </div>
-      </div>
     </Panel>
   );
 }

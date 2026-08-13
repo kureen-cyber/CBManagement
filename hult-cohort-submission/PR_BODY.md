@@ -1,8 +1,9 @@
 ## Summary
-Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live. Investor deck, ≥25 external-user metrics snapshot, and investor touch log are intentionally left **TBD** until those artifacts are ready — do not treat this draft as final submission.
+Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Production app is live and a draft investor deck + one-pager are in-repo. ≥25 external-user metrics snapshot and investor touch log remain **TBD** — do not treat this draft as final submission.
 
 ## Investor deck link (in repo)
-**TBD** — add `venture-kureen-cyber/docs/pitch-deck.pdf` then update this section.
+`venture-kureen-cyber/docs/pitch-deck.pdf` (12-slide draft; editable source in product repo `docs/pitch-deck.html`)  
+One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 
 ## Business plan path
 `venture-kureen-cyber/docs/CBManagement_ERP_Business_Plan_and_Cash_Flow_REVISED.docx`
@@ -16,12 +17,12 @@ Draft Phase 2 Venture submission for **CBManagement** (@kureen-cyber). Productio
 
 ## Agent usage
 - Research: Cohort venture curriculum deliverables; fork/upstream branch `projects/summer26/phase-2-venture`; inventory of CBManagement production + existing business plan DOCX
-- Dev: Scaffolded `venture-kureen-cyber/` package + `submissions/kureen-cyber-p2-venture.md`; linked live production URL; copied business plan into cohort package; left deck/metrics/investor log as TBD placeholders
-- QA: Verified https://cbmanagement.vercel.app/login returns HTTP 200; prepared push script for participant-authenticated cohort PR (agent token cannot write `kureen-cyber/hult-cohort-program`)
+- Dev: Scaffolded `venture-kureen-cyber/` package; linked live production URL; copied business plan; generated draft pitch deck + one-pager PDFs from HTML sources
+- QA: Verified https://cbmanagement.vercel.app/login returns HTTP 200; confirmed deck PDF is 12 pages; prepared push script for participant-authenticated cohort PR (agent token cannot write `kureen-cyber/hult-cohort-program`)
 
 ## Test plan
 - [ ] Open https://cbmanagement.vercel.app/signup and create an account
 - [ ] Sign in → Dashboard / POS / Inventory / Reports / Settings load
 - [ ] Open business plan DOCX from `venture-kureen-cyber/docs/`
-- [ ] *(Later)* Confirm pitch deck PDF path after upload
+- [ ] Open `venture-kureen-cyber/docs/pitch-deck.pdf` and review ask / traction slides
 - [ ] *(Later)* Update PR body with investor log + user metrics; mark ready for review

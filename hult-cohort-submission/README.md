@@ -23,9 +23,9 @@ Requires: `gh` authenticated as **kureen-cyber**, network access.
 ## Still needed from you (do not invent)
 
 1. Confirm production URL (agent used: https://cbmanagement.vercel.app) — OK?
-2. Investor deck file — when ready, put PDF at `hult-cohort-submission/venture-kureen-cyber/docs/pitch-deck.pdf`
-3. Confirm business plan path — currently the DOCX above (or provide a different path)
+2. Review investor deck / one-pager PDFs under `hult-cohort-submission/venture-kureen-cyber/docs/` (edit HTML in product `docs/` if needed)
+3. Confirm business plan path — currently the DOCX in that same `docs/` folder
 4. Investor touch log (redacted) — paste into `INVESTOR_LOG.md`
 5. External user metrics snapshot for the PR body
 
-After those are ready, say “update the venture PR” and we fill the TBD sections.
+After metrics + investor log are ready, say “update the venture PR” and we fill the remaining TBD sections.

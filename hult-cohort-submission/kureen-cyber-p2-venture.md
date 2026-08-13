@@ -6,11 +6,12 @@
 
 ## Summary
 
-Draft venture submission package for Week 5 / Phase 2 Venture. Production application is live. Investor deck, external-user metrics snapshot, and investor touch log are **pending** and will be filled before final review merge.
+Draft venture submission package for Week 5 / Phase 2 Venture. Production application is live. Draft investor deck + one-pager are in-repo. External-user metrics snapshot and investor touch log are **pending** and will be filled before final review merge.
 
 ## Investor deck link (in repo)
 
-**TBD** — pitch deck PDF not yet added. Intended path: `venture-kureen-cyber/docs/pitch-deck.pdf`
+`venture-kureen-cyber/docs/pitch-deck.pdf`  
+One-pager: `venture-kureen-cyber/docs/one-pager.pdf`
 
 ## Business plan path
 
@@ -38,5 +39,5 @@ Draft venture submission package for Week 5 / Phase 2 Venture. Production applic
 - [ ] Open https://cbmanagement.vercel.app/signup and create an account
 - [ ] Sign in and open Dashboard / POS / Inventory / Reports / Settings
 - [ ] Confirm business plan DOCX opens from `venture-kureen-cyber/docs/`
-- [ ] *(Later)* Confirm pitch deck PDF path after upload
+- [ ] Open `venture-kureen-cyber/docs/pitch-deck.pdf` and review ask / traction slides
 - [ ] *(Later)* Confirm investor log + user metrics sections updated in PR body

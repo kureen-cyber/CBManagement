@@ -96,7 +96,7 @@ export default async function ReceiptPage({
           <span>Subtotal</span>
           <span className="money">{formatTTD(sale.subtotal)}</span>
         </div>
-        {sale.taxAmount > 0 ? (
+        {sale.taxAmount > 0 && company?.taxEnabled !== false ? (
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>VAT ({((company?.vatRate ?? 0.125) * 100).toFixed(1)}%)</span>
             <span className="money">{formatTTD(sale.taxAmount)}</span>

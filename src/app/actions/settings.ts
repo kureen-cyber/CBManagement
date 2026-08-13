@@ -39,12 +39,13 @@ export async function updateGeneralSettings(formData: FormData) {
 
 export async function updateTaxSettings(formData: FormData) {
   const company = await getCompany();
+  const taxEnabled = formData.get("taxEnabled") === "on";
   const vatPct = Number(formData.get("vatPercent") ?? 12.5);
   const vatRate = Number.isFinite(vatPct) ? Math.max(0, Math.min(100, vatPct)) / 100 : 0.125;
 
   await prisma.company.update({
     where: { id: company.id },
-    data: { vatRate },
+    data: { taxEnabled, vatRate },
   });
 
   revalidatePath("/settings");

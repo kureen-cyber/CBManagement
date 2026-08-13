@@ -12,6 +12,8 @@ model Company {
   name         String
   currency     String   @default("TTD")
   vatRate      Float    @default(0.125)
+  /// When false, VAT is not applied to sales
+  taxEnabled   Boolean  @default(true)
   /// RETAIL | SERVICE | BOTH
   businessType String   @default("BOTH")
   /// light | dark

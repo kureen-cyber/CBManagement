@@ -406,7 +406,8 @@ export async function completePosSale(input: {
 
   const subtotal = built.reduce((s, l) => s + l.lineTotal, 0);
   const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
-  const vatRate = company?.vatRate ?? 0.125;
+  const taxOn = company?.taxEnabled !== false;
+  const vatRate = taxOn ? (company?.vatRate ?? 0.125) : 0;
   const taxAmount = Math.round(subtotal * vatRate);
   const total = subtotal + taxAmount;
 

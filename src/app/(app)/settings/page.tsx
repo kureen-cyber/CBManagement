@@ -25,6 +25,7 @@ export default async function SettingsPage() {
           theme={parseTheme(company.theme)}
           language={parseLanguage(company.language)}
           homeLayout={parseHomeLayout(company.homeLayout)}
+          taxEnabled={company.taxEnabled}
           vatRate={company.vatRate}
           receiptPrinting={company.receiptPrinting}
           printerName={company.printerName}

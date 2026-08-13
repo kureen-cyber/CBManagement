@@ -29,6 +29,7 @@ export function SettingsPanel({
   theme,
   language,
   homeLayout,
+  taxEnabled,
   vatRate,
   receiptPrinting,
   printerName,
@@ -37,6 +38,7 @@ export function SettingsPanel({
   theme: Theme;
   language: LanguageCode;
   homeLayout: HomeLayout;
+  taxEnabled: boolean;
   vatRate: number;
   receiptPrinting: boolean;
   printerName: string | null;
@@ -182,8 +184,18 @@ export function SettingsPanel({
           <form className="stack" onSubmit={onTaxes}>
             <h2 style={{ margin: 0, fontSize: "1.15rem" }}>VAT</h2>
             <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Set the VAT rate applied to sales and invoices (Trinidad & Tobago standard is 12.5%).
+              Turn tax on or off for sales. When enabled, VAT is applied at the rate below
+              (Trinidad & Tobago standard is 12.5%).
             </p>
+            <label className="choice-card">
+              <input type="checkbox" name="taxEnabled" defaultChecked={taxEnabled} />
+              <span>
+                <strong>Enable tax / VAT</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  When off, receipts and POS totals exclude VAT
+                </span>
+              </span>
+            </label>
             <label className="field" style={{ maxWidth: 220 }}>
               VAT rate (%)
               <input

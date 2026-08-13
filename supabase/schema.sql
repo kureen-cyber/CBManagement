@@ -43,7 +43,7 @@ alter table public.companies add column if not exists theme text not null defaul
 alter table public.companies add column if not exists language text not null default 'en';
 alter table public.companies add column if not exists home_layout text not null default 'RETAIL';
 alter table public.companies add column if not exists receipt_printing boolean not null default true;
-alter table public.companies add column if not exists printer_name text;
+alter table public.companies add column if not exists tax_enabled boolean not null default true;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,

@@ -13,7 +13,7 @@
 
 | Gate | Required | Status | Notes |
 |------|----------|--------|-------|
-| Production app live | Public deploy URL | **Missing** | App runs locally (`localhost:3001`); no Vercel/production URL; GitHub `homepage` empty |
+| Production app live | Public deploy URL | **Done** | https://cbmanagement.vercel.app |
 | ≥25 verified external users | Unique non-cohort users + real action + date-stamped snapshot | **Missing** | No metrics endpoint / analytics snapshot yet |
 | ≥1 qualified investor touch | Angel/VC/corp dev/family office; logged + PII redacted in public PR | **Missing** | No `INVESTOR_LOG.md` |
 | Proof-of-work PR merged | PR into `hult-cohort-program` | **Not started** | Intentionally not opened yet |

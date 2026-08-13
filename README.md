@@ -4,7 +4,15 @@
 
 Simple business OS for small businesses in Trinidad & Tobago and the Caribbean.
 
-## Quick start
+## Production
+
+**Live app:** [https://cbmanagement.vercel.app](https://cbmanagement.vercel.app)
+
+- Demo (no account): [https://cbmanagement.vercel.app/demo](https://cbmanagement.vercel.app/demo)
+- Sign up: [https://cbmanagement.vercel.app/signup](https://cbmanagement.vercel.app/signup) — choose Retail / Service / Both
+- Retail POS demo: sign in page → **Retail POS**
+
+## Quick start (local)
 
 ```bash
 npm install
@@ -12,14 +20,15 @@ npm run db:setup
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) → **Demo** in the sidebar (or `/demo`) to browse without an account.
+Open [http://localhost:3001](http://localhost:3001) → **Demo**, or use **Create account / Sign up**.
 
 ## Features (V1)
 
 - Dashboard, Customers, Quotations, Jobs, Invoices, Payments, Expenses, Inventory, Suppliers, Employees, Reports
-- **POS** — cart checkout, stock deduction, sales history
-- **Demo tab** — guided tour of sample data (no login)
-- **Supabase Auth** — email/password sign-in & sign-up when configured
+- **POS** — cart, receipts, stock updates, CSV stock export (Loyverse-style for retail accounts)
+- **Business type on signup** — Retail / Service / Both (retail gets POS-first dashboard)
+- **Demo tab** — browse sample data without login
+- **Supabase Auth** — email/password sign-in & sign-up
 
 ## Supabase Auth setup
 
@@ -33,7 +42,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 NEXT_PUBLIC_DEMO_MODE=true
 ```
 
-4. In Supabase Auth settings, add redirect URL: `http://localhost:3000/auth/callback`
+4. In Supabase → Authentication → URL configuration, add:
+   - `http://localhost:3001/auth/callback`
+   - `https://cbmanagement.vercel.app/auth/callback`
 
 Without Supabase keys, the app still runs in local/demo mode.
 
@@ -50,4 +61,4 @@ Subscription only for now (no setup fees).
 
 ## Stack
 
-Next.js · TypeScript · Tailwind · Prisma/SQLite · Supabase Auth
+Next.js · TypeScript · Tailwind · Prisma/SQLite · Supabase Auth · Vercel

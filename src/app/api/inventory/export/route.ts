@@ -15,6 +15,7 @@ export async function GET() {
   const header = [
     "Name",
     "SKU",
+    "Category",
     "Unit",
     "Stock Qty",
     "Min Stock",
@@ -29,6 +30,7 @@ export async function GET() {
     return [
       csv(p.name),
       csv(p.sku || ""),
+      csv(p.category || "General"),
       csv(p.unit),
       String(p.stockQty),
       String(p.minStock),

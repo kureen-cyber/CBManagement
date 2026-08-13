@@ -22,7 +22,7 @@ async function main() {
   await prisma.company.deleteMany();
 
   await prisma.company.create({
-    data: { name: "Island Works Ltd.", currency: "TTD", vatRate: 0.125 },
+    data: { name: "Island Works Ltd.", currency: "TTD", vatRate: 0.125, businessType: "BOTH" },
   });
 
   const abc = await prisma.customer.create({

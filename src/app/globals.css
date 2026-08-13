@@ -238,12 +238,20 @@ input:focus, select:focus, textarea:focus {
   background: white;
 }
 
-@media (max-width: 980px) {
-  .app-shell { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; }
-  .nav { flex-direction: row; flex-wrap: wrap; }
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .main { padding: 1.25rem; }
-  .form-grid { grid-template-columns: 1fr; }
-  .pos-layout { grid-template-columns: 1fr; }
+@media print {
+  .sidebar,
+  .page-header .row,
+  .btn {
+    display: none !important;
+  }
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .main {
+    padding: 0;
+  }
+  .receipt-sheet {
+    box-shadow: none !important;
+    border: none !important;
+  }
 }

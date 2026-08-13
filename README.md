@@ -39,6 +39,8 @@ Without Supabase keys, the app still runs in local/demo mode.
 
 ## Pricing (proposed)
 
+Subscription only for now (no setup fees).
+
 | Plan | Monthly | Annual |
 |------|---------|--------|
 | Starter | TT$99 | TT$999 |

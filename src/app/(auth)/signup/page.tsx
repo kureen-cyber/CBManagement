@@ -4,10 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { isSupabaseConfigured } from "@/lib/constants";
+import {
+  BUSINESS_TYPE_LABELS,
+  BUSINESS_TYPES,
+  BusinessType,
+} from "@/lib/business-type";
 import { Panel } from "@/components/ui";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [businessName, setBusinessName] = useState("");
+  const [businessType, setBusinessType] = useState<BusinessType>("RETAIL");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,13 +34,40 @@ export default function SignupPage() {
       }
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      const { error: signError } = await supabase.auth.signUp({ email, password });
+      const { data, error: signError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            business_name: businessName.trim(),
+            business_type: businessType,
+            full_name: businessName.trim(),
+          },
+        },
+      });
       if (signError) {
         setError(signError.message);
         return;
       }
-      setMessage("Check your email to confirm, or sign in if confirmations are disabled.");
-      router.refresh();
+
+      await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: businessName.trim(),
+          businessType,
+        }),
+      });
+
+      if (data.session) {
+        router.push(businessType === "RETAIL" ? "/pos" : "/");
+        router.refresh();
+        return;
+      }
+
+      setMessage(
+        "Account created. Check your email to confirm, then sign in. Your business type is saved.",
+      );
     } finally {
       setLoading(false);
     }
@@ -42,13 +76,43 @@ export default function SignupPage() {
   return (
     <Panel className="auth-card">
       <div className="brand-mark" style={{ fontSize: "1.8rem" }}>
-        Create account
+        Create your account
       </div>
       <p className="muted" style={{ marginTop: "0.4rem" }}>
-        Powered by Supabase Auth.
+        Tell us what kind of business you run — we shape the app around it.
       </p>
 
       <form onSubmit={onSubmit} className="stack" style={{ marginTop: "1.25rem" }}>
+        <label className="field">
+          Business name
+          <input
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            required
+            disabled={!configured}
+            placeholder="Island Retail Ltd."
+          />
+        </label>
+        <label className="field">
+          Business type
+          <select
+            value={businessType}
+            onChange={(e) => setBusinessType(e.target.value as BusinessType)}
+            required
+            disabled={!configured}
+          >
+            {BUSINESS_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {BUSINESS_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {businessType === "RETAIL" ? (
+          <div className="demo-banner">
+            Retail mode opens on a Loyverse-style POS: sell, register customers, manage stock, and print receipts.
+          </div>
+        ) : null}
         <label className="field">
           Email
           <input
@@ -57,6 +121,7 @@ export default function SignupPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={!configured}
+            placeholder="you@business.tt"
           />
         </label>
         <label className="field">
@@ -73,7 +138,7 @@ export default function SignupPage() {
         {error ? <div className="badge badge-danger">{error}</div> : null}
         {message ? <div className="badge badge-ok">{message}</div> : null}
         <button className="btn btn-primary" type="submit" disabled={loading || !configured}>
-          {loading ? "Creating…" : "Sign up"}
+          {loading ? "Creating account…" : "Sign up"}
         </button>
       </form>
 

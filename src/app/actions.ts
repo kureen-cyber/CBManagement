@@ -22,6 +22,8 @@ export async function createCustomer(formData: FormData) {
   });
   revalidatePath("/customers");
   revalidatePath("/demo");
+  revalidatePath("/pos");
+  revalidatePath("/");
 }
 
 export async function createSupplier(formData: FormData) {
@@ -70,6 +72,7 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath("/inventory");
   revalidatePath("/pos");
+  revalidatePath("/");
 }
 
 export async function createEmployee(formData: FormData) {
@@ -444,5 +447,5 @@ export async function completePosSale(input: {
   revalidatePath("/");
   revalidatePath("/demo");
 
-  return { saleId: sale.id, number: sale.number, total: subtotal };
+  return { saleId: sale.id, number: sale.number, total: subtotal, method: input.method || "CASH" };
 }

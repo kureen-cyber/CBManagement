@@ -2,11 +2,19 @@ import Link from "next/link";
 import { startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { getBusinessType } from "@/lib/session-business";
+import { isRetailOnly } from "@/lib/business-type";
 import { PageHeader, Panel } from "@/components/ui";
+import { RetailDashboard } from "@/components/RetailDashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const businessType = await getBusinessType();
+  if (isRetailOnly(businessType)) {
+    return <RetailDashboard />;
+  }
+
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -116,9 +124,11 @@ export default async function DashboardPage() {
             <Link className="btn btn-secondary" href="/demo">
               Demo tour
             </Link>
-            <Link className="btn btn-secondary" href="/pos">
-              Open POS
-            </Link>
+            {businessType !== "SERVICE" ? (
+              <Link className="btn btn-secondary" href="/pos">
+                Open POS
+              </Link>
+            ) : null}
             <Link className="btn btn-primary" href="/invoices">
               New invoice
             </Link>

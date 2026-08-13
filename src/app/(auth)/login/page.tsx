@@ -27,7 +27,7 @@ function LoginForm() {
       }
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      const { error: signError } = await supabase.auth.signInWithPassword({
+      const { data, error: signError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -35,17 +35,36 @@ function LoginForm() {
         setError(signError.message);
         return;
       }
-      router.push(next);
+
+      const businessType = String(data.user?.user_metadata?.business_type || "BOTH").toUpperCase();
+      await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessName: data.user?.user_metadata?.business_name || "My Business",
+          businessType,
+        }),
+      });
+
+      router.push(businessType === "RETAIL" && next === "/" ? "/pos" : next);
       router.refresh();
     } finally {
       setLoading(false);
     }
   }
 
-  async function enterDemo() {
+  async function enterDemo(type: "RETAIL" | "SERVICE" | "BOTH") {
     setLoading(true);
     await fetch("/auth/demo", { method: "POST" });
-    router.push("/demo");
+    await fetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        businessName: "Island Works Ltd.",
+        businessType: type,
+      }),
+    });
+    router.push(type === "RETAIL" ? "/pos" : "/demo");
     router.refresh();
   }
 
@@ -58,9 +77,17 @@ function LoginForm() {
         Sign in to run your business from one place.
       </p>
 
+      <Link
+        href="/signup"
+        className="btn btn-primary"
+        style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
+      >
+        Create account / Sign up
+      </Link>
+
       {!configured ? (
         <div className="demo-banner" style={{ marginTop: "1rem" }}>
-          Supabase keys are not set yet. You can still browse with the Demo tab.
+          Supabase keys are not set yet. You can still browse with Demo.
         </div>
       ) : null}
 
@@ -88,25 +115,41 @@ function LoginForm() {
           />
         </label>
         {error ? <div className="badge badge-danger">{error}</div> : null}
-        <button className="btn btn-primary" type="submit" disabled={loading || !configured}>
+        <button className="btn btn-secondary" type="submit" disabled={loading || !configured}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
       </form>
 
       <div className="stack" style={{ marginTop: "1rem" }}>
-        <button className="btn btn-accent" type="button" onClick={enterDemo} disabled={loading}>
-          Enter Demo
-        </button>
-        <p className="muted" style={{ fontSize: "0.85rem", margin: 0 }}>
-          No account?{" "}
-          <Link href="/signup" style={{ color: "var(--sea)", fontWeight: 700 }}>
-            Sign up
-          </Link>
-          {" · "}
-          <Link href="/demo" style={{ color: "var(--sea)", fontWeight: 700 }}>
-            Open Demo tab
-          </Link>
-        </p>
+        <div className="muted" style={{ fontSize: "0.82rem" }}>
+          Try demo as:
+        </div>
+        <div className="row">
+          <button
+            className="btn btn-accent btn-sm"
+            type="button"
+            disabled={loading}
+            onClick={() => enterDemo("RETAIL")}
+          >
+            Retail POS
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            disabled={loading}
+            onClick={() => enterDemo("SERVICE")}
+          >
+            Service
+          </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            disabled={loading}
+            onClick={() => enterDemo("BOTH")}
+          >
+            Both
+          </button>
+        </div>
       </div>
     </Panel>
   );

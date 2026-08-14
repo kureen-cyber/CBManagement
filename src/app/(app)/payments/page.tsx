@@ -1,19 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { recordPayment } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaymentsPage() {
+  const { companyId } = await requireCompany();
   const [customers, invoices, payments] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.invoice.findMany({
-      where: { status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
+      where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
       include: { customer: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.payment.findMany({
+      where: { companyId },
       orderBy: { paidAt: "desc" },
       include: { customer: true, invoice: true },
       take: 50,

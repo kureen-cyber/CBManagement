@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
+  const { companyId } = await requireCompany();
   const [suppliers, products] = await Promise.all([
-    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
+      where: { companyId },
       orderBy: { name: "asc" },
       include: { supplier: true },
     }),

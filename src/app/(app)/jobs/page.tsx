@@ -2,18 +2,29 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { addTimeEntry, createJob } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
+  const { companyId } = await requireCompany();
   const [customers, employees, jobs] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
-    prisma.employee.findMany({ where: { active: true }, orderBy: { firstName: "asc" } }),
-    prisma.job.findMany({ orderBy: { createdAt: "desc" }, include: { customer: true } }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.employee.findMany({
+      where: { companyId, active: true },
+      orderBy: { firstName: "asc" },
+    }),
+    prisma.job.findMany({
+      where: { companyId },
+      orderBy: { createdAt: "desc" },
+      include: { customer: true },
+    }),
   ]);
-  const profits = await Promise.all(jobs.map(async (j) => ({ id: j.id, ...(await getJobProfitability(j.id)) })));
+  const profits = await Promise.all(
+    jobs.map(async (j) => ({ id: j.id, ...(await getJobProfitability(j.id, companyId)) })),
+  );
   const profitMap = Object.fromEntries(profits.map((p) => [p.id, p]));
 
   return (

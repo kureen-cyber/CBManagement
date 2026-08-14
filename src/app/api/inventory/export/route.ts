@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fromCents } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 
 export const dynamic = "force-dynamic";
 
 /** CSV export of stock inventory. */
 export async function GET() {
+  const { companyId } = await requireCompany();
   const products = await prisma.product.findMany({
-    where: { isService: false },
+    where: { companyId, isService: false },
     orderBy: { name: "asc" },
     include: { supplier: true },
   });

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getCompany } from "@/lib/company";
+import { requireCompany } from "@/lib/company";
 import {
   parseHomeLayout,
   parseLanguage,
@@ -11,7 +11,7 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const company = await getCompany();
+  const { company } = await requireCompany();
 
   return (
     <div className="stack">

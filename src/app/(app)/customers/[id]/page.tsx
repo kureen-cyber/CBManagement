@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,9 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+  const { companyId } = await requireCompany();
+  const customer = await prisma.customer.findFirst({
+    where: { id, companyId },
     include: {
       quotations: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },

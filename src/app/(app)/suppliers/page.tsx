@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { createSupplier } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
+  const { companyId } = await requireCompany();
   const suppliers = await prisma.supplier.findMany({
+    where: { companyId },
     orderBy: { name: "asc" },
     include: { _count: { select: { products: true, expenses: true } } },
   });

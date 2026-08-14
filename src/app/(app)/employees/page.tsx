@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { createEmployee } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function EmployeesPage() {
+  const { companyId } = await requireCompany();
   const employees = await prisma.employee.findMany({
+    where: { companyId },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: { timeEntries: { take: 3, orderBy: { date: "desc" } } },
   });

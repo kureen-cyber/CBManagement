@@ -2,9 +2,11 @@ import Link from "next/link";
 import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { PageHeader, Panel } from "@/components/ui";
 
 export async function RetailDashboard() {
+  const { companyId } = await requireCompany();
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -12,12 +14,13 @@ export async function RetailDashboard() {
   const [salesToday, saleCount, customerCount, products, recentSales] = await Promise.all([
     prisma.sale.aggregate({
       _sum: { total: true },
-      where: { soldAt: { gte: todayStart, lte: todayEnd } },
+      where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } },
     }),
-    prisma.sale.count({ where: { soldAt: { gte: todayStart, lte: todayEnd } } }),
-    prisma.customer.count(),
-    prisma.product.findMany({ where: { trackStock: true, isService: false } }),
+    prisma.sale.count({ where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } } }),
+    prisma.customer.count({ where: { companyId } }),
+    prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.findMany({
+      where: { companyId },
       orderBy: { soldAt: "desc" },
       take: 6,
       include: { customer: true, lines: true },

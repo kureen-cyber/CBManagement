@@ -1,16 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
+import { requireCompany } from "@/lib/company";
 import { createExpense } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
+  const { companyId } = await requireCompany();
   const [jobs, suppliers, expenses] = await Promise.all([
-    prisma.job.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+    prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
+    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.expense.findMany({
+      where: { companyId },
       orderBy: { date: "desc" },
       include: { job: true, supplier: true },
       take: 100,

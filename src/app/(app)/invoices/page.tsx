@@ -1,15 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { createInvoice } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage() {
+  const { companyId } = await requireCompany();
   const [customers, jobs, invoices] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
-    prisma.job.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.invoice.findMany({ orderBy: { createdAt: "desc" }, include: { customer: true, job: true } }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
+    prisma.invoice.findMany({
+      where: { companyId },
+      orderBy: { createdAt: "desc" },
+      include: { customer: true, job: true },
+    }),
   ]);
 
   return (

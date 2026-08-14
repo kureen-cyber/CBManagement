@@ -3,7 +3,7 @@ import { startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { getBusinessType } from "@/lib/session-business";
-import { getCompany } from "@/lib/company";
+import { requireCompany } from "@/lib/company";
 import { isRetailOnly } from "@/lib/business-type";
 import { parseHomeLayout } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const businessType = await getBusinessType();
-  const company = await getCompany();
+  const { company, companyId } = await requireCompany();
   const homeLayout = parseHomeLayout(company.homeLayout);
 
   if (isRetailOnly(businessType) || (businessType === "BOTH" && homeLayout === "RETAIL")) {
@@ -45,39 +45,41 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { paidAt: { gte: todayStart, lte: todayEnd } },
+      where: { companyId, paidAt: { gte: todayStart, lte: todayEnd } },
     }),
     prisma.expense.aggregate({
       _sum: { amount: true },
-      where: { date: { gte: todayStart, lte: todayEnd } },
+      where: { companyId, date: { gte: todayStart, lte: todayEnd } },
     }),
     prisma.invoice.findMany({
-      where: { status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
+      where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
       select: { total: true, amountPaid: true, dueDate: true },
     }),
-    prisma.customer.count(),
-    prisma.employee.count({ where: { active: true } }),
-    prisma.job.count({ where: { status: "ACTIVE" } }),
+    prisma.customer.count({ where: { companyId } }),
+    prisma.employee.count({ where: { companyId, active: true } }),
+    prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { paidAt: { gte: monthStart, lte: monthEnd } },
+      where: { companyId, paidAt: { gte: monthStart, lte: monthEnd } },
     }),
     prisma.expense.aggregate({
       _sum: { amount: true },
-      where: { date: { gte: monthStart, lte: monthEnd } },
+      where: { companyId, date: { gte: monthStart, lte: monthEnd } },
     }),
     prisma.payment.aggregate({
       _sum: { amount: true },
-      where: { paidAt: { gte: prevMonthStart, lte: prevMonthEnd } },
+      where: { companyId, paidAt: { gte: prevMonthStart, lte: prevMonthEnd } },
     }),
     prisma.invoice.count({
       where: {
+        companyId,
         status: { in: ["SENT", "PARTIAL", "OVERDUE"] },
         dueDate: { lt: todayStart },
       },
     }),
     prisma.invoice.findMany({
       where: {
+        companyId,
         status: { in: ["SENT", "PARTIAL", "OVERDUE"] },
         dueDate: {
           gte: todayStart,
@@ -86,10 +88,10 @@ export default async function DashboardPage() {
       },
       select: { total: true, amountPaid: true },
     }),
-    prisma.product.findMany({ where: { trackStock: true, isService: false } }),
+    prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.aggregate({
       _sum: { total: true },
-      where: { soldAt: { gte: todayStart, lte: todayEnd } },
+      where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } },
     }),
   ]);
 

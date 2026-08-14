@@ -1,14 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD, sellingPriceFromMarkup } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { acceptAndConvertQuotation, createQuotation } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuotationsPage() {
+  const { companyId } = await requireCompany();
   const [customers, quotations] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.quotation.findMany({
+      where: { companyId },
       orderBy: { createdAt: "desc" },
       include: { customer: true },
     }),

@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { createCustomer } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
+  const { companyId } = await requireCompany();
   const customers = await prisma.customer.findMany({
+    where: { companyId },
     orderBy: { name: "asc" },
     include: {
       invoices: { select: { total: true, amountPaid: true, status: true } },

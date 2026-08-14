@@ -7,12 +7,14 @@ import {
   format,
 } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
+  const { companyId } = await requireCompany();
   const now = new Date();
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
@@ -22,30 +24,30 @@ export default async function ReportsPage() {
     await Promise.all([
       prisma.payment.aggregate({
         _sum: { amount: true },
-        where: { paidAt: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, paidAt: { gte: monthStart, lte: monthEnd } },
       }),
       prisma.expense.aggregate({
         _sum: { amount: true },
-        where: { date: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, date: { gte: monthStart, lte: monthEnd } },
       }),
       prisma.invoice.findMany({
-        where: { status: { in: ["SENT", "PARTIAL", "OVERDUE", "PAID"] } },
+        where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE", "PAID"] } },
         select: { total: true, amountPaid: true, status: true },
       }),
       prisma.sale.aggregate({
         _sum: { total: true },
-        where: { soldAt: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, soldAt: { gte: monthStart, lte: monthEnd } },
       }),
       prisma.expense.findMany({
-        where: { date: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, date: { gte: monthStart, lte: monthEnd } },
         select: { category: true, amount: true },
       }),
       prisma.payment.findMany({
-        where: { paidAt: { gte: monthStart, lte: monthEnd } },
+        where: { companyId, paidAt: { gte: monthStart, lte: monthEnd } },
         select: { method: true, amount: true, reference: true, notes: true },
       }),
       prisma.saleLine.findMany({
-        where: { sale: { soldAt: { gte: monthStart, lte: monthEnd } } },
+        where: { sale: { companyId, soldAt: { gte: monthStart, lte: monthEnd } } },
         include: {
           product: true,
           sale: { select: { number: true, soldAt: true, method: true } },
@@ -145,11 +147,11 @@ export default async function ReportsPage() {
       const [wSales, wExp] = await Promise.all([
         prisma.sale.aggregate({
           _sum: { total: true },
-          where: { soldAt: { gte: start, lte: end } },
+          where: { companyId, soldAt: { gte: start, lte: end } },
         }),
         prisma.expense.aggregate({
           _sum: { amount: true },
-          where: { date: { gte: start, lte: end } },
+          where: { companyId, date: { gte: start, lte: end } },
         }),
       ]);
       return {

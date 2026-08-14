@@ -3,14 +3,16 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = await prisma.job.findUnique({
-    where: { id },
+  const { companyId } = await requireCompany();
+  const job = await prisma.job.findFirst({
+    where: { id, companyId },
     include: {
       customer: true,
       timeEntries: { include: { employee: true }, orderBy: { date: "desc" } },
@@ -18,7 +20,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     },
   });
   if (!job) notFound();
-  const profit = await getJobProfitability(job.id);
+  const profit = await getJobProfitability(job.id, companyId);
 
   return (
     <div className="stack">

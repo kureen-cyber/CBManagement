@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 
@@ -13,14 +14,14 @@ export default async function ReceiptPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const sale = await prisma.sale.findUnique({
-    where: { id },
+  const { companyId, company } = await requireCompany();
+  const sale = await prisma.sale.findFirst({
+    where: { id, companyId },
     include: { customer: true, lines: true },
   });
   if (!sale) notFound();
 
-  const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
-  const canPrint = company?.receiptPrinting !== false;
+  const canPrint = company.receiptPrinting !== false;
 
   return (
     <div className="stack">
@@ -40,7 +41,7 @@ export default async function ReceiptPage({
       <Panel className="receipt-sheet" style={{ padding: "1.5rem", maxWidth: 420 }}>
         <div style={{ textAlign: "center" }}>
           <div className="brand-mark" style={{ fontSize: "1.35rem" }}>
-            {company?.name || "CBManagement"}
+            {company.name || "CBManagement"}
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
             Sales receipt
@@ -96,9 +97,9 @@ export default async function ReceiptPage({
           <span>Subtotal</span>
           <span className="money">{formatTTD(sale.subtotal)}</span>
         </div>
-        {sale.taxAmount > 0 && company?.taxEnabled !== false ? (
+        {sale.taxAmount > 0 && company.taxEnabled !== false ? (
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>VAT ({((company?.vatRate ?? 0.125) * 100).toFixed(1)}%)</span>
+            <span>VAT ({((company.vatRate ?? 0.125) * 100).toFixed(1)}%)</span>
             <span className="money">{formatTTD(sale.taxAmount)}</span>
           </div>
         ) : null}

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
+import { requireCompany } from "@/lib/company";
 import { getBusinessType } from "@/lib/session-business";
 import { isRetailOnly } from "@/lib/business-type";
 import { PosTerminal } from "@/components/PosTerminal";
@@ -9,13 +10,15 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function PosPage() {
+  const { companyId } = await requireCompany();
   const businessType = await getBusinessType();
   const retailMode = isRetailOnly(businessType) || businessType === "BOTH";
 
   const [products, customers, sales] = await Promise.all([
-    prisma.product.findMany({ orderBy: { name: "asc" } }),
-    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.sale.findMany({
+      where: { companyId },
       orderBy: { soldAt: "desc" },
       take: 12,
       include: { customer: true, lines: true },

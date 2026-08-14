@@ -24,12 +24,12 @@ export default async function CustomersPage() {
       <PageHeader title="Customers" description="Contact info, balances, quotes, invoices, jobs — one place." />
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Add customer</h2>
-        <form action={createCustomer} className="form-grid">
-          <label className="field">Name<input name="name" required placeholder="ABC Construction Ltd." /></label>
-          <label className="field">Phone<input name="phone" placeholder="868-555-0100" /></label>
-          <label className="field">Email<input name="email" type="email" /></label>
-          <label className="field">Address<input name="address" /></label>
-          <label className="field full">Notes<textarea name="notes" rows={2} /></label>
+        <form action={createCustomer} className="form-grid" autoComplete="off">
+          <label className="field">Name<input name="name" required placeholder="ABC Construction Ltd." autoComplete="organization" /></label>
+          <label className="field">Phone<input name="phone" placeholder="868-555-0100" autoComplete="off" /></label>
+          <label className="field">Email<input name="email" type="email" autoComplete="off" /></label>
+          <label className="field">Address<input name="address" autoComplete="off" /></label>
+          <label className="field full">Notes<textarea name="notes" rows={2} autoComplete="off" /></label>
           <div className="full"><button className="btn btn-primary" type="submit">Save customer</button></div>
         </form>
       </Panel>

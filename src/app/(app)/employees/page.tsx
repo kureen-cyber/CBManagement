@@ -18,13 +18,13 @@ export default async function EmployeesPage() {
     <div className="stack">
       <PageHeader title="Employees" description="Hourly rates and hours worked." />
       <Panel style={{ padding: "1.25rem" }}>
-        <form action={createEmployee} className="form-grid">
-          <label className="field">First name<input name="firstName" required /></label>
-          <label className="field">Last name<input name="lastName" required /></label>
-          <label className="field">Role<input name="role" placeholder="Electrician" /></label>
+        <form action={createEmployee} className="form-grid" autoComplete="off">
+          <label className="field">First name<input name="firstName" required autoComplete="off" /></label>
+          <label className="field">Last name<input name="lastName" required autoComplete="off" /></label>
+          <label className="field">Role<input name="role" placeholder="Electrician" autoComplete="off" /></label>
           <label className="field">Hourly rate (TT$)<input name="hourlyRate" type="number" step="0.01" defaultValue="40" /></label>
-          <label className="field">Phone<input name="phone" /></label>
-          <label className="field">Email<input name="email" type="email" /></label>
+          <label className="field">Phone<input name="phone" autoComplete="off" /></label>
+          <label className="field">Email<input name="email" type="email" autoComplete="off" /></label>
           <div className="full"><button className="btn btn-primary" type="submit">Save employee</button></div>
         </form>
       </Panel>

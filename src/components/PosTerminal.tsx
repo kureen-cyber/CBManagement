@@ -186,18 +186,18 @@ export function PosTerminal({
       {showCustomerForm ? (
         <div className="panel" style={{ padding: "1rem" }}>
           <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register customer</h3>
-          <form action={createCustomer} className="form-grid">
+          <form action={createCustomer} className="form-grid" autoComplete="off">
             <label className="field">
               Name
-              <input name="name" required placeholder="Walk-in regular" />
+              <input name="name" required placeholder="Walk-in regular" autoComplete="organization" />
             </label>
             <label className="field">
               Phone
-              <input name="phone" placeholder="868-555-0100" />
+              <input name="phone" placeholder="868-555-0100" autoComplete="off" />
             </label>
             <label className="field">
               Email
-              <input name="email" type="email" />
+              <input name="email" type="email" autoComplete="off" />
             </label>
             <div className="full">
               <button className="btn btn-primary btn-sm" type="submit">

@@ -82,7 +82,7 @@ export default function SignupPage() {
         Tell us what kind of business you run — we shape the app around it.
       </p>
 
-      <form onSubmit={onSubmit} className="stack" style={{ marginTop: "1.25rem" }}>
+      <form onSubmit={onSubmit} className="stack" style={{ marginTop: "1.25rem" }} autoComplete="on">
         <label className="field">
           Business name
           <input
@@ -91,6 +91,7 @@ export default function SignupPage() {
             required
             disabled={!configured}
             placeholder="Island Retail Ltd."
+            autoComplete="organization"
           />
         </label>
         <label className="field">
@@ -122,6 +123,7 @@ export default function SignupPage() {
             required
             disabled={!configured}
             placeholder="you@business.tt"
+            autoComplete="username"
           />
         </label>
         <label className="field">
@@ -133,6 +135,7 @@ export default function SignupPage() {
             required
             minLength={6}
             disabled={!configured}
+            autoComplete="new-password"
           />
         </label>
         {error ? <div className="badge badge-danger">{error}</div> : null}

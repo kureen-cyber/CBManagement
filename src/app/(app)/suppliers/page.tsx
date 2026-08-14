@@ -17,11 +17,11 @@ export default async function SuppliersPage() {
     <div className="stack">
       <PageHeader title="Suppliers" description="Who you buy from." />
       <Panel style={{ padding: "1.25rem" }}>
-        <form action={createSupplier} className="form-grid">
-          <label className="field">Name<input name="name" required /></label>
-          <label className="field">Phone<input name="phone" /></label>
-          <label className="field">Email<input name="email" type="email" /></label>
-          <label className="field">Address<input name="address" /></label>
+        <form action={createSupplier} className="form-grid" autoComplete="off">
+          <label className="field">Name<input name="name" required autoComplete="organization" /></label>
+          <label className="field">Phone<input name="phone" autoComplete="off" /></label>
+          <label className="field">Email<input name="email" type="email" autoComplete="off" /></label>
+          <label className="field">Address<input name="address" autoComplete="off" /></label>
           <div className="full"><button className="btn btn-primary" type="submit">Save supplier</button></div>
         </form>
       </Panel>

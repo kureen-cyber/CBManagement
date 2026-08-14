@@ -55,8 +55,9 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-/** Demo browsing is off in production unless explicitly enabled. */
+/** Demo browsing is off in production builds, even if an env var is set by mistake. */
 export function isDemoModeEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return true;
   return false;
 }

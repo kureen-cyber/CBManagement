@@ -86,6 +86,7 @@ function LoginForm() {
             required={configured}
             disabled={!configured}
             placeholder="you@business.tt"
+            autoComplete="username"
           />
         </label>
         <label className="field">
@@ -97,6 +98,7 @@ function LoginForm() {
             required={configured}
             disabled={!configured}
             minLength={6}
+            autoComplete="current-password"
           />
         </label>
         {error ? <div className="badge badge-danger">{error}</div> : null}

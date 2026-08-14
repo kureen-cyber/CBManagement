@@ -11,17 +11,25 @@ import {
 } from "@/lib/settings";
 import {
   updateGeneralSettings,
+  updatePosRegisters,
   updatePrinterSettings,
   updateTaxSettings,
 } from "@/app/actions/settings";
+import {
+  FREE_RETAIL_MAX_POS_REGISTERS,
+  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  PLAN_TIER_LABELS,
+  type PlanTier,
+} from "@/lib/tier";
 import { Panel } from "@/components/ui";
 
-type Tab = "general" | "taxes" | "printers";
+type Tab = "general" | "taxes" | "printers" | "pos";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "taxes", label: "Taxes" },
   { id: "printers", label: "Printers" },
+  { id: "pos", label: "POS registers" },
 ];
 
 export function SettingsPanel({
@@ -33,6 +41,8 @@ export function SettingsPanel({
   vatRate,
   receiptPrinting,
   printerName,
+  planTier,
+  posRegisters,
 }: {
   businessName: string;
   theme: Theme;
@@ -42,6 +52,8 @@ export function SettingsPanel({
   vatRate: number;
   receiptPrinting: boolean;
   printerName: string | null;
+  planTier: PlanTier;
+  posRegisters: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,10 +63,12 @@ export function SettingsPanel({
   );
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function selectTab(next: Tab) {
     setTab(next);
     setSaved(null);
+    setError(null);
     router.replace(`/settings?tab=${next}`, { scroll: false });
   }
 
@@ -88,6 +102,24 @@ export function SettingsPanel({
     });
   }
 
+  function onPosRegisters(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await updatePosRegisters(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved("POS registers saved");
+      router.refresh();
+    });
+  }
+
+  const reg1 = posRegisters[0]?.name ?? "";
+  const reg2 = posRegisters[1]?.name ?? "";
+
   return (
     <div className="stack">
       <div className="settings-tabs" role="tablist">
@@ -106,6 +138,7 @@ export function SettingsPanel({
       </div>
 
       {saved ? <div className="badge badge-ok">{saved}</div> : null}
+      {error ? <div className="badge badge-danger">{error}</div> : null}
 
       {tab === "general" ? (
         <Panel style={{ padding: "1.25rem" }}>
@@ -121,6 +154,12 @@ export function SettingsPanel({
                 placeholder="Your business name"
               />
             </label>
+            <div className="info-banner">
+              Plan: <strong>{PLAN_TIER_LABELS[planTier]}</strong>
+              {planTier === "FREE_RETAIL"
+                ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · receipts visible ${FREE_RETAIL_RECEIPT_RETENTION_DAYS} days`
+                : null}
+            </div>
 
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
             <fieldset className="settings-fieldset">
@@ -247,6 +286,42 @@ export function SettingsPanel({
             </label>
             <button className="btn btn-primary" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save printers"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "pos" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onPosRegisters}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS registers</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Free Retail includes up to {FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins
+              (e.g. Front counter, Side till). Choose which register is active when ringing sales.
+            </p>
+            <label className="field">
+              POS register 1 name
+              <input
+                name="register1"
+                type="text"
+                required
+                defaultValue={reg1 || "Front counter"}
+                placeholder="Front counter"
+                autoComplete="off"
+              />
+            </label>
+            <label className="field">
+              POS register 2 name (optional)
+              <input
+                name="register2"
+                type="text"
+                defaultValue={reg2}
+                placeholder="Side till"
+                autoComplete="off"
+              />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save POS registers"}
             </button>
           </form>
         </Panel>

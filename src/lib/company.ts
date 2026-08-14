@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseBusinessType, type BusinessType } from "@/lib/business-type";
 import { createClient } from "@/lib/supabase/server";
+import { tierFromBusinessType, type PlanTier } from "@/lib/tier";
 
 type AuthUser = {
   id: string;
@@ -23,11 +24,19 @@ export async function ensureCompanyForUser(user: AuthUser) {
     include: { company: true },
   });
   if (existing?.company) {
+    const expected = tierFromBusinessType(existing.company.businessType);
+    if (existing.company.businessType === "RETAIL" && existing.company.planTier !== expected) {
+      return prisma.company.update({
+        where: { id: existing.company.id },
+        data: { planTier: expected },
+      });
+    }
     return existing.company;
   }
 
   const businessName = metaBusinessName(user) || "My Business";
   const businessType = metaBusinessType(user);
+  const planTier = tierFromBusinessType(businessType);
   const normalized = businessName.toLowerCase();
 
   // Claim a legacy orphan company when the name matches (original owner's data).
@@ -52,6 +61,7 @@ export async function ensureCompanyForUser(user: AuthUser) {
       data: {
         name: businessName,
         businessType,
+        planTier,
         homeLayout: businessType === "RETAIL" ? "RETAIL" : claim.homeLayout,
       },
     });
@@ -63,6 +73,7 @@ export async function ensureCompanyForUser(user: AuthUser) {
       currency: "TTD",
       vatRate: 0.125,
       businessType,
+      planTier,
       theme: "light",
       language: "en",
       homeLayout: businessType === "RETAIL" ? "RETAIL" : "RETAIL_SERVICE",
@@ -100,7 +111,6 @@ export async function getCompany() {
 /** Ensure membership exists; only update the user's own company settings. */
 export async function syncCompanyFromUser(user: AuthUser | null) {
   if (!user?.id) {
-    // No auth — do not touch any company row.
     const fallback = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
     if (fallback) return fallback;
     return prisma.company.create({
@@ -109,6 +119,7 @@ export async function syncCompanyFromUser(user: AuthUser | null) {
         currency: "TTD",
         vatRate: 0.125,
         businessType: "BOTH",
+        planTier: "STANDARD",
         theme: "light",
         language: "en",
         homeLayout: "RETAIL",
@@ -125,6 +136,7 @@ export async function updateOwnCompany(
   data: {
     name?: string;
     businessType?: BusinessType;
+    planTier?: PlanTier;
     homeLayout?: string;
     theme?: string;
     language?: string;

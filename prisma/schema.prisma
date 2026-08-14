@@ -26,20 +26,37 @@ model Company {
   /// Allow printing receipts from POS
   receiptPrinting Boolean  @default(true)
   printerName     String?
+  /// FREE_RETAIL | STANDARD
+  planTier        String   @default("STANDARD")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  members    CompanyMember[]
-  customers  Customer[]
-  suppliers  Supplier[]
-  products   Product[]
-  employees  Employee[]
-  quotations Quotation[]
-  jobs       Job[]
-  invoices   Invoice[]
-  payments   Payment[]
-  expenses   Expense[]
-  sales      Sale[]
+  members      CompanyMember[]
+  posRegisters PosRegister[]
+  customers    Customer[]
+  suppliers    Supplier[]
+  products     Product[]
+  employees    Employee[]
+  quotations   Quotation[]
+  jobs         Job[]
+  invoices     Invoice[]
+  payments     Payment[]
+  expenses     Expense[]
+  sales        Sale[]
+}
+
+/// Named POS station / till (free retail allows up to 2).
+model PosRegister {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sales   Sale[]
+
+  @@index([companyId])
 }
 
 /// Links a Supabase Auth user id to exactly one company (owner for now).
@@ -343,26 +360,29 @@ model StockMovement {
 }
 
 model Sale {
-  id         String   @id @default(cuid())
-  companyId  String
-  number     String
-  customerId String?
-  status     String   @default("COMPLETED")
-  subtotal   Int      @default(0)
-  taxAmount  Int      @default(0)
-  total      Int      @default(0)
-  amountPaid Int      @default(0)
-  method     String   @default("CASH")
-  notes      String?
-  soldAt     DateTime @default(now())
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  companyId     String
+  number        String
+  customerId    String?
+  posRegisterId String?
+  status        String   @default("COMPLETED")
+  subtotal      Int      @default(0)
+  taxAmount     Int      @default(0)
+  total         Int      @default(0)
+  amountPaid    Int      @default(0)
+  method        String   @default("CASH")
+  notes         String?
+  soldAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
 
-  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer?  @relation(fields: [customerId], references: [id])
-  lines    SaleLine[]
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id])
+  posRegister PosRegister? @relation(fields: [posRegisterId], references: [id])
+  lines       SaleLine[]
 
   @@unique([companyId, number])
   @@index([companyId])
+  @@index([posRegisterId])
 }
 
 model SaleLine {

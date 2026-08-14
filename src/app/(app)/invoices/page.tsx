@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { createInvoice } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage() {
+  await enforceTierPath("/invoices");
   const { companyId } = await requireCompany();
   const [customers, jobs, invoices] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),

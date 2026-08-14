@@ -27,16 +27,21 @@ export function PosTerminal({
   products: initialProducts,
   customers,
   retailMode = false,
+  registers = [],
+  requireRegister = false,
 }: {
   products: Product[];
   customers: Customer[];
   retailMode?: boolean;
+  registers?: { id: string; name: string }[];
+  requireRegister?: boolean;
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [method, setMethod] = useState("CASH");
   const [customerId, setCustomerId] = useState("");
+  const [posRegisterId, setPosRegisterId] = useState(registers[0]?.id ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [receiptHref, setReceiptHref] = useState<string | null>(null);
@@ -46,6 +51,10 @@ export function PosTerminal({
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [registerAsService, setRegisterAsService] = useState(false);
+
+  useEffect(() => {
+    if (!posRegisterId && registers[0]?.id) setPosRegisterId(registers[0].id);
+  }, [registers, posRegisterId]);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -136,11 +145,16 @@ export function PosTerminal({
     setMessage(null);
     setError(null);
     setReceiptHref(null);
+    if (requireRegister && !posRegisterId) {
+      setError("Select a POS register (or name them in Settings → POS registers)");
+      return;
+    }
     startTransition(async () => {
       const result = await completePosSale({
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
         method,
         customerId: customerId || null,
+        posRegisterId: posRegisterId || null,
       });
       if ("error" in result && result.error) {
         setError(result.error);
@@ -155,6 +169,27 @@ export function PosTerminal({
 
   return (
     <div className="stack">
+      {registers.length > 0 || requireRegister ? (
+        <label className="field" style={{ maxWidth: 320 }}>
+          Active POS register
+          <select
+            value={posRegisterId}
+            onChange={(e) => setPosRegisterId(e.target.value)}
+            required={requireRegister}
+          >
+            {registers.length === 0 ? (
+              <option value="">No registers named yet</option>
+            ) : (
+              registers.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+      ) : null}
+
       {retailMode ? (
         <div className="row">
           <button

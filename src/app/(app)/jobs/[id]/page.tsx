@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await enforceTierPath("/jobs");
   const { id } = await params;
   const { companyId } = await requireCompany();
   const job = await prisma.job.findFirst({

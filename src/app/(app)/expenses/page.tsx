@@ -2,12 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { createExpense } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function ExpensesPage() {
+  await enforceTierPath("/expenses");
   const { companyId } = await requireCompany();
   const [jobs, suppliers, expenses] = await Promise.all([
     prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),

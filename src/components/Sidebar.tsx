@@ -4,20 +4,28 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/constants";
 import { BusinessType, BUSINESS_TYPE_LABELS, navForBusinessType } from "@/lib/business-type";
+import { PLAN_TIER_LABELS, type PlanTier } from "@/lib/tier";
 
 export function Sidebar({
   email,
   businessName,
   businessType = "BOTH",
+  planTier = "STANDARD",
+  showDemoNav = false,
 }: {
   email?: string | null;
   businessName?: string | null;
   businessType?: BusinessType;
+  planTier?: PlanTier;
+  showDemoNav?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const configured = isSupabaseConfigured();
-  const items = navForBusinessType(businessType);
+  const items = [
+    ...navForBusinessType(businessType),
+    ...(showDemoNav ? [{ href: "/demo-tier", label: "Demo (local)" } as const] : []),
+  ];
 
   async function signOut() {
     if (configured) {
@@ -44,7 +52,7 @@ export function Sidebar({
             : "Run your entire business from one place"}
         </div>
         <div style={{ marginTop: "0.45rem", fontSize: "0.72rem", opacity: 0.8 }}>
-          {BUSINESS_TYPE_LABELS[businessType]}
+          {BUSINESS_TYPE_LABELS[businessType]} · {PLAN_TIER_LABELS[planTier]}
         </div>
       </div>
       <nav className="nav">

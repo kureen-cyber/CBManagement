@@ -23,13 +23,14 @@ export function isServiceFocused(type: BusinessType): boolean {
 
 /** Nav items shown for each business type (retail keeps POS front-and-center). */
 export function navForBusinessType(type: BusinessType) {
+  // Free retail onboarding tier — limited modules
   const retail = [
     { href: "/", label: "Dashboard" },
     { href: "/pos", label: "POS" },
     { href: "/customers", label: "Customers" },
-    { href: "/inventory", label: "Inventory" },
+    { href: "/inventory", label: "Items / Inventory" },
     { href: "/payments", label: "Payments" },
-    { href: "/expenses", label: "Expenses" },
+    { href: "/employees", label: "Employees" },
     { href: "/reports", label: "Reports" },
     { href: "/settings", label: "Settings" },
   ] as const;

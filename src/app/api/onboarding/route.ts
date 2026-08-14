@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { parseBusinessType } from "@/lib/business-type";
 import { createClient } from "@/lib/supabase/server";
 import { ensureCompanyForUser, updateOwnCompany } from "@/lib/company";
+import { tierFromBusinessType } from "@/lib/tier";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     String(body.businessName || meta.business_name || meta.full_name || "My Business").trim() ||
     "My Business";
   const businessType = parseBusinessType(body.businessType || meta.business_type);
+  const planTier = tierFromBusinessType(businessType);
 
   const company = await ensureCompanyForUser({
     id: user.id,
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
   await updateOwnCompany(company.id, {
     name: businessName,
     businessType,
+    planTier,
     homeLayout: businessType === "RETAIL" ? "RETAIL" : company.homeLayout,
   });
 
@@ -38,6 +41,7 @@ export async function POST(request: Request) {
     businessType,
     businessName,
     companyId: company.id,
+    planTier,
   });
   res.cookies.set("cbm_business_type", businessType, {
     httpOnly: false,

@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { addTimeEntry, createJob } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobsPage() {
+  await enforceTierPath("/jobs");
   const { companyId } = await requireCompany();
   const [customers, employees, jobs] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),

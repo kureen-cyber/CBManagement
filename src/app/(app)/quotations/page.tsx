@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD, sellingPriceFromMarkup } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { acceptAndConvertQuotation, createQuotation } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuotationsPage() {
+  await enforceTierPath("/quotations");
   const { companyId } = await requireCompany();
   const [customers, quotations] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),

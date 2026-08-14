@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
+import { enforceTierPath } from "@/lib/tier-guard";
 import { createSupplier } from "@/app/actions";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
+  await enforceTierPath("/suppliers");
   const { companyId } = await requireCompany();
   const suppliers = await prisma.supplier.findMany({
     where: { companyId },

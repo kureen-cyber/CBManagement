@@ -9,6 +9,11 @@ import {
   parseLanguage,
   parseTheme,
 } from "@/lib/settings";
+import {
+  FREE_RETAIL_MAX_POS_REGISTERS,
+  isFreeRetailTier,
+  parsePlanTier,
+} from "@/lib/tier";
 
 export async function updateGeneralSettings(formData: FormData) {
   const { companyId } = await requireCompany();
@@ -65,4 +70,60 @@ export async function updatePrinterSettings(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/pos");
+}
+
+/** Save up to two named POS registers (free retail limit). */
+export async function updatePosRegisters(formData: FormData) {
+  const { companyId, company } = await requireCompany();
+  const tier = parsePlanTier(company.planTier);
+  const max = isFreeRetailTier(tier) ? FREE_RETAIL_MAX_POS_REGISTERS : FREE_RETAIL_MAX_POS_REGISTERS;
+
+  const names = [1, 2, 3, 4]
+    .map((n) => String(formData.get(`register${n}`) || "").trim())
+    .filter(Boolean)
+    .slice(0, max);
+
+  if (names.length === 0) {
+    return { error: "Name at least one POS register" };
+  }
+
+  const unique = new Set(names.map((n) => n.toLowerCase()));
+  if (unique.size !== names.length) {
+    return { error: "POS register names must be unique" };
+  }
+
+  const existing = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  // Update / create in order; delete extras beyond saved names
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i]!;
+    const row = existing[i];
+    if (row) {
+      await prisma.posRegister.update({
+        where: { id: row.id },
+        data: { name },
+      });
+    } else {
+      await prisma.posRegister.create({
+        data: { companyId, name },
+      });
+    }
+  }
+
+  const extras = existing.slice(names.length);
+  for (const row of extras) {
+    // Detach sales then delete register
+    await prisma.sale.updateMany({
+      where: { posRegisterId: row.id },
+      data: { posRegisterId: null },
+    });
+    await prisma.posRegister.delete({ where: { id: row.id } });
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const, count: names.length };
 }

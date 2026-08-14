@@ -463,11 +463,30 @@ export async function completePosSale(input: {
   method: string;
   customerId?: string | null;
   notes?: string;
+  posRegisterId?: string | null;
 }) {
   const { companyId, company } = await requireCompany();
+  const { isFreeRetailTier, parsePlanTier } = await import("@/lib/tier");
+  const planTier = parsePlanTier(company.planTier);
 
   if (!input.lines.length) {
     return { error: "Cart is empty" };
+  }
+
+  let posRegisterId: string | null = input.posRegisterId || null;
+  if (isFreeRetailTier(planTier)) {
+    if (!posRegisterId) {
+      return { error: "Select a named POS register (Settings → POS registers)" };
+    }
+    const reg = await prisma.posRegister.findFirst({
+      where: { id: posRegisterId, companyId },
+    });
+    if (!reg) return { error: "POS register not found" };
+  } else if (posRegisterId) {
+    const reg = await prisma.posRegister.findFirst({
+      where: { id: posRegisterId, companyId },
+    });
+    if (!reg) posRegisterId = null;
   }
 
   const products = await prisma.product.findMany({
@@ -507,6 +526,7 @@ export async function completePosSale(input: {
       companyId,
       number: await nextNumber("POS", "sale", companyId),
       customerId: input.customerId || null,
+      posRegisterId,
       status: "COMPLETED",
       subtotal,
       taxAmount,

@@ -3,6 +3,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import {
+  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  isFreeRetailTier,
+  parsePlanTier,
+  receiptVisibleSince,
+} from "@/lib/tier";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 
@@ -15,11 +21,32 @@ export default async function ReceiptPage({
 }) {
   const { id } = await params;
   const { companyId, company } = await requireCompany();
+  const planTier = parsePlanTier(company.planTier);
+  const since = receiptVisibleSince(planTier);
+
   const sale = await prisma.sale.findFirst({
     where: { id, companyId },
-    include: { customer: true, lines: true },
+    include: { customer: true, lines: true, posRegister: true },
   });
   if (!sale) notFound();
+
+  if (since && sale.soldAt < since) {
+    return (
+      <div className="stack">
+        <PageHeader title="Receipt expired" description={sale.number} />
+        <Panel style={{ padding: "1.25rem" }}>
+          <p>
+            Free Retail keeps sales receipts visible for{" "}
+            {FREE_RETAIL_RECEIPT_RETENTION_DAYS} days. This receipt is older and is no longer
+            available to view or print.
+          </p>
+          <Link className="btn btn-secondary" href="/pos">
+            Back to POS
+          </Link>
+        </Panel>
+      </div>
+    );
+  }
 
   const canPrint = company.receiptPrinting !== false;
 
@@ -45,6 +72,7 @@ export default async function ReceiptPage({
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
             Sales receipt
+            {isFreeRetailTier(planTier) ? ` · ${FREE_RETAIL_RECEIPT_RETENTION_DAYS}-day visibility` : ""}
           </div>
         </div>
 
@@ -57,6 +85,12 @@ export default async function ReceiptPage({
             <span>Date</span>
             <span>{sale.soldAt.toLocaleString("en-TT")}</span>
           </div>
+          {sale.posRegister ? (
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span>Register</span>
+              <span>{sale.posRegister.name}</span>
+            </div>
+          ) : null}
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Customer</span>
             <span>{sale.customer?.name ?? "Walk-in"}</span>

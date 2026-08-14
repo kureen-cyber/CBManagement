@@ -69,6 +69,40 @@ export default function LandingPage() {
             <span>Reports with period controls and daily earnings so you know what came in.</span>
           </li>
         </ul>
+
+        <div className="landing-guide" id="getting-started">
+          <h3>Once you&apos;re in the app</h3>
+          <p className="landing-section-lede">
+            Follow the path that matches how you work — retail shop or service industry.
+          </p>
+          <div className="landing-guide-grid">
+            <div className="landing-guide-path">
+              <h4>Retail customers</h4>
+              <ol className="landing-steps">
+                <li>Create your account</li>
+                <li>Verify your email</li>
+                <li>Sign in</li>
+                <li>Populate your inventory stock list</li>
+                <li>Add customers</li>
+                <li>Add employees</li>
+                <li>Record an expense</li>
+                <li>View your reports</li>
+              </ol>
+            </div>
+            <div className="landing-guide-path">
+              <h4>Service industry</h4>
+              <ol className="landing-steps">
+                <li>Create a quotation</li>
+                <li>Register a job</li>
+                <li>Create an invoice</li>
+                <li>Upload payments</li>
+                <li>Generate receipts</li>
+                <li>Record an expense</li>
+                <li>View your reports</li>
+              </ol>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="landing-section landing-final-cta">

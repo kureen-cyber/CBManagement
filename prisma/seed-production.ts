@@ -23,6 +23,7 @@ async function main() {
   await prisma.employee.deleteMany();
   await prisma.supplier.deleteMany();
   await prisma.customer.deleteMany();
+  await prisma.companyMember.deleteMany();
   await prisma.company.deleteMany();
 
   // No company row — created on first sign-in from the user's business name.

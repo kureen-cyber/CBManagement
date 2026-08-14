@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/business";
+import { requireCompany } from "@/lib/company";
 import { sellingPriceFromMarkup, toCents } from "@/lib/money";
 
 function dollarsToCents(value: FormDataEntryValue | null): number {
@@ -11,8 +12,10 @@ function dollarsToCents(value: FormDataEntryValue | null): number {
 }
 
 export async function createCustomer(formData: FormData) {
+  const { companyId } = await requireCompany();
   await prisma.customer.create({
     data: {
+      companyId,
       name: String(formData.get("name") || "").trim(),
       email: String(formData.get("email") || "") || null,
       phone: String(formData.get("phone") || "") || null,
@@ -26,8 +29,10 @@ export async function createCustomer(formData: FormData) {
 }
 
 export async function createSupplier(formData: FormData) {
+  const { companyId } = await requireCompany();
   await prisma.supplier.create({
     data: {
+      companyId,
       name: String(formData.get("name") || "").trim(),
       email: String(formData.get("email") || "") || null,
       phone: String(formData.get("phone") || "") || null,
@@ -38,13 +43,23 @@ export async function createSupplier(formData: FormData) {
 }
 
 export async function createProduct(formData: FormData) {
+  const { companyId } = await requireCompany();
   const trackStock = formData.get("trackStock") === "on";
   const isService = formData.get("isService") === "on";
   const opening = Number(formData.get("stockQty") || 0);
   const category = String(formData.get("category") || "General").trim() || "General";
+  const supplierId = String(formData.get("supplierId") || "") || null;
+
+  if (supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: supplierId, companyId },
+    });
+    if (!supplier) throw new Error("Supplier not found");
+  }
 
   const product = await prisma.product.create({
     data: {
+      companyId,
       name: String(formData.get("name") || "").trim(),
       sku: String(formData.get("sku") || "") || null,
       category,
@@ -55,7 +70,7 @@ export async function createProduct(formData: FormData) {
       stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
-      supplierId: String(formData.get("supplierId") || "") || null,
+      supplierId,
     },
   });
 
@@ -92,10 +107,11 @@ export async function createProduct(formData: FormData) {
 }
 
 export async function deleteProduct(productId: string) {
+  const { companyId } = await requireCompany();
   const id = String(productId || "").trim();
   if (!id) return { error: "Missing product" };
 
-  const product = await prisma.product.findUnique({ where: { id } });
+  const product = await prisma.product.findFirst({ where: { id, companyId } });
   if (!product) return { error: "Item not found" };
 
   await prisma.$transaction([
@@ -115,8 +131,10 @@ export async function deleteProduct(productId: string) {
 }
 
 export async function createEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
   await prisma.employee.create({
     data: {
+      companyId,
       firstName: String(formData.get("firstName") || "").trim(),
       lastName: String(formData.get("lastName") || "").trim(),
       email: String(formData.get("email") || "") || null,
@@ -129,15 +147,29 @@ export async function createEmployee(formData: FormData) {
 }
 
 export async function createExpense(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "") || null;
+  const supplierId = String(formData.get("supplierId") || "") || null;
+
+  if (jobId) {
+    const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+    if (!job) throw new Error("Job not found");
+  }
+  if (supplierId) {
+    const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
+    if (!supplier) throw new Error("Supplier not found");
+  }
+
   await prisma.expense.create({
     data: {
+      companyId,
       category: String(formData.get("category") || "Other"),
       description: String(formData.get("description") || "") || null,
       amount: dollarsToCents(formData.get("amount")),
       date: new Date(String(formData.get("date") || new Date().toISOString())),
       paymentMethod: String(formData.get("paymentMethod") || "CASH"),
-      jobId: String(formData.get("jobId") || "") || null,
-      supplierId: String(formData.get("supplierId") || "") || null,
+      jobId,
+      supplierId,
     },
   });
   revalidatePath("/expenses");
@@ -146,6 +178,11 @@ export async function createExpense(formData: FormData) {
 }
 
 export async function createQuotation(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const customerId = String(formData.get("customerId"));
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
+  if (!customer) throw new Error("Customer not found");
+
   const labour = dollarsToCents(formData.get("labourCost"));
   const materials = dollarsToCents(formData.get("materialsCost"));
   const equipment = dollarsToCents(formData.get("equipmentCost"));
@@ -156,8 +193,9 @@ export async function createQuotation(formData: FormData) {
 
   await prisma.quotation.create({
     data: {
-      number: await nextNumber("Q", "quotation"),
-      customerId: String(formData.get("customerId")),
+      companyId,
+      number: await nextNumber("Q", "quotation", companyId),
+      customerId,
       title: String(formData.get("title") || "") || null,
       notes: String(formData.get("notes") || "") || null,
       labourCost: labour,
@@ -175,19 +213,22 @@ export async function createQuotation(formData: FormData) {
 }
 
 export async function acceptAndConvertQuotation(quotationId: string) {
-  const quote = await prisma.quotation.findUniqueOrThrow({
-    where: { id: quotationId },
+  const { companyId } = await requireCompany();
+  const quote = await prisma.quotation.findFirst({
+    where: { id: quotationId, companyId },
   });
+  if (!quote) return { error: "Quotation not found" };
 
   if (quote.status === "CONVERTED") {
     return { error: "Already converted" };
   }
 
-  const jobNumber = await nextNumber("JOB", "job");
-  const invoiceNumber = await nextNumber("INV", "invoice");
+  const jobNumber = await nextNumber("JOB", "job", companyId);
+  const invoiceNumber = await nextNumber("INV", "invoice", companyId);
 
   const job = await prisma.job.create({
     data: {
+      companyId,
       number: jobNumber,
       customerId: quote.customerId,
       quotationId: quote.id,
@@ -212,6 +253,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 
   await prisma.invoice.create({
     data: {
+      companyId,
       number: invoiceNumber,
       customerId: quote.customerId,
       jobId: job.id,
@@ -236,7 +278,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 
   if (quote.materialsCost > 0) {
     const tracked = await prisma.product.findFirst({
-      where: { trackStock: true, isService: false },
+      where: { companyId, trackStock: true, isService: false },
     });
     if (tracked) {
       await prisma.stockMovement.create({
@@ -271,6 +313,17 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 }
 
 export async function createInvoice(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const customerId = String(formData.get("customerId"));
+  const jobId = String(formData.get("jobId") || "") || null;
+
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
+  if (!customer) throw new Error("Customer not found");
+  if (jobId) {
+    const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+    if (!job) throw new Error("Job not found");
+  }
+
   const total = dollarsToCents(formData.get("total"));
   const due = formData.get("dueDate")
     ? new Date(String(formData.get("dueDate")))
@@ -278,9 +331,10 @@ export async function createInvoice(formData: FormData) {
 
   await prisma.invoice.create({
     data: {
-      number: await nextNumber("INV", "invoice"),
-      customerId: String(formData.get("customerId")),
-      jobId: String(formData.get("jobId") || "") || null,
+      companyId,
+      number: await nextNumber("INV", "invoice", companyId),
+      customerId,
+      jobId,
       status: "SENT",
       dueDate: due,
       subtotal: total,
@@ -303,12 +357,22 @@ export async function createInvoice(formData: FormData) {
 }
 
 export async function recordPayment(formData: FormData) {
+  const { companyId } = await requireCompany();
   const invoiceId = String(formData.get("invoiceId") || "") || null;
   const amount = dollarsToCents(formData.get("amount"));
   const customerId = String(formData.get("customerId"));
 
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
+  if (!customer) throw new Error("Customer not found");
+
+  if (invoiceId) {
+    const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId } });
+    if (!invoice) throw new Error("Invoice not found");
+  }
+
   await prisma.payment.create({
     data: {
+      companyId,
       customerId,
       invoiceId,
       amount,
@@ -320,15 +384,15 @@ export async function recordPayment(formData: FormData) {
   });
 
   if (invoiceId) {
-    const invoice = await prisma.invoice.findUniqueOrThrow({
-      where: { id: invoiceId },
+    const invoice = await prisma.invoice.findFirstOrThrow({
+      where: { id: invoiceId, companyId },
     });
     const amountPaid = invoice.amountPaid + amount;
     const status =
       amountPaid >= invoice.total ? "PAID" : amountPaid > 0 ? "PARTIAL" : invoice.status;
 
     await prisma.invoice.update({
-      where: { id: invoiceId },
+      where: { id: invoice.id },
       data: { amountPaid, status },
     });
   }
@@ -339,10 +403,16 @@ export async function recordPayment(formData: FormData) {
 }
 
 export async function createJob(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const customerId = String(formData.get("customerId"));
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
+  if (!customer) throw new Error("Customer not found");
+
   await prisma.job.create({
     data: {
-      number: await nextNumber("JOB", "job"),
-      customerId: String(formData.get("customerId")),
+      companyId,
+      number: await nextNumber("JOB", "job", companyId),
+      customerId,
       title: String(formData.get("title") || "").trim(),
       contractValue: dollarsToCents(formData.get("contractValue")),
       status: "ACTIVE",
@@ -353,15 +423,24 @@ export async function createJob(formData: FormData) {
 }
 
 export async function addTimeEntry(formData: FormData) {
+  const { companyId } = await requireCompany();
   const employeeId = String(formData.get("employeeId"));
-  const employee = await prisma.employee.findUniqueOrThrow({
-    where: { id: employeeId },
+  const jobId = String(formData.get("jobId") || "") || null;
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, companyId },
   });
+  if (!employee) throw new Error("Employee not found");
+
+  if (jobId) {
+    const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+    if (!job) throw new Error("Job not found");
+  }
 
   await prisma.timeEntry.create({
     data: {
       employeeId,
-      jobId: String(formData.get("jobId") || "") || null,
+      jobId,
       date: new Date(String(formData.get("date") || new Date().toISOString())),
       hours: Number(formData.get("hours") || 0),
       overtimeHours: Number(formData.get("overtimeHours") || 0),
@@ -385,12 +464,14 @@ export async function completePosSale(input: {
   customerId?: string | null;
   notes?: string;
 }) {
+  const { companyId, company } = await requireCompany();
+
   if (!input.lines.length) {
     return { error: "Cart is empty" };
   }
 
   const products = await prisma.product.findMany({
-    where: { id: { in: input.lines.map((l) => l.productId) } },
+    where: { companyId, id: { in: input.lines.map((l) => l.productId) } },
   });
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
 
@@ -408,16 +489,23 @@ export async function completePosSale(input: {
     };
   });
 
+  if (input.customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: input.customerId, companyId },
+    });
+    if (!customer) return { error: "Customer not found" };
+  }
+
   const subtotal = built.reduce((s, l) => s + l.lineTotal, 0);
-  const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
-  const taxOn = company?.taxEnabled !== false;
-  const vatRate = taxOn ? (company?.vatRate ?? 0.125) : 0;
+  const taxOn = company.taxEnabled !== false;
+  const vatRate = taxOn ? (company.vatRate ?? 0.125) : 0;
   const taxAmount = Math.round(subtotal * vatRate);
   const total = subtotal + taxAmount;
 
   const sale = await prisma.sale.create({
     data: {
-      number: await nextNumber("POS", "sale"),
+      companyId,
+      number: await nextNumber("POS", "sale", companyId),
       customerId: input.customerId || null,
       status: "COMPLETED",
       subtotal,
@@ -456,10 +544,10 @@ export async function completePosSale(input: {
     });
   }
 
-  // Also log as a payment for dashboard "sales today"
   if (input.customerId) {
     await prisma.payment.create({
       data: {
+        companyId,
         customerId: input.customerId,
         amount: total,
         method: input.method || "CASH",
@@ -469,20 +557,27 @@ export async function completePosSale(input: {
       },
     });
   } else {
-    // Walk-in: attach to first customer if exists, else skip payment link
-    const walkIn = await prisma.customer.findFirst({ orderBy: { createdAt: "asc" } });
-    if (walkIn) {
-      await prisma.payment.create({
-        data: {
-          customerId: walkIn.id,
-          amount: total,
-          method: input.method || "CASH",
-          reference: sale.number,
-          notes: "POS walk-in sale",
-          paidAt: new Date(),
-        },
+    // Walk-in: use/create a per-company walk-in customer (never another business's customer)
+    let walkIn = await prisma.customer.findFirst({
+      where: { companyId, name: "Walk-in Customer" },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!walkIn) {
+      walkIn = await prisma.customer.create({
+        data: { companyId, name: "Walk-in Customer", notes: "Auto-created for POS walk-ins" },
       });
     }
+    await prisma.payment.create({
+      data: {
+        companyId,
+        customerId: walkIn.id,
+        amount: total,
+        method: input.method || "CASH",
+        reference: sale.number,
+        notes: "POS walk-in sale",
+        paidAt: new Date(),
+      },
+    });
   }
 
   revalidatePath("/pos");

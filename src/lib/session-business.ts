@@ -1,15 +1,16 @@
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { BusinessType, parseBusinessType } from "@/lib/business-type";
+import { requireCompany } from "@/lib/company";
+import { createClient } from "@/lib/supabase/server";
 
 export async function getBusinessType(): Promise<BusinessType> {
-  const cookieStore = await cookies();
-  const cookieType = cookieStore.get("cbm_business_type")?.value;
-
-  const company = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
-  if (company?.businessType) {
-    return parseBusinessType(company.businessType);
+  try {
+    const { company } = await requireCompany();
+    if (company?.businessType) {
+      return parseBusinessType(company.businessType);
+    }
+  } catch {
+    // Fall through for unauthenticated edge cases
   }
 
   const supabase = await createClient();
@@ -19,6 +20,8 @@ export async function getBusinessType(): Promise<BusinessType> {
     if (metaType) return parseBusinessType(metaType);
   }
 
+  const cookieStore = await cookies();
+  const cookieType = cookieStore.get("cbm_business_type")?.value;
   if (cookieType) return parseBusinessType(cookieType);
   return "BOTH";
 }

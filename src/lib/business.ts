@@ -3,16 +3,18 @@ import { prisma } from "./prisma";
 export async function nextNumber(
   prefix: string,
   model: "quotation" | "invoice" | "job" | "sale",
+  companyId: string,
 ): Promise<string> {
   const year = new Date().getFullYear();
+  const where = { companyId };
   const count =
     model === "quotation"
-      ? await prisma.quotation.count()
+      ? await prisma.quotation.count({ where })
       : model === "invoice"
-        ? await prisma.invoice.count()
+        ? await prisma.invoice.count({ where })
         : model === "sale"
-          ? await prisma.sale.count()
-          : await prisma.job.count();
+          ? await prisma.sale.count({ where })
+          : await prisma.job.count({ where });
   const seq = String(count + 1).padStart(4, "0");
   return `${prefix}-${year}-${seq}`;
 }
@@ -27,9 +29,12 @@ export type JobProfitability = {
   marginPct: number;
 };
 
-export async function getJobProfitability(jobId: string): Promise<JobProfitability> {
-  const job = await prisma.job.findUniqueOrThrow({
-    where: { id: jobId },
+export async function getJobProfitability(
+  jobId: string,
+  companyId?: string,
+): Promise<JobProfitability> {
+  const job = await prisma.job.findFirstOrThrow({
+    where: companyId ? { id: jobId, companyId } : { id: jobId },
     include: { materials: true, timeEntries: true, expenses: true },
   });
 

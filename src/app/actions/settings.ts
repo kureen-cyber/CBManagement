@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { getCompany } from "@/lib/company";
+import { requireCompany } from "@/lib/company";
 import {
   parseHomeLayout,
   parseLanguage,
@@ -11,14 +11,14 @@ import {
 } from "@/lib/settings";
 
 export async function updateGeneralSettings(formData: FormData) {
-  const company = await getCompany();
+  const { companyId } = await requireCompany();
   const theme = parseTheme(formData.get("theme"));
   const language = parseLanguage(formData.get("language"));
   const homeLayout = parseHomeLayout(formData.get("homeLayout"));
   const businessName = String(formData.get("businessName") || "").trim();
 
   await prisma.company.update({
-    where: { id: company.id },
+    where: { id: companyId },
     data: {
       theme,
       language,
@@ -38,13 +38,13 @@ export async function updateGeneralSettings(formData: FormData) {
 }
 
 export async function updateTaxSettings(formData: FormData) {
-  const company = await getCompany();
+  const { companyId } = await requireCompany();
   const taxEnabled = formData.get("taxEnabled") === "on";
   const vatPct = Number(formData.get("vatPercent") ?? 12.5);
   const vatRate = Number.isFinite(vatPct) ? Math.max(0, Math.min(100, vatPct)) / 100 : 0.125;
 
   await prisma.company.update({
-    where: { id: company.id },
+    where: { id: companyId },
     data: { taxEnabled, vatRate },
   });
 
@@ -54,12 +54,12 @@ export async function updateTaxSettings(formData: FormData) {
 }
 
 export async function updatePrinterSettings(formData: FormData) {
-  const company = await getCompany();
+  const { companyId } = await requireCompany();
   const receiptPrinting = formData.get("receiptPrinting") === "on";
   const printerName = String(formData.get("printerName") || "").trim() || null;
 
   await prisma.company.update({
-    where: { id: company.id },
+    where: { id: companyId },
     data: { receiptPrinting, printerName },
   });
 

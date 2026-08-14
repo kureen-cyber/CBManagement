@@ -19,9 +19,12 @@ async function main() {
   await prisma.employee.deleteMany();
   await prisma.supplier.deleteMany();
   await prisma.customer.deleteMany();
+  await prisma.companyMember.deleteMany();
   await prisma.company.deleteMany();
 
-  await prisma.company.create({
+  await prisma.companyMember.deleteMany();
+
+  const company = await prisma.company.create({
     data: {
       name: "Island Works Ltd.",
       currency: "TTD",
@@ -33,9 +36,11 @@ async function main() {
       receiptPrinting: true,
     },
   });
+  const companyId = company.id;
 
   const abc = await prisma.customer.create({
     data: {
+      companyId,
       name: "ABC Construction Ltd.",
       email: "accounts@abcconstruction.tt",
       phone: "868-555-0145",
@@ -46,6 +51,7 @@ async function main() {
 
   const xyz = await prisma.customer.create({
     data: {
+      companyId,
       name: "XYZ Ltd.",
       email: "ops@xyz.tt",
       phone: "868-555-0199",
@@ -55,6 +61,7 @@ async function main() {
 
   const supplier = await prisma.supplier.create({
     data: {
+      companyId,
       name: "Caribbean Electrical Supplies",
       phone: "868-555-0200",
       email: "sales@ces.tt",
@@ -63,6 +70,7 @@ async function main() {
 
   const cable = await prisma.product.create({
     data: {
+      companyId,
       name: "Electrical cable 2.5mm",
       sku: "CAB-25",
       unit: "m",
@@ -76,6 +84,7 @@ async function main() {
 
   const outlet = await prisma.product.create({
     data: {
+      companyId,
       name: "Wall outlet",
       sku: "OUT-01",
       unit: "each",
@@ -89,6 +98,7 @@ async function main() {
 
   await prisma.product.create({
     data: {
+      companyId,
       name: "Labour — electrician",
       unit: "hour",
       unitCost: 4000,
@@ -108,6 +118,7 @@ async function main() {
 
   const john = await prisma.employee.create({
     data: {
+      companyId,
       firstName: "John",
       lastName: "Smith",
       role: "Electrician",
@@ -118,6 +129,7 @@ async function main() {
 
   await prisma.employee.create({
     data: {
+      companyId,
       firstName: "Maria",
       lastName: "Singh",
       role: "Apprentice",
@@ -127,6 +139,7 @@ async function main() {
 
   await prisma.quotation.create({
     data: {
+      companyId,
       number: "Q-2026-0001",
       customerId: xyz.id,
       title: "Electrical Installation",
@@ -144,6 +157,7 @@ async function main() {
 
   const job = await prisma.job.create({
     data: {
+      companyId,
       number: "JOB-2026-0145",
       customerId: xyz.id,
       title: "Electrical Installation",
@@ -175,6 +189,7 @@ async function main() {
 
   await prisma.expense.create({
     data: {
+      companyId,
       category: "Transport",
       description: "Site fuel",
       amount: 45000,
@@ -187,6 +202,7 @@ async function main() {
 
   const invoice = await prisma.invoice.create({
     data: {
+      companyId,
       number: "INV-2026-0001",
       customerId: abc.id,
       status: "SENT",
@@ -209,6 +225,7 @@ async function main() {
 
   await prisma.payment.create({
     data: {
+      companyId,
       customerId: abc.id,
       invoiceId: invoice.id,
       amount: 425000,
@@ -225,6 +242,7 @@ async function main() {
 
   await prisma.expense.create({
     data: {
+      companyId,
       category: "Materials",
       description: "Shop supplies",
       amount: 118000,
@@ -235,6 +253,7 @@ async function main() {
 
   await prisma.sale.create({
     data: {
+      companyId,
       number: "POS-2026-0001",
       customerId: abc.id,
       status: "COMPLETED",

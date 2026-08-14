@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import {
-  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
   parsePlanTier,
   receiptVisibleSince,
@@ -37,7 +37,7 @@ export default async function ReceiptPage({
         <Panel style={{ padding: "1.25rem" }}>
           <p>
             Free Retail keeps sales receipts visible for{" "}
-            {FREE_RETAIL_RECEIPT_RETENTION_DAYS} days. This receipt is older and is no longer
+            {FREE_TIER_MAX_TRANSACTION_DAYS} days. This receipt is older and is no longer
             available to view or print.
           </p>
           <Link className="btn btn-secondary" href="/pos">
@@ -72,7 +72,7 @@ export default async function ReceiptPage({
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
             Sales receipt
-            {isFreeRetailTier(planTier) ? ` · ${FREE_RETAIL_RECEIPT_RETENTION_DAYS}-day visibility` : ""}
+            {isFreeRetailTier(planTier) ? ` · ${FREE_TIER_MAX_TRANSACTION_DAYS}-day visibility` : ""}
           </div>
         </div>
 

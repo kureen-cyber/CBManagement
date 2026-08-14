@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { completePosSale, createCustomer, createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { CategoryInput } from "@/components/CategoryInput";
 import { ItemMenu } from "@/components/ItemMenu";
 
 type Product = {
@@ -253,13 +254,12 @@ export function PosTerminal({
             </label>
             <label className="field">
               Category
-              <select name="category" defaultValue="General" required>
-                {PRODUCT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <CategoryInput
+                name="category"
+                defaultValue="General"
+                suggestions={[...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]}
+                listId="pos-category-suggestions"
+              />
             </label>
             <label className="field">
               SKU

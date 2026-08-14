@@ -6,7 +6,7 @@ import { requireCompany } from "@/lib/company";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
   FREE_RETAIL_NAV,
-  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  FREE_TIER_MAX_TRANSACTION_DAYS,
   PLAN_TIER_LABELS,
   isFreeRetailTier,
   isLocalhostDemoHost,
@@ -135,7 +135,7 @@ export default async function DemoTierPage() {
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>Receipt retention</h2>
         <ul style={{ margin: 0, paddingLeft: "1.1rem", lineHeight: 1.6 }}>
-          <li>Window: {FREE_RETAIL_RECEIPT_RETENTION_DAYS} days</li>
+          <li>Window: {FREE_TIER_MAX_TRANSACTION_DAYS} days</li>
           <li>Visible sales (in window): {visibleSales}</li>
           <li>Hidden / expired sales: {hiddenSales}</li>
           <li>

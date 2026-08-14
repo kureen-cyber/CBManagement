@@ -17,7 +17,7 @@ import {
 } from "@/app/actions/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
-  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  FREE_TIER_MAX_TRANSACTION_DAYS,
   PLAN_TIER_LABELS,
   type PlanTier,
 } from "@/lib/tier";
@@ -157,7 +157,7 @@ export function SettingsPanel({
             <div className="info-banner">
               Plan: <strong>{PLAN_TIER_LABELS[planTier]}</strong>
               {planTier === "FREE_RETAIL"
-                ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · receipts visible ${FREE_RETAIL_RECEIPT_RETENTION_DAYS} days`
+                ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
                 : null}
             </div>
 

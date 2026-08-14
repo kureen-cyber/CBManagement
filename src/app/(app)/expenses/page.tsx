@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { EXPENSE_CATEGORIES } from "@/lib/constants";
+import { CategoryInput } from "@/components/CategoryInput";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
 import { createExpense } from "@/app/actions";
@@ -22,15 +23,24 @@ export default async function ExpensesPage() {
     }),
   ]);
 
+  const categorySuggestions = [
+    ...EXPENSE_CATEGORIES,
+    ...expenses.map((e) => e.category),
+  ];
+
   return (
     <div className="stack">
       <PageHeader title="Expenses" description="Simple expense entry — assign to a job for profitability." />
       <Panel style={{ padding: "1.25rem" }}>
-        <form action={createExpense} className="form-grid">
+        <form action={createExpense} className="form-grid" autoComplete="off">
           <label className="field">Category
-            <select name="category" defaultValue="Materials">
-              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <CategoryInput
+              name="category"
+              defaultValue="Materials"
+              suggestions={categorySuggestions}
+              listId="expense-category-suggestions"
+              placeholder="e.g. Materials, Fuel, Packaging"
+            />
           </label>
           <label className="field">Amount (TT$)<input name="amount" type="number" step="0.01" required /></label>
           <label className="field">Supplier

@@ -4,7 +4,7 @@ import { requireCompany } from "@/lib/company";
 import { getBusinessType } from "@/lib/session-business";
 import { isRetailOnly } from "@/lib/business-type";
 import {
-  FREE_RETAIL_RECEIPT_RETENTION_DAYS,
+  FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
   parsePlanTier,
   receiptVisibleSince,
@@ -46,7 +46,7 @@ export default async function PosPage() {
         title={isRetailOnly(businessType) ? "POS Terminal" : "Point of Sale"}
         description={
           isRetailOnly(businessType)
-            ? `Ring up sales on a named register. Free Retail keeps receipts for ${FREE_RETAIL_RECEIPT_RETENTION_DAYS} days.`
+            ? `Ring up sales on a named register. Free Retail keeps receipts for ${FREE_TIER_MAX_TRANSACTION_DAYS} days.`
             : "Ring up products and services. Stock updates automatically."
         }
         actions={
@@ -84,7 +84,7 @@ export default async function PosPage() {
       <Panel className="table-wrap">
         {isFreeRetailTier(planTier) ? (
           <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>
-            Showing receipts from the last {FREE_RETAIL_RECEIPT_RETENTION_DAYS} days only.
+            Showing receipts from the last {FREE_TIER_MAX_TRANSACTION_DAYS} days only.
           </p>
         ) : null}
         <table className="data">

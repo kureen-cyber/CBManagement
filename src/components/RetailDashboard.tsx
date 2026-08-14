@@ -3,13 +3,15 @@ import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { parsePlanTier, receiptVisibleSince } from "@/lib/tier";
 import { PageHeader, Panel } from "@/components/ui";
 
 export async function RetailDashboard() {
-  const { companyId } = await requireCompany();
+  const { companyId, company } = await requireCompany();
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
+  const since = receiptVisibleSince(parsePlanTier(company.planTier));
 
   const [salesToday, saleCount, customerCount, products, recentSales] = await Promise.all([
     prisma.sale.aggregate({
@@ -20,7 +22,10 @@ export async function RetailDashboard() {
     prisma.customer.count({ where: { companyId } }),
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(since ? { soldAt: { gte: since } } : {}),
+      },
       orderBy: { soldAt: "desc" },
       take: 6,
       include: { customer: true, lines: true },

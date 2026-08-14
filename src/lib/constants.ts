@@ -14,6 +14,7 @@ export const NAV_ITEMS = [
   { href: "/settings", label: "Settings" },
 ] as const;
 
+/** Suggestion chips only — users can type any expense category. */
 export const EXPENSE_CATEGORIES = [
   "Materials",
   "Transport",
@@ -26,9 +27,12 @@ export const EXPENSE_CATEGORIES = [
   "Other",
 ] as const;
 
-/** Categories for inventory items and fixed-price services on POS */
+/** Suggestion chips only — users can type any product/service category name. */
 export const PRODUCT_CATEGORIES = [
   "General",
+  "Grocery",
+  "Personal hygiene",
+  "Gift items",
   "Retail",
   "Food & drink",
   "Electronics",

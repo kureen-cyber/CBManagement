@@ -85,6 +85,7 @@ export default function LandingPage() {
                 <li>Populate your inventory stock list</li>
                 <li>Add customers</li>
                 <li>Add employees</li>
+                <li>Create a sales transaction</li>
                 <li>Record an expense</li>
                 <li>View your reports</li>
               </ol>

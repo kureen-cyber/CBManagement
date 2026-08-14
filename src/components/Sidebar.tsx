@@ -58,8 +58,8 @@ export function Sidebar({
       <nav className="nav">
         {items.map((item) => {
           const active =
-            item.href === "/"
-              ? pathname === "/"
+            item.href === "/home"
+              ? pathname === "/home"
               : pathname.startsWith(item.href);
           return (
             <Link

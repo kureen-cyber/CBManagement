@@ -16,7 +16,7 @@ export const PLAN_TIER_LABELS: Record<PlanTier, string> = {
 
 /** Modules available on the free retail onboarding tier. */
 export const FREE_RETAIL_NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/home", label: "Dashboard" },
   { href: "/pos", label: "POS" },
   { href: "/customers", label: "Customers" },
   { href: "/inventory", label: "Items / Inventory" },
@@ -83,7 +83,7 @@ export function isPathAllowedForTier(tier: PlanTier, pathname: string): boolean 
   if (pathname.startsWith("/payments")) return true;
   if (pathname.startsWith("/employees")) return true;
   if (pathname.startsWith("/reports")) return true;
-  if (pathname === "/" || pathname.startsWith("/api/")) return true;
+  if (pathname === "/home" || pathname.startsWith("/api/")) return true;
   if (pathname.startsWith("/demo-tier")) return true;
   return FREE_RETAIL_ALLOWED.has(pathname as (typeof FREE_RETAIL_NAV)[number]["href"]);
 }

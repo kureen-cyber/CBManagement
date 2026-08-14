@@ -7,6 +7,7 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isPublic =
+    path === "/" ||
     path.startsWith("/login") ||
     path.startsWith("/signup") ||
     path.startsWith("/auth");
@@ -44,6 +45,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Logged-in visitors on marketing home go into the app
+  if (user && path === "/") {
+    const url = request.nextUrl.clone();
+    const businessType = String(user.user_metadata?.business_type || "").toUpperCase();
+    url.pathname = businessType === "RETAIL" ? "/pos" : "/home";
+    return NextResponse.redirect(url);
+  }
+
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -53,7 +62,8 @@ export async function updateSession(request: NextRequest) {
 
   if (user && (path.startsWith("/login") || path.startsWith("/signup"))) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    const businessType = String(user.user_metadata?.business_type || "").toUpperCase();
+    url.pathname = businessType === "RETAIL" ? "/pos" : "/home";
     return NextResponse.redirect(url);
   }
 

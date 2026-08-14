@@ -60,7 +60,7 @@ export default function SignupPage() {
       });
 
       if (data.session) {
-        router.push(businessType === "RETAIL" ? "/pos" : "/");
+        router.push(businessType === "RETAIL" ? "/pos" : "/home");
         router.refresh();
         return;
       }

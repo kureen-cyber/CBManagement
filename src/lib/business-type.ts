@@ -25,7 +25,7 @@ export function isServiceFocused(type: BusinessType): boolean {
 export function navForBusinessType(type: BusinessType) {
   // Free retail onboarding tier — limited modules
   const retail = [
-    { href: "/", label: "Dashboard" },
+    { href: "/home", label: "Dashboard" },
     { href: "/pos", label: "POS" },
     { href: "/customers", label: "Customers" },
     { href: "/inventory", label: "Items / Inventory" },
@@ -36,7 +36,7 @@ export function navForBusinessType(type: BusinessType) {
   ] as const;
 
   const service = [
-    { href: "/", label: "Dashboard" },
+    { href: "/home", label: "Dashboard" },
     { href: "/customers", label: "Customers" },
     { href: "/quotations", label: "Quotations" },
     { href: "/jobs", label: "Jobs" },
@@ -51,7 +51,7 @@ export function navForBusinessType(type: BusinessType) {
   ] as const;
 
   const both = [
-    { href: "/", label: "Dashboard" },
+    { href: "/home", label: "Dashboard" },
     { href: "/pos", label: "POS" },
     { href: "/customers", label: "Customers" },
     { href: "/quotations", label: "Quotations" },

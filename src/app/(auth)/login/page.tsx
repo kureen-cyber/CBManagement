@@ -9,7 +9,7 @@ import { Panel } from "@/components/ui";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/";
+  const next = searchParams.get("next") || "/home";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,13 @@ function LoginForm() {
         }),
       });
 
-      router.push(businessType === "RETAIL" && next === "/" ? "/pos" : next);
+      const dest =
+        businessType === "RETAIL" && (next === "/" || next === "/home")
+          ? "/pos"
+          : next === "/"
+            ? "/home"
+            : next;
+      router.push(dest);
       router.refresh();
     } finally {
       setLoading(false);

@@ -20,7 +20,7 @@ export function OnboardingVideo() {
         Your browser does not support the video tag.
       </video>
       <p className="landing-video-caption muted">
-        Onboarding · Complete Business Management (CBManagement)
+        Onboarding · Retail &amp; service walkthrough · Complete Business Management (CBManagement)
       </p>
     </div>
   );

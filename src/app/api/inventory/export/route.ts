@@ -11,7 +11,6 @@ export async function GET() {
   const products = await prisma.product.findMany({
     where: { companyId, isService: false },
     orderBy: { name: "asc" },
-    include: { supplier: true },
   });
 
   const header = [
@@ -23,7 +22,6 @@ export async function GET() {
     "Min Stock",
     "Unit Cost (TTD)",
     "Unit Price (TTD)",
-    "Supplier",
     "Status",
   ];
 
@@ -38,7 +36,6 @@ export async function GET() {
       String(p.minStock),
       fromCents(p.unitCost).toFixed(2),
       fromCents(p.unitPrice).toFixed(2),
-      csv(p.supplier?.name || ""),
       low ? "LOW STOCK" : "OK",
     ].join(",");
   });

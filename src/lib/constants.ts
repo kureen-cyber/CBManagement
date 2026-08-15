@@ -8,7 +8,6 @@ export const NAV_ITEMS = [
   { href: "/payments", label: "Payments" },
   { href: "/expenses", label: "Expenses" },
   { href: "/inventory", label: "Inventory" },
-  { href: "/suppliers", label: "Suppliers" },
   { href: "/employees", label: "Employees" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },

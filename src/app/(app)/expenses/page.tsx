@@ -12,13 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function ExpensesPage() {
   await enforceTierPath("/expenses");
   const { companyId } = await requireCompany();
-  const [jobs, suppliers, expenses] = await Promise.all([
+  const [jobs, expenses] = await Promise.all([
     prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
-    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.expense.findMany({
       where: { companyId },
       orderBy: { date: "desc" },
-      include: { job: true, supplier: true },
+      include: { job: true },
       take: 100,
     }),
   ]);
@@ -43,12 +42,6 @@ export default async function ExpensesPage() {
             />
           </label>
           <label className="field">Amount (TT$)<input name="amount" type="number" step="0.01" required /></label>
-          <label className="field">Supplier
-            <select name="supplierId" defaultValue="">
-              <option value="">None</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
           <label className="field">Job
             <select name="jobId" defaultValue="">
               <option value="">Not job-related</option>
@@ -80,6 +73,9 @@ export default async function ExpensesPage() {
                 <td className="money">{formatTTD(e.amount)}</td>
               </tr>
             ))}
+            {expenses.length === 0 ? (
+              <tr><td colSpan={5} className="muted">No expenses yet.</td></tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

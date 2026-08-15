@@ -30,13 +30,11 @@ export default async function InventoryPage() {
   const activeRegisterId = await readActiveRegisterIdFromCookies();
   const access = resolveRegisterAccess(registers, activeRegisterId);
 
-  const [suppliers, products, categories, variableNames] = await Promise.all([
-    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+  const [products, categories, variableNames] = await Promise.all([
     prisma.product.findMany({
       where: { companyId },
       orderBy: { name: "asc" },
       include: {
-        supplier: true,
         variables: { orderBy: { sortOrder: "asc" } },
       },
     }),
@@ -63,7 +61,6 @@ export default async function InventoryPage() {
       <InventoryClient
         canManage={access.canManageInventory}
         variableNames={variableNames.map((v) => v.name)}
-        suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         categories={categories.map((c) => c.name)}
         initialProducts={products.map((p) => ({
           id: p.id,
@@ -78,7 +75,6 @@ export default async function InventoryPage() {
           minStock: p.minStock,
           trackStock: p.trackStock,
           isService: p.isService,
-          supplierName: p.supplier?.name ?? null,
           variables: p.variables.map((v) => ({
             name: v.name,
             options: parseOptions(v.options),

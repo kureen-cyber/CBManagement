@@ -22,7 +22,6 @@ export type InventoryProduct = {
   minStock: number;
   trackStock: boolean;
   isService: boolean;
-  supplierName?: string | null;
   variables?: { name: string; options: string[] }[];
 };
 
@@ -30,13 +29,11 @@ type VarDraft = { name: string; options: string };
 
 export function InventoryClient({
   initialProducts,
-  suppliers,
   categories = [],
   variableNames = [],
   canManage = true,
 }: {
   initialProducts: InventoryProduct[];
-  suppliers: { id: string; name: string }[];
   categories?: string[];
   variableNames?: string[];
   canManage?: boolean;
@@ -91,7 +88,6 @@ export function InventoryClient({
               minStock: created.minStock,
               trackStock: created.trackStock,
               isService: created.isService,
-              supplierName: null,
               variables: created.variables,
             },
           ].sort((a, b) => a.name.localeCompare(b.name));
@@ -140,17 +136,6 @@ export function InventoryClient({
             <label className="field">
               Unit
               <input name="unit" defaultValue="each" />
-            </label>
-            <label className="field">
-              Supplier
-              <select name="supplierId" defaultValue="">
-                <option value="">None</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
             </label>
             <label className="field">
               Unit cost
@@ -299,7 +284,6 @@ export function InventoryClient({
                 {p.sku ? ` · ${p.sku}` : ""}
                 {p.isService ? " · Service" : ""}
                 {p.variablePrice ? " · Variable price" : ""}
-                {p.supplierName ? ` · ${p.supplierName}` : ""}
               </div>
               {p.variables?.length ? (
                 <div className="muted" style={{ fontSize: "0.78rem", marginTop: "0.35rem" }}>

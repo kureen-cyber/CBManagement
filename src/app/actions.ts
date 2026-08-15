@@ -28,20 +28,6 @@ export async function createCustomer(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function createSupplier(formData: FormData) {
-  const { companyId } = await requireCompany();
-  await prisma.supplier.create({
-    data: {
-      companyId,
-      name: String(formData.get("name") || "").trim(),
-      email: String(formData.get("email") || "") || null,
-      phone: String(formData.get("phone") || "") || null,
-      address: String(formData.get("address") || "") || null,
-    },
-  });
-  revalidatePath("/suppliers");
-}
-
 export async function createProduct(formData: FormData) {
   const { companyId } = await requireCompany();
   const registers = await prisma.posRegister.findMany({
@@ -69,14 +55,6 @@ export async function createProduct(formData: FormData) {
   });
   if (!existingCat) {
     await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
-  }
-  const supplierId = String(formData.get("supplierId") || "") || null;
-
-  if (supplierId) {
-    const supplier = await prisma.supplier.findFirst({
-      where: { id: supplierId, companyId },
-    });
-    if (!supplier) throw new Error("Supplier not found");
   }
 
   let variables: { name: string; options: string[] }[] = [];
@@ -117,7 +95,6 @@ export async function createProduct(formData: FormData) {
       stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
-      supplierId,
       variables: {
         create: variables.map((v, i) => ({
           name: v.name,
@@ -230,15 +207,10 @@ export async function createEmployee(formData: FormData) {
 export async function createExpense(formData: FormData) {
   const { companyId } = await requireCompany();
   const jobId = String(formData.get("jobId") || "") || null;
-  const supplierId = String(formData.get("supplierId") || "") || null;
 
   if (jobId) {
     const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
     if (!job) throw new Error("Job not found");
-  }
-  if (supplierId) {
-    const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
-    if (!supplier) throw new Error("Supplier not found");
   }
 
   await prisma.expense.create({
@@ -250,7 +222,6 @@ export async function createExpense(formData: FormData) {
       date: new Date(String(formData.get("date") || new Date().toISOString())),
       paymentMethod: String(formData.get("paymentMethod") || "CASH"),
       jobId,
-      supplierId,
     },
   });
   revalidatePath("/expenses");

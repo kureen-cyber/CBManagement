@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
-import { sellingPriceFromMarkup, toCents } from "@/lib/money";
+import { toCents } from "@/lib/money";
 
 function dollarsToCents(value: FormDataEntryValue | null): number {
   const n = Number(value ?? 0);

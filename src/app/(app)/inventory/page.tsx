@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { ensureDefaultInventoryCategories } from "@/lib/catalog";
-import {
-  readActiveRegisterIdFromCookies,
-  resolveRegisterAccess,
-} from "@/lib/register-access";
+import { resolveRegisterAccess } from "@/lib/register-access";
+import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
 

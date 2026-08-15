@@ -14,10 +14,8 @@ import {
   parsePlanTier,
   receiptVisibleSince,
 } from "@/lib/tier";
-import {
-  readActiveRegisterIdFromCookies,
-  resolveRegisterAccess,
-} from "@/lib/register-access";
+import { resolveRegisterAccess } from "@/lib/register-access";
+import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { RefundButton } from "@/components/RefundButton";

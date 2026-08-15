@@ -11,10 +11,8 @@ import {
   ensureDefaultInventoryCategories,
   ensureDefaultPaymentTypes,
 } from "@/lib/catalog";
-import {
-  readActiveRegisterIdFromCookies,
-  resolveRegisterAccess,
-} from "@/lib/register-access";
+import { resolveRegisterAccess } from "@/lib/register-access";
+import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { PageHeader } from "@/components/ui";
 import { SettingsPanel } from "@/components/SettingsPanel";
 

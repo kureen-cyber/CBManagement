@@ -315,9 +315,8 @@ export async function addDiscountPreset(formData: FormData) {
     where: { companyId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
-    "@/lib/register-access"
-  );
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canEditDiscounts) {
     return { error: "Only POS register 1 can edit discounts." };
@@ -356,9 +355,8 @@ export async function updateDiscountPreset(formData: FormData) {
     where: { companyId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
-    "@/lib/register-access"
-  );
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canEditDiscounts) {
     return { error: "Only POS register 1 can edit discounts." };
@@ -389,9 +387,8 @@ export async function deleteDiscountPreset(formData: FormData) {
     where: { companyId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
-    "@/lib/register-access"
-  );
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canEditDiscounts) {
     return { error: "Only POS register 1 can edit discounts." };

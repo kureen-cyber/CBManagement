@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-
 export const POS_REGISTER_COOKIE = "cbm_pos_register";
 
 export type RegisterAccess = {
@@ -60,10 +58,4 @@ export function resolveRegisterAccess(
     canManageInventory: isPrimary,
     canRefund: true,
   };
-}
-
-export async function readActiveRegisterIdFromCookies(): Promise<string | null> {
-  const store = await cookies();
-  const v = store.get(POS_REGISTER_COOKIE)?.value?.trim();
-  return v || null;
 }

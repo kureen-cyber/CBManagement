@@ -7,10 +7,8 @@ import { syncCompanyFromUser } from "@/lib/company";
 import { parseTheme } from "@/lib/settings";
 import { isLocalhostDemoHost, parsePlanTier } from "@/lib/tier";
 import { prisma } from "@/lib/prisma";
-import {
-  readActiveRegisterIdFromCookies,
-  resolveRegisterAccess,
-} from "@/lib/register-access";
+import { resolveRegisterAccess } from "@/lib/register-access";
+import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { RegisterAccessGate } from "@/components/RegisterAccessGate";
 
 export default async function AppLayout({

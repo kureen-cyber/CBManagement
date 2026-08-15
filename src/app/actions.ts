@@ -34,9 +34,8 @@ export async function createProduct(formData: FormData) {
     where: { companyId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
-    "@/lib/register-access"
-  );
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canManageInventory) {
     throw new Error("Only POS register 1 can manage inventory");
@@ -159,9 +158,8 @@ export async function deleteProduct(productId: string) {
     where: { companyId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
-  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
-    "@/lib/register-access"
-  );
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canManageInventory) {
     return { error: "Only POS register 1 can manage inventory" };
@@ -681,7 +679,7 @@ export async function voidOpenTicket(ticketId: string, posRegisterId?: string | 
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   const { resolveRegisterAccess } = await import("@/lib/register-access");
-  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const cookieReg = await readActiveRegisterIdFromCookies();
   const access = resolveRegisterAccess(registers, posRegisterId || cookieReg);
   if (!access.canVoidTickets) {

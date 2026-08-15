@@ -13,10 +13,8 @@ import {
   parsePlanTier,
   receiptVisibleSince,
 } from "@/lib/tier";
-import {
-  readActiveRegisterIdFromCookies,
-  resolveRegisterAccess,
-} from "@/lib/register-access";
+import { resolveRegisterAccess } from "@/lib/register-access";
+import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { PosTerminal } from "@/components/PosTerminal";
 import { PageHeader, Panel } from "@/components/ui";
 import Link from "next/link";

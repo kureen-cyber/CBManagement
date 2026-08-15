@@ -70,6 +70,11 @@ export default async function SettingsPage() {
           receiptFooter={company.receiptFooter}
           receiptShowCustomer={company.receiptShowCustomer}
           receiptShowComments={company.receiptShowComments}
+          receiptHoneyPersons={company.receiptHoneyPersons}
+          receiptShowApiaryNumber={company.receiptShowApiaryNumber}
+          receiptApiaryNumber={company.receiptApiaryNumber}
+          receiptShowOprNumber={company.receiptShowOprNumber}
+          receiptOprNumber={company.receiptOprNumber}
           receiptLanguage={parseLanguage(company.receiptLanguage)}
           featureOpenTickets={company.featureOpenTickets}
           featureLowStockEmail={company.featureLowStockEmail}

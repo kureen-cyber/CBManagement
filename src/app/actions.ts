@@ -239,9 +239,17 @@ export async function createQuotation(formData: FormData) {
   const materials = dollarsToCents(formData.get("materialsCost"));
   const equipment = dollarsToCents(formData.get("equipmentCost"));
   const transport = dollarsToCents(formData.get("transportCost"));
-  const markupPct = Number(formData.get("markupPct") || 25);
+  const fixedPrice = formData.get("fixedPrice") === "on";
   const cost = labour + materials + equipment + transport;
-  const total = sellingPriceFromMarkup(cost, markupPct);
+  let markupPct = Number(formData.get("markupPct") || 25);
+  let total: number;
+  if (fixedPrice) {
+    markupPct = 0;
+    const fixed = dollarsToCents(formData.get("fixedPriceAmount"));
+    total = fixed > 0 ? fixed : cost;
+  } else {
+    total = sellingPriceFromMarkup(cost, markupPct);
+  }
 
   await prisma.quotation.create({
     data: {
@@ -255,6 +263,7 @@ export async function createQuotation(formData: FormData) {
       equipmentCost: equipment,
       transportCost: transport,
       markupPct,
+      fixedPrice,
       subtotal: total,
       total,
       status: "DRAFT",
@@ -717,6 +726,7 @@ export async function completePosSale(input: {
   method: string;
   customerId?: string | null;
   notes?: string;
+  honeyPersons?: string | null;
   posRegisterId?: string | null;
   ticketId?: string | null;
   discountPercent?: number;
@@ -792,6 +802,10 @@ export async function completePosSale(input: {
   const taxAmount = Math.round(taxable * vatRate);
   const total = taxable + taxAmount;
   const method = input.method || "CASH";
+  const honeyPersons =
+    company.receiptHoneyPersons === true
+      ? String(input.honeyPersons || "").trim() || null
+      : null;
 
   let sale;
   if (input.ticketId) {
@@ -814,6 +828,7 @@ export async function completePosSale(input: {
         discountAmount,
         method,
         notes: input.notes || null,
+        honeyPersons,
         soldAt: new Date(),
         number: existing.number.startsWith("TKT")
           ? await nextNumber("POS", "sale", companyId)
@@ -845,6 +860,7 @@ export async function completePosSale(input: {
         discountAmount,
         method,
         notes: input.notes || null,
+        honeyPersons,
         lines: {
           create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
             productId,

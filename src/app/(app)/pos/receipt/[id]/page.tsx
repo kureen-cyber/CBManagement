@@ -38,6 +38,9 @@ export default async function ReceiptPage({
   const footer = receiptFooterText(company);
   const showCustomer = company.receiptShowCustomer !== false;
   const showComments = company.receiptShowComments === true;
+  const showHoneyPersons = company.receiptHoneyPersons === true;
+  const showApiary = company.receiptShowApiaryNumber === true;
+  const showOpr = company.receiptShowOprNumber === true;
 
   const sale = await prisma.sale.findFirst({
     where: { id, companyId },
@@ -148,6 +151,24 @@ export default async function ReceiptPage({
             <span>{labels.payment}</span>
             <span>{sale.method}</span>
           </div>
+          {showHoneyPersons && sale.honeyPersons?.trim() ? (
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span>Persons involved</span>
+              <span>{sale.honeyPersons.trim()}</span>
+            </div>
+          ) : null}
+          {showApiary && company.receiptApiaryNumber?.trim() ? (
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span>Apiary Number</span>
+              <span>{company.receiptApiaryNumber.trim()}</span>
+            </div>
+          ) : null}
+          {showOpr && company.receiptOprNumber?.trim() ? (
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span>OPR #</span>
+              <span>{company.receiptOprNumber.trim()}</span>
+            </div>
+          ) : null}
         </div>
 
         <hr style={{ border: 0, borderTop: "1px dashed var(--line)", margin: "1rem 0" }} />

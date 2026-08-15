@@ -84,6 +84,7 @@ export function PosTerminal({
   canVoidTickets = true,
   canManageInventory = true,
   initialRegisterId = "",
+  honeyPersonsEnabled = false,
 }: {
   products: Product[];
   customers: Customer[];
@@ -99,6 +100,7 @@ export function PosTerminal({
   canVoidTickets?: boolean;
   canManageInventory?: boolean;
   initialRegisterId?: string;
+  honeyPersonsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
@@ -121,6 +123,7 @@ export function PosTerminal({
   const [showProductForm, setShowProductForm] = useState(false);
   const [registerAsService, setRegisterAsService] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [honeyPersons, setHoneyPersons] = useState("");
   const [addModal, setAddModal] = useState<{
     product: Product;
     selections: Record<string, string>;
@@ -280,6 +283,7 @@ export function PosTerminal({
     setOpenTicketId(null);
     setCustomerId("");
     setDiscountPercent(0);
+    setHoneyPersons("");
     setMessage(null);
     setError(null);
     setReceiptHref(null);
@@ -402,6 +406,7 @@ export function PosTerminal({
         posRegisterId: posRegisterId || null,
         ticketId: openTicketId,
         discountPercent,
+        honeyPersons: honeyPersonsEnabled ? honeyPersons : null,
       });
       if ("error" in result && result.error) {
         setError(result.error);
@@ -757,6 +762,17 @@ export function PosTerminal({
                     ))}
                   </select>
                 </label>
+                {honeyPersonsEnabled ? (
+                  <label className="field">
+                    Persons involved (honey)
+                    <input
+                      type="text"
+                      value={honeyPersons}
+                      onChange={(e) => setHoneyPersons(e.target.value)}
+                      placeholder="Names of persons involved"
+                    />
+                  </label>
+                ) : null}
                 {discountPercent > 0 ? (
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     <span className="muted">Discount ({discountPercent}%)</span>

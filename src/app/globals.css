@@ -1399,3 +1399,7 @@ input:focus, select:focus, textarea:focus {
     font-size: 16px; /* avoid iOS zoom on focus */
   }
 }
+
+.sales-summary-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}

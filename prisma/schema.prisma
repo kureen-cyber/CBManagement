@@ -36,6 +36,14 @@ model Company {
   receiptShowCustomer Boolean @default(true)
   /// Show sale notes/comments on receipts
   receiptShowComments Boolean @default(false)
+  /// Honey trade: show persons involved in the sale on receipts
+  receiptHoneyPersons Boolean @default(false)
+  /// Honey trade: print Apiary Number on receipts
+  receiptShowApiaryNumber Boolean @default(false)
+  receiptApiaryNumber String?
+  /// Honey trade: print OPR # on receipts
+  receiptShowOprNumber Boolean @default(false)
+  receiptOprNumber String?
   /// Receipt language: en | es | fr
   receiptLanguage String @default("en")
   /// Feature: save/edit POS tickets before payment
@@ -283,6 +291,8 @@ model Quotation {
   transportCost Int       @default(0)
   otherCost     Int       @default(0)
   markupPct     Float     @default(25)
+  /// When true, quote uses a fixed selling price (no markup %)
+  fixedPrice    Boolean   @default(false)
   subtotal      Int       @default(0)
   total         Int       @default(0)
   validUntil    DateTime?
@@ -478,6 +488,8 @@ model Sale {
   amountPaid    Int      @default(0)
   method        String   @default("CASH")
   notes         String?
+  /// Names of persons involved (honey sales), when enabled in settings
+  honeyPersons  String?
   discountPercent Float  @default(0)
   discountAmount  Int    @default(0)
   /// True when this sale is a refund of another sale

@@ -94,6 +94,11 @@ export async function updateReceiptSettings(formData: FormData) {
   const receiptFooter = String(formData.get("receiptFooter") || "").trim() || null;
   const receiptShowCustomer = formData.get("receiptShowCustomer") === "on";
   const receiptShowComments = formData.get("receiptShowComments") === "on";
+  const receiptHoneyPersons = formData.get("receiptHoneyPersons") === "on";
+  const receiptShowApiaryNumber = formData.get("receiptShowApiaryNumber") === "on";
+  const receiptShowOprNumber = formData.get("receiptShowOprNumber") === "on";
+  const receiptApiaryNumber = String(formData.get("receiptApiaryNumber") || "").trim() || null;
+  const receiptOprNumber = String(formData.get("receiptOprNumber") || "").trim() || null;
   const receiptLanguage = parseLanguage(formData.get("receiptLanguage"));
   const removeLogo = formData.get("removeLogo") === "on";
 
@@ -102,6 +107,11 @@ export async function updateReceiptSettings(formData: FormData) {
     receiptFooter: string | null;
     receiptShowCustomer: boolean;
     receiptShowComments: boolean;
+    receiptHoneyPersons: boolean;
+    receiptShowApiaryNumber: boolean;
+    receiptApiaryNumber: string | null;
+    receiptShowOprNumber: boolean;
+    receiptOprNumber: string | null;
     receiptLanguage: string;
     receiptLogoData?: string | null;
   } = {
@@ -109,6 +119,11 @@ export async function updateReceiptSettings(formData: FormData) {
     receiptFooter,
     receiptShowCustomer,
     receiptShowComments,
+    receiptHoneyPersons,
+    receiptShowApiaryNumber,
+    receiptApiaryNumber,
+    receiptShowOprNumber,
+    receiptOprNumber,
     receiptLanguage,
   };
 

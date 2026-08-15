@@ -71,6 +71,11 @@ export function SettingsPanel({
   receiptFooter,
   receiptShowCustomer,
   receiptShowComments,
+  receiptHoneyPersons = false,
+  receiptShowApiaryNumber = false,
+  receiptApiaryNumber = null,
+  receiptShowOprNumber = false,
+  receiptOprNumber = null,
   receiptLanguage,
   featureOpenTickets,
   featureLowStockEmail,
@@ -95,6 +100,11 @@ export function SettingsPanel({
   receiptFooter: string | null;
   receiptShowCustomer: boolean;
   receiptShowComments: boolean;
+  receiptHoneyPersons?: boolean;
+  receiptShowApiaryNumber?: boolean;
+  receiptApiaryNumber?: string | null;
+  receiptShowOprNumber?: boolean;
+  receiptOprNumber?: string | null;
   receiptLanguage: LanguageCode;
   featureOpenTickets: boolean;
   featureLowStockEmail: boolean;
@@ -526,8 +536,70 @@ export function SettingsPanel({
                     </span>
                   </span>
                 </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptHoneyPersons"
+                    defaultChecked={receiptHoneyPersons}
+                  />
+                  <span>
+                    <strong>Persons involved (honey sales)</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Enable a field on POS to record persons involved in the sale of honey
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowApiaryNumber"
+                    defaultChecked={receiptShowApiaryNumber}
+                  />
+                  <span>
+                    <strong>Apiary Number</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Print the Apiary Number on receipts
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowOprNumber"
+                    defaultChecked={receiptShowOprNumber}
+                  />
+                  <span>
+                    <strong>OPR #</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Print the OPR number on receipts
+                    </span>
+                  </span>
+                </label>
               </div>
             </fieldset>
+
+            <div className="form-grid">
+              <label className="field">
+                Apiary Number
+                <input
+                  name="receiptApiaryNumber"
+                  type="text"
+                  defaultValue={receiptApiaryNumber || ""}
+                  placeholder="e.g. APY-001"
+                  maxLength={80}
+                />
+              </label>
+              <label className="field">
+                OPR #
+                <input
+                  name="receiptOprNumber"
+                  type="text"
+                  defaultValue={receiptOprNumber || ""}
+                  placeholder="e.g. OPR-12345"
+                  maxLength={80}
+                />
+              </label>
+            </div>
 
             <label className="field">
               Receipt language

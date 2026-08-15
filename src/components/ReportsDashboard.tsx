@@ -16,6 +16,7 @@ export type SaleLineReport = {
   soldAt: string;
   saleNumber: string;
   method: string;
+  isRefund?: boolean;
 };
 
 export type ReportsData = {
@@ -28,10 +29,24 @@ export type ReportsData = {
   serviceIncome: number;
   otherIncome: number;
   profit: number;
+  grossSales: number;
+  refunds: number;
+  discounts: number;
+  netSales: number;
+  cogs: number;
+  grossProfit: number;
   expenseByCategory: { category: string; amount: number }[];
   paymentMethods: { method: string; amount: number }[];
   incomeByCategory: { category: string; amount: number; kind: string }[];
-  salesByItem: { name: string; category: string; qty: number; amount: number; isService: boolean }[];
+  salesByItem: {
+    name: string;
+    category: string;
+    qty: number;
+    netSales: number;
+    cogs: number;
+    grossProfit: number;
+    isService: boolean;
+  }[];
   salesByCategory: { category: string; qty: number; amount: number }[];
   saleLines: SaleLineReport[];
   weekly: { label: string; income: number; expenses: number }[];
@@ -629,17 +644,19 @@ export function ReportsDashboard({
 
       {tab === "by-item" ? (
         <Panel className="report-tab-panel">
-          <h3>Search by item</h3>
+          <h3>Sales by item</h3>
+          <p className="muted">Item name, category, qty sold, net sales, cost of goods, and gross profit.</p>
           <SearchBar value={itemQuery} onChange={setItemQuery} placeholder="Search item name or category…" />
           <div className="table-wrap" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
-                  <th>Item</th>
+                  <th>Item name</th>
                   <th>Category</th>
-                  <th>Type</th>
-                  <th>Qty</th>
-                  <th>Sales</th>
+                  <th>Qty sold</th>
+                  <th>Net sales</th>
+                  <th>Cost of goods</th>
+                  <th>Gross profit</th>
                 </tr>
               </thead>
               <tbody>
@@ -647,16 +664,20 @@ export function ReportsDashboard({
                   <tr key={`${r.name}-${r.category}`}>
                     <td>
                       <strong>{r.name}</strong>
+                      <div className="muted" style={{ fontSize: "0.75rem" }}>
+                        {r.isService ? "Service" : "Retail"}
+                      </div>
                     </td>
                     <td>{r.category}</td>
-                    <td>{r.isService ? "Service" : "Retail"}</td>
                     <td>{r.qty}</td>
-                    <td className="money">{formatTTD(r.amount)}</td>
+                    <td className="money">{formatTTD(r.netSales)}</td>
+                    <td className="money">{formatTTD(r.cogs)}</td>
+                    <td className="money">{formatTTD(r.grossProfit)}</td>
                   </tr>
                 ))}
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="muted">
+                    <td colSpan={6} className="muted">
                       No matching items this period.
                     </td>
                   </tr>
@@ -715,30 +736,40 @@ export function ReportsDashboard({
       {tab === "sales-summary" ? (
         <Panel className="report-tab-panel">
           <h3>Sales summary</h3>
-          <p className="muted">Line-by-line POS and service sales for this period.</p>
+          <p className="muted">
+            Gross sales, refunds, discounts, net sales, and gross profit for{" "}
+            <strong>{periodLabel}</strong>.
+          </p>
+          <div className="kpi-grid sales-summary-kpis" style={{ marginTop: "0.85rem" }}>
+            <div className="report-stat blue">
+              <div className="label">Gross sales</div>
+              <div className="value money">{formatTTD(data.grossSales)}</div>
+            </div>
+            <div className="report-stat accent">
+              <div className="label">Refunds</div>
+              <div className="value money">{formatTTD(data.refunds)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Discounts</div>
+              <div className="value money">{formatTTD(data.discounts)}</div>
+            </div>
+            <div className="report-stat sea">
+              <div className="label">Net sales</div>
+              <div className="value money">{formatTTD(data.netSales)}</div>
+            </div>
+            <div className="report-stat" style={{ borderColor: "rgba(31, 122, 77, 0.35)" }}>
+              <div className="label">Gross profit</div>
+              <div className="value money">{formatTTD(data.grossProfit)}</div>
+              <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                Net sales − COGS ({formatTTD(data.cogs)})
+              </div>
+            </div>
+          </div>
           <SearchBar
             value={summaryQuery}
             onChange={setSummaryQuery}
             placeholder="Search receipt, item, category, or method…"
           />
-          <div className="kpi-grid" style={{ marginTop: "0.85rem", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-            <div className="report-stat sea">
-              <div className="label">Lines</div>
-              <div className="value">{filteredLines.length}</div>
-            </div>
-            <div className="report-stat blue">
-              <div className="label">Qty</div>
-              <div className="value">
-                {filteredLines.reduce((s, l) => s + l.quantity, 0)}
-              </div>
-            </div>
-            <div className="report-stat purple">
-              <div className="label">Total</div>
-              <div className="value money">
-                {formatTTD(filteredLines.reduce((s, l) => s + l.lineTotal, 0))}
-              </div>
-            </div>
-          </div>
           <div className="table-wrap" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
@@ -756,7 +787,14 @@ export function ReportsDashboard({
                 {filteredLines.map((r) => (
                   <tr key={r.id}>
                     <td>{new Date(r.soldAt).toLocaleString("en-TT")}</td>
-                    <td>{r.saleNumber}</td>
+                    <td>
+                      {r.saleNumber}
+                      {r.isRefund ? (
+                        <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>
+                          Refund
+                        </span>
+                      ) : null}
+                    </td>
                     <td>
                       <strong>{r.description}</strong>
                     </td>
@@ -769,7 +807,7 @@ export function ReportsDashboard({
                 {filteredLines.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="muted">
-                      No sales lines match.
+                      No sales lines this period.
                     </td>
                   </tr>
                 ) : null}

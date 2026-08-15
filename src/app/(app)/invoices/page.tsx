@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
@@ -25,36 +26,84 @@ export default async function InvoicesPage() {
       <PageHeader title="Invoices" description="Bill customers and track what is still owed." />
       <Panel style={{ padding: "1.25rem" }}>
         <form action={createInvoice} className="form-grid">
-          <label className="field">Customer
+          <label className="field">
+            Customer
             <select name="customerId" required defaultValue="">
-              <option value="" disabled>Select</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="" disabled>
+                Select
+              </option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </label>
-          <label className="field">Job
+          <label className="field">
+            Job
             <select name="jobId" defaultValue="">
               <option value="">None</option>
-              {jobs.map((j) => <option key={j.id} value={j.id}>{j.number}</option>)}
+              {jobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.number}
+                </option>
+              ))}
             </select>
           </label>
-          <label className="field">Description<input name="description" defaultValue="Services rendered" /></label>
-          <label className="field">Amount (TT$)<input name="total" type="number" step="0.01" required /></label>
-          <label className="field">Due date<input name="dueDate" type="date" defaultValue={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)} /></label>
-          <div className="full"><button className="btn btn-primary" type="submit">Create invoice</button></div>
+          <label className="field">
+            Description
+            <input name="description" defaultValue="Services rendered" />
+          </label>
+          <label className="field">
+            Amount (TT$)
+            <input name="total" type="number" step="0.01" required />
+          </label>
+          <label className="field">
+            Due date
+            <input
+              name="dueDate"
+              type="date"
+              defaultValue={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}
+            />
+          </label>
+          <div className="full">
+            <button className="btn btn-primary" type="submit">
+              Create invoice
+            </button>
+          </div>
         </form>
       </Panel>
       <Panel className="table-wrap">
         <table className="data">
-          <thead><tr><th>Invoice</th><th>Customer</th><th>Job</th><th>Total</th><th>Paid</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Customer</th>
+              <th>Job</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {invoices.map((inv) => (
               <tr key={inv.id}>
-                <td><strong>{inv.number}</strong></td>
+                <td>
+                  <strong>{inv.number}</strong>
+                </td>
                 <td>{inv.customer.name}</td>
                 <td className="muted">{inv.job?.number ?? "—"}</td>
                 <td className="money">{formatTTD(inv.total)}</td>
                 <td className="money">{formatTTD(inv.amountPaid)}</td>
-                <td><StatusBadge status={inv.status} /></td>
+                <td>
+                  <StatusBadge status={inv.status} />
+                </td>
+                <td>
+                  <Link className="btn btn-secondary btn-sm" href={`/invoices/${inv.id}`}>
+                    View
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
@@ -33,13 +34,21 @@ export default async function PaymentsPage() {
       <PageHeader title="Payments" description="Record money received against invoices." />
       <Panel style={{ padding: "1.25rem" }}>
         <form action={recordPayment} className="form-grid">
-          <label className="field">Customer
+          <label className="field">
+            Customer
             <select name="customerId" required defaultValue="">
-              <option value="" disabled>Select</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="" disabled>
+                Select
+              </option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </select>
           </label>
-          <label className="field">Invoice
+          <label className="field">
+            Invoice
             <select name="invoiceId" defaultValue="">
               <option value="">Unallocated</option>
               {invoices.map((inv) => (
@@ -49,21 +58,45 @@ export default async function PaymentsPage() {
               ))}
             </select>
           </label>
-          <label className="field">Amount (TT$)<input name="amount" type="number" step="0.01" required /></label>
-          <label className="field">Method
+          <label className="field">
+            Amount (TT$)
+            <input name="amount" type="number" step="0.01" required />
+          </label>
+          <label className="field">
+            Method
             <select name="method" defaultValue="BANK">
               <option value="BANK">Bank</option>
               <option value="CASH">Cash</option>
               <option value="CARD">Card</option>
             </select>
           </label>
-          <label className="field">Date<input name="paidAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-          <div className="full"><button className="btn btn-primary" type="submit">Save payment</button></div>
+          <label className="field">
+            Date
+            <input
+              name="paidAt"
+              type="date"
+              defaultValue={new Date().toISOString().slice(0, 10)}
+            />
+          </label>
+          <div className="full">
+            <button className="btn btn-primary" type="submit">
+              Save payment
+            </button>
+          </div>
         </form>
       </Panel>
       <Panel className="table-wrap">
         <table className="data">
-          <thead><tr><th>Date</th><th>Customer</th><th>Invoice</th><th>Method</th><th>Amount</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Invoice</th>
+              <th>Method</th>
+              <th>Amount</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
             {payments.map((p) => (
               <tr key={p.id}>
@@ -72,6 +105,11 @@ export default async function PaymentsPage() {
                 <td className="muted">{p.invoice?.number ?? p.reference ?? "—"}</td>
                 <td>{p.method}</td>
                 <td className="money">{formatTTD(p.amount)}</td>
+                <td>
+                  <Link className="btn btn-secondary btn-sm" href={`/payments/${p.id}`}>
+                    View
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

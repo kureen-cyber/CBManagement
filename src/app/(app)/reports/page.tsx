@@ -22,6 +22,11 @@ function weekMeta(dt: Date) {
   return { key: d.toISOString(), label: format(d, "dd MMM"), sort: d.getTime() };
 }
 
+function itemDisplayName(description: string, productName?: string | null) {
+  const raw = (productName || description || "").replace(/^Refund:\s*/i, "").trim();
+  return raw || description;
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -34,7 +39,7 @@ export default async function ReportsPage({
   const range = resolveReportRange(planTier, periodId);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
-  const [payments, expenses, invoices, posSales, expenseRows, paymentRows, saleLines, salesInRange] =
+  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange] =
     await Promise.all([
       prisma.payment.aggregate({
         _sum: { amount: true },
@@ -47,10 +52,6 @@ export default async function ReportsPage({
       prisma.invoice.findMany({
         where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE", "PAID"] } },
         select: { total: true, amountPaid: true, status: true },
-      }),
-      prisma.sale.aggregate({
-        _sum: { total: true },
-        where: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
       }),
       prisma.expense.findMany({
         where: { companyId, date: { gte: rangeStart, lte: rangeEnd } },
@@ -66,13 +67,29 @@ export default async function ReportsPage({
         },
         include: {
           product: true,
-          sale: { select: { number: true, soldAt: true, method: true } },
+          sale: {
+            select: {
+              number: true,
+              soldAt: true,
+              method: true,
+              isRefund: true,
+              discountAmount: true,
+              discountPercent: true,
+              subtotal: true,
+            },
+          },
         },
         orderBy: { sale: { soldAt: "desc" } },
       }),
       prisma.sale.findMany({
         where: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
-        select: { soldAt: true, total: true },
+        select: {
+          soldAt: true,
+          total: true,
+          subtotal: true,
+          discountAmount: true,
+          isRefund: true,
+        },
         orderBy: { soldAt: "asc" },
       }),
     ]);
@@ -81,47 +98,83 @@ export default async function ReportsPage({
   const ar = invoices
     .filter((i) => i.status !== "PAID")
     .reduce((s, i) => s + (i.total - i.amountPaid), 0);
-  const pos = posSales._sum.total ?? 0;
+
+  let grossSales = 0;
+  let refundsTotal = 0;
+  let discountsTotal = 0;
+  for (const sale of salesInRange) {
+    if (sale.isRefund) {
+      refundsTotal += Math.abs(sale.total);
+    } else {
+      grossSales += Math.max(0, sale.subtotal);
+      discountsTotal += Math.max(0, sale.discountAmount);
+    }
+  }
+  const netSales = Math.max(0, grossSales - discountsTotal - refundsTotal);
 
   let posRetail = 0;
   let posService = 0;
+  let cogsTotal = 0;
   const itemMap = new Map<
     string,
-    { name: string; category: string; qty: number; amount: number; isService: boolean }
+    {
+      name: string;
+      category: string;
+      qty: number;
+      netSales: number;
+      cogs: number;
+      isService: boolean;
+    }
   >();
   const categoryMap = new Map<string, { category: string; qty: number; amount: number }>();
 
   for (const line of saleLines) {
     const service = Boolean(line.product?.isService);
-    if (service) posService += line.lineTotal;
-    else posRetail += line.lineTotal;
+    const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
+    const signedTotal = line.lineTotal;
+    const unitCost = line.product?.unitCost ?? 0;
+    const lineCogs = service ? 0 : Math.round(unitCost * line.quantity) * sign;
+    cogsTotal += lineCogs;
 
-    const category = line.product?.category || (service ? "Service — fixed price" : "General");
-    const name = line.description;
+    if (service) posService += signedTotal;
+    else posRetail += signedTotal;
+
+    const category =
+      line.product?.category || (service ? "Service — fixed price" : "General");
+    const name = itemDisplayName(line.description, line.product?.name);
     const key = `${name}::${category}`;
     const existing = itemMap.get(key) || {
       name,
       category,
       qty: 0,
-      amount: 0,
+      netSales: 0,
+      cogs: 0,
       isService: service,
     };
-    existing.qty += line.quantity;
-    existing.amount += line.lineTotal;
+    existing.qty += line.quantity * sign;
+    existing.netSales += signedTotal;
+    existing.cogs += lineCogs;
     itemMap.set(key, existing);
 
     const cat = categoryMap.get(category) || { category, qty: 0, amount: 0 };
-    cat.qty += line.quantity;
-    cat.amount += line.lineTotal;
+    cat.qty += line.quantity * sign;
+    cat.amount += signedTotal;
     categoryMap.set(category, cat);
   }
 
+  const pos = posRetail + posService;
+  const grossProfit = netSales - Math.max(0, cogsTotal);
+
   const posPaymentTotal = paymentRows
-    .filter((p) => (p.reference || "").startsWith("POS") || (p.notes || "").toLowerCase().includes("pos"))
+    .filter(
+      (p) =>
+        (p.reference || "").startsWith("POS") ||
+        (p.notes || "").toLowerCase().includes("pos"),
+    )
     .reduce((s, p) => s + p.amount, 0);
   const otherIncome = Math.max(0, (payments._sum.amount ?? 0) - posPaymentTotal);
-  const income = pos + otherIncome;
-  const serviceIncome = posService + otherIncome;
+  const income = Math.max(0, netSales) + otherIncome;
+  const serviceIncome = Math.max(0, posService) + otherIncome;
 
   const expenseByCategoryMap = new Map<string, number>();
   for (const row of expenseRows) {
@@ -141,10 +194,11 @@ export default async function ReportsPage({
 
   const incomeByCategoryMap = new Map<string, { category: string; amount: number; kind: string }>();
   for (const [, row] of itemMap) {
+    if (row.netSales <= 0) continue;
     const kind = row.isService ? "Service" : "POS retail";
     const key = `${kind}::${row.category}`;
     const cur = incomeByCategoryMap.get(key) || { category: row.category, amount: 0, kind };
-    cur.amount += row.amount;
+    cur.amount += row.netSales;
     incomeByCategoryMap.set(key, cur);
   }
   if (otherIncome > 0) {
@@ -193,7 +247,7 @@ export default async function ReportsPage({
     <div className="stack">
       <PageHeader
         title="Reports"
-        description={`${periodLabel} · search by item or category, sales summary, and income mix.`}
+        description={`${periodLabel} · sales summary, by item, and income mix.`}
       />
       <ReportsDashboard
         planTier={planTier}
@@ -212,21 +266,35 @@ export default async function ReportsPage({
           serviceIncome,
           otherIncome,
           profit: income - expenseTotal,
+          grossSales,
+          refunds: refundsTotal,
+          discounts: discountsTotal,
+          netSales,
+          cogs: Math.max(0, cogsTotal),
+          grossProfit,
           expenseByCategory,
           paymentMethods,
           incomeByCategory,
-          salesByItem: [...itemMap.values()].sort((a, b) => b.amount - a.amount),
+          salesByItem: [...itemMap.values()]
+            .map((r) => ({
+              ...r,
+              grossProfit: r.netSales - r.cogs,
+            }))
+            .sort((a, b) => b.netSales - a.netSales),
           salesByCategory: [...categoryMap.values()].sort((a, b) => b.amount - a.amount),
           saleLines: saleLines.map((l) => ({
             id: l.id,
             description: l.description,
-            category: l.product?.category || (l.product?.isService ? "Service — fixed price" : "General"),
+            category:
+              l.product?.category ||
+              (l.product?.isService ? "Service — fixed price" : "General"),
             isService: Boolean(l.product?.isService),
             quantity: l.quantity,
             lineTotal: l.lineTotal,
             soldAt: l.sale.soldAt.toISOString(),
             saleNumber: l.sale.number,
             method: l.sale.method,
+            isRefund: l.sale.isRefund,
           })),
           weekly,
           dailyEarnings,

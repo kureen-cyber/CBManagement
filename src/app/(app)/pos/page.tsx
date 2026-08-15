@@ -131,6 +131,7 @@ export default async function PosPage() {
         canVoidTickets={access.canVoidTickets}
         canManageInventory={access.canManageInventory}
         initialRegisterId={access.registerId || ""}
+        honeyPersonsEnabled={company.receiptHoneyPersons === true}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
         categories={categories.map((c) => c.name)}

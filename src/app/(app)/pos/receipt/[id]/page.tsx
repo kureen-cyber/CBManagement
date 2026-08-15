@@ -14,8 +14,13 @@ import {
   parsePlanTier,
   receiptVisibleSince,
 } from "@/lib/tier";
+import {
+  readActiveRegisterIdFromCookies,
+  resolveRegisterAccess,
+} from "@/lib/register-access";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
+import { RefundButton } from "@/components/RefundButton";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +41,16 @@ export default async function ReceiptPage({
 
   const sale = await prisma.sale.findFirst({
     where: { id, companyId },
-    include: { customer: true, lines: true, posRegister: true },
+    include: { customer: true, lines: true, posRegister: true, refunds: true },
   });
   if (!sale) notFound();
+
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const activeRegisterId = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(registers, activeRegisterId);
 
   if (since && sale.soldAt < since) {
     return (
@@ -59,6 +71,12 @@ export default async function ReceiptPage({
   }
 
   const canPrint = company.receiptPrinting !== false;
+  const alreadyRefunded = sale.refunds.length > 0 || sale.isRefund;
+  const canRefund =
+    access.canRefund &&
+    sale.status === "COMPLETED" &&
+    !sale.isRefund &&
+    !alreadyRefunded;
   const locale =
     company.receiptLanguage === "es"
       ? "es-ES"
@@ -69,11 +87,16 @@ export default async function ReceiptPage({
   return (
     <div className="stack">
       <PageHeader
-        title="Receipt"
+        title={sale.isRefund ? "Refund receipt" : "Receipt"}
         description={sale.number}
         actions={
           <>
             <PrintButton enabled={canPrint} />
+            <RefundButton
+              saleId={sale.id}
+              posRegisterId={access.registerId}
+              disabled={!canRefund}
+            />
             <Link className="btn btn-secondary" href="/pos">
               Back to POS
             </Link>
@@ -95,7 +118,7 @@ export default async function ReceiptPage({
             {header}
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
-            {labels.salesReceipt}
+            {sale.isRefund ? "Refund" : labels.salesReceipt}
             {isFreeRetailTier(planTier) ? ` · ${FREE_TIER_MAX_TRANSACTION_DAYS}-day visibility` : ""}
           </div>
         </div>
@@ -157,7 +180,16 @@ export default async function ReceiptPage({
           <span>{labels.subtotal}</span>
           <span className="money">{formatTTD(sale.subtotal)}</span>
         </div>
-        {sale.taxAmount > 0 && company.taxEnabled !== false ? (
+        {sale.discountAmount ? (
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span>
+              Discount
+              {sale.discountPercent ? ` (${sale.discountPercent}%)` : ""}
+            </span>
+            <span className="money">−{formatTTD(Math.abs(sale.discountAmount))}</span>
+          </div>
+        ) : null}
+        {sale.taxAmount !== 0 && company.taxEnabled !== false ? (
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>
               {labels.vat} ({((company.vatRate ?? 0.125) * 100).toFixed(1)}%)
@@ -171,6 +203,12 @@ export default async function ReceiptPage({
             {formatTTD(sale.total)}
           </strong>
         </div>
+
+        {alreadyRefunded && !sale.isRefund ? (
+          <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+            This sale has been refunded.
+          </p>
+        ) : null}
 
         {showComments && sale.notes?.trim() ? (
           <div style={{ marginTop: "1rem", fontSize: "0.88rem" }}>

@@ -259,21 +259,22 @@ export async function updatePosRegisters(formData: FormData) {
 
   const existing = await prisma.posRegister.findMany({
     where: { companyId },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
   // Update / create in order; delete extras beyond saved names
+  // sortOrder 0 = POS 1 (full), 1 = POS 2 (limited)
   for (let i = 0; i < names.length; i++) {
     const name = names[i]!;
     const row = existing[i];
     if (row) {
       await prisma.posRegister.update({
         where: { id: row.id },
-        data: { name },
+        data: { name, sortOrder: i },
       });
     } else {
       await prisma.posRegister.create({
-        data: { companyId, name },
+        data: { companyId, name, sortOrder: i },
       });
     }
   }
@@ -291,4 +292,100 @@ export async function updatePosRegisters(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/pos");
   return { ok: true as const, count: names.length };
+}
+
+export async function addDiscountPreset(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
+    "@/lib/register-access"
+  );
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canEditDiscounts) {
+    return { error: "Only POS register 1 can edit discounts." };
+  }
+  const name = String(formData.get("name") || "").trim();
+  const percent = Number(formData.get("percent") || 0);
+  if (!name) return { error: "Enter a discount name" };
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    return { error: "Percent must be between 0 and 100" };
+  }
+  const exists = await prisma.discountPreset.findFirst({
+    where: { companyId, name: { equals: name, mode: "insensitive" } },
+  });
+  if (exists) return { error: "That discount already exists" };
+  const maxSort = await prisma.discountPreset.aggregate({
+    where: { companyId },
+    _max: { sortOrder: true },
+  });
+  await prisma.discountPreset.create({
+    data: {
+      companyId,
+      name,
+      percent,
+      active: true,
+      sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function updateDiscountPreset(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
+    "@/lib/register-access"
+  );
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canEditDiscounts) {
+    return { error: "Only POS register 1 can edit discounts." };
+  }
+  const id = String(formData.get("id") || "");
+  const percent = Number(formData.get("percent") || 0);
+  const name = String(formData.get("name") || "").trim();
+  const row = await prisma.discountPreset.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Discount not found" };
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    return { error: "Percent must be between 0 and 100" };
+  }
+  await prisma.discountPreset.update({
+    where: { id },
+    data: {
+      percent,
+      ...(name ? { name } : {}),
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function deleteDiscountPreset(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
+    "@/lib/register-access"
+  );
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canEditDiscounts) {
+    return { error: "Only POS register 1 can edit discounts." };
+  }
+  const id = String(formData.get("id") || "");
+  const row = await prisma.discountPreset.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Discount not found" };
+  await prisma.discountPreset.delete({ where: { id } });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
 }

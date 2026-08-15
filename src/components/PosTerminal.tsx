@@ -8,12 +8,15 @@ import {
   createCustomer,
   createProduct,
   saveOpenTicket,
+  setActivePosRegister,
   voidOpenTicket,
 } from "@/app/actions";
-import { formatTTD } from "@/lib/money";
+import { formatTTD, toCents } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { CategoryInput } from "@/components/CategoryInput";
 import { ItemMenu } from "@/components/ItemMenu";
+
+type ProductVariable = { name: string; options: string[] };
 
 type Product = {
   id: string;
@@ -21,14 +24,23 @@ type Product = {
   category: string;
   unit: string;
   unitPrice: number;
+  variablePrice?: boolean;
   stockQty: number;
   trackStock: boolean;
   isService: boolean;
+  variables?: ProductVariable[];
 };
 
 type Customer = { id: string; name: string };
 
-type CartLine = { productId: string; name: string; unitPrice: number; quantity: number };
+type CartLine = {
+  key: string;
+  productId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  variantLabel?: string;
+};
 
 type OpenTicket = {
   id: string;
@@ -43,6 +55,19 @@ type OpenTicket = {
 };
 
 type PaymentTypeOption = { code: string; label: string };
+type DiscountOption = { id: string; name: string; percent: number };
+
+function lineKey(productId: string, variantLabel?: string) {
+  return `${productId}::${variantLabel || ""}`;
+}
+
+function extractVariant(productName: string, description: string): string | undefined {
+  const prefix = `${productName} (`;
+  if (description.startsWith(prefix) && description.endsWith(")")) {
+    return description.slice(prefix.length, -1);
+  }
+  return undefined;
+}
 
 export function PosTerminal({
   products: initialProducts,
@@ -55,6 +80,10 @@ export function PosTerminal({
   paymentTypes = [],
   categories = [],
   openTickets: initialTickets = [],
+  discounts = [],
+  canVoidTickets = true,
+  canManageInventory = true,
+  initialRegisterId = "",
 }: {
   products: Product[];
   customers: Customer[];
@@ -66,6 +95,10 @@ export function PosTerminal({
   paymentTypes?: PaymentTypeOption[];
   categories?: string[];
   openTickets?: OpenTicket[];
+  discounts?: DiscountOption[];
+  canVoidTickets?: boolean;
+  canManageInventory?: boolean;
+  initialRegisterId?: string;
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
@@ -73,7 +106,9 @@ export function PosTerminal({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [method, setMethod] = useState(paymentTypes[0]?.code || "CASH");
   const [customerId, setCustomerId] = useState("");
-  const [posRegisterId, setPosRegisterId] = useState(registers[0]?.id ?? "");
+  const [posRegisterId, setPosRegisterId] = useState(
+    initialRegisterId || registers[0]?.id || "",
+  );
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
   const [view, setView] = useState<"sell" | "tickets">("sell");
   const [message, setMessage] = useState<string | null>(null);
@@ -85,10 +120,18 @@ export function PosTerminal({
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [registerAsService, setRegisterAsService] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [addModal, setAddModal] = useState<{
+    product: Product;
+    selections: Record<string, string>;
+    priceDollars: string;
+  } | null>(null);
 
   useEffect(() => {
-    if (!posRegisterId && registers[0]?.id) setPosRegisterId(registers[0].id);
-  }, [registers, posRegisterId]);
+    if (!posRegisterId && (initialRegisterId || registers[0]?.id)) {
+      setPosRegisterId(initialRegisterId || registers[0]!.id);
+    }
+  }, [registers, posRegisterId, initialRegisterId]);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -125,14 +168,59 @@ export function PosTerminal({
     });
   }, [products, query, categoryFilter]);
 
-  const total = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const discountAmount = Math.round(subtotal * (discountPercent / 100));
+  const total = Math.max(0, subtotal - discountAmount);
 
-  function addProduct(p: Product) {
+  function needsAddModal(p: Product) {
+    return Boolean(p.variablePrice) || Boolean(p.variables?.length);
+  }
+
+  function openAddModal(p: Product) {
+    const selections: Record<string, string> = {};
+    for (const v of p.variables || []) {
+      selections[v.name] = v.options[0] || "";
+    }
+    setAddModal({
+      product: p,
+      selections,
+      priceDollars: p.variablePrice ? "" : (p.unitPrice / 100).toFixed(2),
+    });
+  }
+
+  function confirmAddModal() {
+    if (!addModal) return;
+    const p = addModal.product;
+    const vars = p.variables || [];
+    for (const v of vars) {
+      if (!addModal.selections[v.name]?.trim()) {
+        setError(`Select ${v.name}`);
+        return;
+      }
+    }
+    let unitPrice = p.unitPrice;
+    if (p.variablePrice) {
+      const dollars = Number(addModal.priceDollars);
+      if (!Number.isFinite(dollars) || dollars < 0) {
+        setError("Enter a valid price");
+        return;
+      }
+      unitPrice = toCents(dollars);
+    }
+    const variantLabel = vars
+      .map((v) => `${v.name}: ${addModal.selections[v.name]}`)
+      .join(", ");
+    pushToCart(p, unitPrice, variantLabel || undefined);
+    setAddModal(null);
+  }
+
+  function pushToCart(p: Product, unitPrice: number, variantLabel?: string) {
     setMessage(null);
     setError(null);
     setReceiptHref(null);
 
-    const existingQty = cart.find((l) => l.productId === p.id)?.quantity ?? 0;
+    const key = lineKey(p.id, variantLabel);
+    const existingQty = cart.find((l) => l.key === key)?.quantity ?? 0;
     const nextQty = existingQty + 1;
     if (outOfStockWarn && p.trackStock && !p.isService && p.stockQty < nextQty) {
       setError(
@@ -141,22 +229,37 @@ export function PosTerminal({
       return;
     }
 
+    const displayName = variantLabel ? `${p.name} (${variantLabel})` : p.name;
     setCart((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
+      const existing = prev.find((l) => l.key === key);
       if (existing) {
-        return prev.map((l) =>
-          l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l,
-        );
+        return prev.map((l) => (l.key === key ? { ...l, quantity: l.quantity + 1 } : l));
       }
       return [
         ...prev,
-        { productId: p.id, name: p.name, unitPrice: p.unitPrice, quantity: 1 },
+        {
+          key,
+          productId: p.id,
+          name: displayName,
+          unitPrice,
+          quantity: 1,
+          variantLabel,
+        },
       ];
     });
   }
 
-  function updateQty(productId: string, quantity: number) {
-    const product = products.find((p) => p.id === productId);
+  function addProduct(p: Product) {
+    if (needsAddModal(p)) {
+      openAddModal(p);
+      return;
+    }
+    pushToCart(p, p.unitPrice);
+  }
+
+  function updateQty(key: string, quantity: number) {
+    const line = cart.find((l) => l.key === key);
+    const product = line ? products.find((p) => p.id === line.productId) : undefined;
     if (
       outOfStockWarn &&
       product &&
@@ -164,15 +267,11 @@ export function PosTerminal({
       !product.isService &&
       quantity > product.stockQty
     ) {
-      setError(
-        `Out of stock: ${product.name} (available ${product.stockQty}).`,
-      );
+      setError(`Out of stock: ${product.name} (available ${product.stockQty}).`);
       return;
     }
     setCart((prev) =>
-      prev
-        .map((l) => (l.productId === productId ? { ...l, quantity } : l))
-        .filter((l) => l.quantity > 0),
+      prev.map((l) => (l.key === key ? { ...l, quantity } : l)).filter((l) => l.quantity > 0),
     );
   }
 
@@ -180,6 +279,7 @@ export function PosTerminal({
     setCart([]);
     setOpenTicketId(null);
     setCustomerId("");
+    setDiscountPercent(0);
     setMessage(null);
     setError(null);
     setReceiptHref(null);
@@ -194,12 +294,20 @@ export function PosTerminal({
     setCart(
       ticket.lines
         .filter((l) => l.productId)
-        .map((l) => ({
-          productId: l.productId!,
-          name: l.description,
-          unitPrice: l.unitPrice,
-          quantity: l.quantity,
-        })),
+        .map((l) => {
+          const product = products.find((p) => p.id === l.productId);
+          const variantLabel = product
+            ? extractVariant(product.name, l.description)
+            : undefined;
+          return {
+            key: lineKey(l.productId!, variantLabel),
+            productId: l.productId!,
+            name: l.description,
+            unitPrice: l.unitPrice,
+            quantity: l.quantity,
+            variantLabel,
+          };
+        }),
     );
     setMessage(`Editing ticket ${ticket.number}`);
     setError(null);
@@ -228,9 +336,11 @@ export function PosTerminal({
               category: created.category,
               unit: created.unit,
               unitPrice: created.unitPrice,
+              variablePrice: created.variablePrice,
               stockQty: created.stockQty,
               trackStock: created.trackStock,
               isService: created.isService,
+              variables: created.variables,
             },
           ].sort((a, b) => a.name.localeCompare(b.name));
         });
@@ -240,6 +350,15 @@ export function PosTerminal({
       }
       router.refresh();
     });
+  }
+
+  function cartLinesForServer() {
+    return cart.map((l) => ({
+      productId: l.productId,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      variantLabel: l.variantLabel,
+    }));
   }
 
   function holdTicket() {
@@ -252,7 +371,7 @@ export function PosTerminal({
     startTransition(async () => {
       const result = await saveOpenTicket({
         ticketId: openTicketId,
-        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        lines: cartLinesForServer(),
         method,
         customerId: customerId || null,
         posRegisterId: posRegisterId || null,
@@ -277,11 +396,12 @@ export function PosTerminal({
     }
     startTransition(async () => {
       const result = await completePosSale({
-        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        lines: cartLinesForServer(),
         method,
         customerId: customerId || null,
         posRegisterId: posRegisterId || null,
         ticketId: openTicketId,
+        discountPercent,
       });
       if ("error" in result && result.error) {
         setError(result.error);
@@ -290,6 +410,14 @@ export function PosTerminal({
       clearTicket();
       setMessage(`Receipt ${result.number} — ${formatTTD(result.total ?? 0)}`);
       if (result.saleId) setReceiptHref(`/pos/receipt/${result.saleId}`);
+      router.refresh();
+    });
+  }
+
+  function onRegisterChange(id: string) {
+    setPosRegisterId(id);
+    startTransition(async () => {
+      await setActivePosRegister(id);
       router.refresh();
     });
   }
@@ -320,6 +448,9 @@ export function PosTerminal({
           <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem" }}>Saved tickets</h2>
           <p className="muted" style={{ marginTop: 0, fontSize: "0.9rem" }}>
             Open a ticket to edit lines, then charge when the customer is ready.
+            {canVoidTickets
+              ? ""
+              : " This register can save and edit tickets but cannot delete them."}
           </p>
           <div className="stack" style={{ gap: "0.65rem" }}>
             {tickets.map((t) => (
@@ -342,26 +473,28 @@ export function PosTerminal({
                   >
                     Open
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={pending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const result = await voidOpenTicket(t.id);
-                        if ("error" in result && result.error) {
-                          setError(result.error);
-                          return;
-                        }
-                        setTickets((prev) => prev.filter((x) => x.id !== t.id));
-                        if (openTicketId === t.id) clearTicket();
-                        setMessage(`Voided ${t.number}`);
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    Void
-                  </button>
+                  {canVoidTickets ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await voidOpenTicket(t.id, posRegisterId || null);
+                          if ("error" in result && result.error) {
+                            setError(result.error);
+                            return;
+                          }
+                          setTickets((prev) => prev.filter((x) => x.id !== t.id));
+                          if (openTicketId === t.id) clearTicket();
+                          setMessage(`Voided ${t.number}`);
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      Void
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -377,15 +510,16 @@ export function PosTerminal({
               Active POS register
               <select
                 value={posRegisterId}
-                onChange={(e) => setPosRegisterId(e.target.value)}
+                onChange={(e) => onRegisterChange(e.target.value)}
                 required={requireRegister}
               >
                 {registers.length === 0 ? (
                   <option value="">No registers named yet</option>
                 ) : (
-                  registers.map((r) => (
+                  registers.map((r, idx) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
+                      {idx === 0 ? " (full access)" : " (POS + stock)"}
                     </option>
                   ))
                 )}
@@ -393,7 +527,7 @@ export function PosTerminal({
             </label>
           ) : null}
 
-          {retailMode ? (
+          {retailMode && canManageInventory ? (
             <div className="row">
               <button
                 type="button"
@@ -421,7 +555,7 @@ export function PosTerminal({
             </div>
           ) : null}
 
-          {showCustomerForm ? (
+          {showCustomerForm && canManageInventory ? (
             <div className="panel" style={{ padding: "1rem" }}>
               <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register customer</h3>
               <form action={createCustomer} className="form-grid" autoComplete="off">
@@ -446,7 +580,7 @@ export function PosTerminal({
             </div>
           ) : null}
 
-          {showProductForm ? (
+          {showProductForm && canManageInventory ? (
             <div className="panel" style={{ padding: "1rem" }}>
               <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory / service</h3>
               <form action={onCreateProduct} className="form-grid">
@@ -464,8 +598,8 @@ export function PosTerminal({
                   />
                 </label>
                 <label className="field">
-                  Unit price
-                  <input name="unitPrice" type="number" step="0.01" defaultValue="0" required />
+                  Unit price (leave 0 for variable at POS)
+                  <input name="unitPrice" type="number" step="0.01" defaultValue="0" />
                 </label>
                 <label className="field">
                   Opening stock
@@ -535,10 +669,16 @@ export function PosTerminal({
                           : p.isService
                             ? " · service"
                             : ""}
+                        {p.variablePrice ? " · price at POS" : ""}
+                        {p.variables?.length ? " · options" : ""}
                       </div>
-                      <div className="money">{formatTTD(p.unitPrice)}</div>
+                      <div className="money">
+                        {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
+                      </div>
                     </button>
-                    <ItemMenu productId={p.id} productName={p.name} onDeleted={onProductDeleted} />
+                    {canManageInventory ? (
+                      <ItemMenu productId={p.id} productName={p.name} onDeleted={onProductDeleted} />
+                    ) : null}
                   </div>
                 ))}
                 {filtered.length === 0 ? <div className="muted">No products match.</div> : null}
@@ -551,7 +691,7 @@ export function PosTerminal({
               </h2>
               <div className="cart-lines">
                 {cart.map((l) => (
-                  <div key={l.productId} className="cart-line">
+                  <div key={l.key} className="cart-line">
                     <div>
                       <strong>{l.name}</strong>
                       <div className="muted" style={{ fontSize: "0.8rem" }}>
@@ -565,7 +705,7 @@ export function PosTerminal({
                         step={1}
                         value={l.quantity}
                         style={{ width: 72 }}
-                        onChange={(e) => updateQty(l.productId, Number(e.target.value) || 0)}
+                        onChange={(e) => updateQty(l.key, Number(e.target.value) || 0)}
                       />
                       <span className="money">{formatTTD(l.unitPrice * l.quantity)}</span>
                     </div>
@@ -603,6 +743,26 @@ export function PosTerminal({
                     ))}
                   </select>
                 </label>
+                <label className="field">
+                  Discount
+                  <select
+                    value={String(discountPercent)}
+                    onChange={(e) => setDiscountPercent(Number(e.target.value) || 0)}
+                  >
+                    <option value="0">No discount</option>
+                    {discounts.map((d) => (
+                      <option key={d.id} value={String(d.percent)}>
+                        {d.name} ({d.percent}%)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {discountPercent > 0 ? (
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <span className="muted">Discount ({discountPercent}%)</span>
+                    <span className="money">−{formatTTD(discountAmount)}</span>
+                  </div>
+                ) : null}
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <span className="muted">Total</span>
                   <span className="value money" style={{ fontSize: "1.5rem" }}>
@@ -642,6 +802,88 @@ export function PosTerminal({
           </div>
         </>
       )}
+
+      {addModal ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 50,
+            padding: "1rem",
+          }}
+          onClick={() => setAddModal(null)}
+        >
+          <div
+            className="panel"
+            style={{ padding: "1.25rem", width: "min(420px, 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0 }}>{addModal.product.name}</h3>
+            <div className="stack" style={{ gap: "0.75rem" }}>
+              {(addModal.product.variables || []).map((v) => (
+                <label key={v.name} className="field">
+                  {v.name}
+                  <select
+                    value={addModal.selections[v.name] || ""}
+                    onChange={(e) =>
+                      setAddModal((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              selections: { ...prev.selections, [v.name]: e.target.value },
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    {v.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              {addModal.product.variablePrice ? (
+                <label className="field">
+                  Price
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={addModal.priceDollars}
+                    onChange={(e) =>
+                      setAddModal((prev) =>
+                        prev ? { ...prev, priceDollars: e.target.value } : prev,
+                      )
+                    }
+                    placeholder="0.00"
+                    autoFocus
+                  />
+                </label>
+              ) : null}
+              <div className="row" style={{ gap: "0.5rem" }}>
+                <button type="button" className="btn btn-primary" onClick={confirmAddModal}>
+                  Add to cart
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setAddModal(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

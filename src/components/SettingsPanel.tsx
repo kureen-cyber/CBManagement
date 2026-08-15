@@ -22,6 +22,9 @@ import {
   deletePaymentType,
   addInventoryCategory,
   deleteInventoryCategory,
+  addDiscountPreset,
+  updateDiscountPreset,
+  deleteDiscountPreset,
 } from "@/app/actions/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
@@ -31,7 +34,16 @@ import {
 } from "@/lib/tier";
 import { Panel } from "@/components/ui";
 
-type Tab = "general" | "taxes" | "printers" | "receipts" | "features" | "payments" | "categories" | "pos";
+type Tab =
+  | "general"
+  | "taxes"
+  | "printers"
+  | "receipts"
+  | "features"
+  | "payments"
+  | "categories"
+  | "discounts"
+  | "pos";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
@@ -41,6 +53,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "features", label: "Features" },
   { id: "payments", label: "Payment types" },
   { id: "categories", label: "Categories" },
+  { id: "discounts", label: "Discounts" },
   { id: "pos", label: "POS registers" },
 ];
 
@@ -64,8 +77,10 @@ export function SettingsPanel({
   featureOutOfStockWarn,
   paymentTypes,
   inventoryCategories,
+  discountPresets = [],
   planTier,
   posRegisters,
+  canEditDiscounts = true,
 }: {
   businessName: string;
   theme: Theme;
@@ -86,8 +101,10 @@ export function SettingsPanel({
   featureOutOfStockWarn: boolean;
   paymentTypes: { id: string; code: string; label: string; active: boolean }[];
   inventoryCategories: { id: string; name: string }[];
+  discountPresets?: { id: string; name: string; percent: number; active: boolean }[];
   planTier: PlanTier;
   posRegisters: { id: string; name: string }[];
+  canEditDiscounts?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -212,6 +229,22 @@ export function SettingsPanel({
         return;
       }
       setSaved("POS registers saved");
+      router.refresh();
+    });
+  }
+
+  function onAddDiscount(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addDiscountPreset(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved("Discount added");
+      (e.target as HTMLFormElement).reset();
       router.refresh();
     });
   }
@@ -705,16 +738,127 @@ export function SettingsPanel({
         </Panel>
       ) : null}
 
+      {tab === "discounts" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Percentage discounts</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Presets appear in the POS discount dropdown. Only POS register 1 can add or edit
+              these.
+            </p>
+            {!canEditDiscounts ? (
+              <div className="info-banner">
+                Switch to POS register 1 to edit discount presets. Register 2 can still apply
+                existing discounts at checkout.
+              </div>
+            ) : null}
+            <div className="stack" style={{ gap: "0.65rem" }}>
+              {discountPresets.map((d) => (
+                <div key={d.id} className="settings-list-row">
+                  {canEditDiscounts ? (
+                    <form
+                      className="row"
+                      style={{ gap: "0.5rem", flexWrap: "wrap", flex: 1 }}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setError(null);
+                        const fd = new FormData(e.currentTarget);
+                        startTransition(async () => {
+                          const result = await updateDiscountPreset(fd);
+                          if (result && "error" in result && result.error) {
+                            setError(result.error);
+                            return;
+                          }
+                          setSaved("Discount updated");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <input type="hidden" name="id" value={d.id} />
+                      <input name="name" defaultValue={d.name} required style={{ flex: "1 1 120px" }} />
+                      <input
+                        name="percent"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max="100"
+                        defaultValue={d.percent}
+                        required
+                        style={{ width: 88 }}
+                      />
+                      <span className="muted">%</span>
+                      <button className="btn btn-secondary btn-sm" type="submit" disabled={pending}>
+                        Save
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          const fd = new FormData();
+                          fd.set("id", d.id);
+                          startTransition(async () => {
+                            const result = await deleteDiscountPreset(fd);
+                            if (result && "error" in result && result.error) {
+                              setError(result.error);
+                              return;
+                            }
+                            setSaved("Discount removed");
+                            router.refresh();
+                          });
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </form>
+                  ) : (
+                    <div>
+                      <strong>{d.name}</strong>
+                      <span className="muted"> · {d.percent}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {discountPresets.length === 0 ? (
+                <div className="muted">No discount presets yet.</div>
+              ) : null}
+            </div>
+            {canEditDiscounts ? (
+              <form className="form-grid" onSubmit={onAddDiscount}>
+                <label className="field">
+                  Name
+                  <input name="name" required placeholder="Staff discount" />
+                </label>
+                <label className="field">
+                  Percent
+                  <input name="percent" type="number" step="0.01" min="0.01" max="100" required placeholder="10" />
+                </label>
+                <div className="full">
+                  <button className="btn btn-primary" type="submit" disabled={pending}>
+                    {pending ? "Saving…" : "Add discount"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
+
       {tab === "pos" ? (
         <Panel style={{ padding: "1.25rem" }}>
           <form className="stack" onSubmit={onPosRegisters}>
             <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS registers</h2>
             <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Free Retail includes up to {FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins
-              (e.g. Front counter, Side till). Choose which register is active when ringing sales.
+              Free Retail includes up to {FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.
+              Choose which register is active when ringing sales.
             </p>
+            <div className="info-banner">
+              <strong>Register 1</strong> — full access (inventory, settings, void tickets,
+              edit discounts). <strong>Register 2</strong> — POS + stock levels only; can save
+              and edit tickets and issue refunds, but cannot delete tickets.
+            </div>
             <label className="field">
-              POS register 1 name
+              POS register 1 name (full access)
               <input
                 name="register1"
                 type="text"
@@ -725,7 +869,7 @@ export function SettingsPanel({
               />
             </label>
             <label className="field">
-              POS register 2 name (optional)
+              POS register 2 name (POS + stock only)
               <input
                 name="register2"
                 type="text"

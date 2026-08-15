@@ -13,11 +13,24 @@ import {
   parsePlanTier,
   receiptVisibleSince,
 } from "@/lib/tier";
+import {
+  readActiveRegisterIdFromCookies,
+  resolveRegisterAccess,
+} from "@/lib/register-access";
 import { PosTerminal } from "@/components/PosTerminal";
 import { PageHeader, Panel } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
+
+function parseOptions(raw: string): string[] {
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v.map((o) => String(o)) : [];
+  } catch {
+    return [];
+  }
+}
 
 export default async function PosPage() {
   const { companyId, company } = await requireCompany();
@@ -29,41 +42,60 @@ export default async function PosPage() {
   const planTier = parsePlanTier(company.planTier);
   const since = receiptVisibleSince(planTier);
 
-  const [products, customers, sales, posRegisters, paymentTypes, categories, openTickets] =
-    await Promise.all([
-      prisma.product.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.sale.findMany({
-        where: {
-          companyId,
-          status: "COMPLETED",
-          ...(since ? { soldAt: { gte: since } } : {}),
-        },
-        orderBy: { soldAt: "desc" },
-        take: 12,
-        include: { customer: true, lines: true, posRegister: true },
-      }),
-      prisma.posRegister.findMany({
-        where: { companyId },
-        orderBy: { createdAt: "asc" },
-      }),
-      prisma.paymentType.findMany({
-        where: { companyId, active: true },
-        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      }),
-      prisma.inventoryCategory.findMany({
-        where: { companyId },
-        orderBy: { name: "asc" },
-      }),
-      company.featureOpenTickets
-        ? prisma.sale.findMany({
-            where: { companyId, status: "OPEN" },
-            orderBy: { updatedAt: "desc" },
-            include: { customer: true, lines: true },
-            take: 50,
-          })
-        : Promise.resolve([]),
-    ]);
+  const [
+    products,
+    customers,
+    sales,
+    posRegisters,
+    paymentTypes,
+    categories,
+    openTickets,
+    discounts,
+  ] = await Promise.all([
+    prisma.product.findMany({
+      where: { companyId },
+      orderBy: { name: "asc" },
+      include: { variables: { orderBy: { sortOrder: "asc" } } },
+    }),
+    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.sale.findMany({
+      where: {
+        companyId,
+        status: "COMPLETED",
+        ...(since ? { soldAt: { gte: since } } : {}),
+      },
+      orderBy: { soldAt: "desc" },
+      take: 12,
+      include: { customer: true, lines: true, posRegister: true },
+    }),
+    prisma.posRegister.findMany({
+      where: { companyId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.paymentType.findMany({
+      where: { companyId, active: true },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+    prisma.inventoryCategory.findMany({
+      where: { companyId },
+      orderBy: { name: "asc" },
+    }),
+    company.featureOpenTickets
+      ? prisma.sale.findMany({
+          where: { companyId, status: "OPEN" },
+          orderBy: { updatedAt: "desc" },
+          include: { customer: true, lines: true },
+          take: 50,
+        })
+      : Promise.resolve([]),
+    prisma.discountPreset.findMany({
+      where: { companyId, active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
+
+  const activeRegisterId = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(posRegisters, activeRegisterId);
 
   return (
     <div className="stack">
@@ -75,9 +107,11 @@ export default async function PosPage() {
             : "Ring up products and services. Stock updates automatically."
         }
         actions={
-          <a className="btn btn-secondary" href="/api/inventory/export">
-            Export stock CSV
-          </a>
+          access.canManageInventory ? (
+            <a className="btn btn-secondary" href="/api/inventory/export">
+              Export stock CSV
+            </a>
+          ) : undefined
         }
       />
 
@@ -90,13 +124,21 @@ export default async function PosPage() {
       ) : null}
 
       <PosTerminal
-        retailMode={retailMode}
+        retailMode={retailMode && access.canManageInventory}
         requireRegister={isFreeRetailTier(planTier)}
         openTicketsEnabled={company.featureOpenTickets}
         outOfStockWarn={company.featureOutOfStockWarn}
+        canVoidTickets={access.canVoidTickets}
+        canManageInventory={access.canManageInventory}
+        initialRegisterId={access.registerId || ""}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
         categories={categories.map((c) => c.name)}
+        discounts={discounts.map((d) => ({
+          id: d.id,
+          name: d.name,
+          percent: d.percent,
+        }))}
         openTickets={openTickets.map((t) => ({
           id: t.id,
           number: t.number,
@@ -119,9 +161,14 @@ export default async function PosPage() {
           category: p.category,
           unit: p.unit,
           unitPrice: p.unitPrice,
+          variablePrice: p.variablePrice,
           stockQty: p.stockQty,
           trackStock: p.trackStock,
           isService: p.isService,
+          variables: p.variables.map((v) => ({
+            name: v.name,
+            options: parseOptions(v.options),
+          })),
         }))}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
       />
@@ -151,6 +198,7 @@ export default async function PosPage() {
                   <strong>{s.number}</strong>
                   <div className="muted" style={{ fontSize: "0.8rem" }}>
                     {s.soldAt.toLocaleString("en-TT")}
+                    {s.isRefund ? " · Refund" : ""}
                   </div>
                 </td>
                 <td>{s.posRegister?.name ?? "—"}</td>

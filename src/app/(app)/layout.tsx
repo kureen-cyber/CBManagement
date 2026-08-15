@@ -6,6 +6,12 @@ import { getBusinessType } from "@/lib/session-business";
 import { syncCompanyFromUser } from "@/lib/company";
 import { parseTheme } from "@/lib/settings";
 import { isLocalhostDemoHost, parsePlanTier } from "@/lib/tier";
+import { prisma } from "@/lib/prisma";
+import {
+  readActiveRegisterIdFromCookies,
+  resolveRegisterAccess,
+} from "@/lib/register-access";
+import { RegisterAccessGate } from "@/components/RegisterAccessGate";
 
 export default async function AppLayout({
   children,
@@ -21,6 +27,14 @@ export default async function AppLayout({
   const hdrs = await headers();
   const showDemoNav = isLocalhostDemoHost(hdrs.get("host"));
 
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId: company.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const activeRegisterId = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(registers, activeRegisterId);
+  const activeRegister = registers.find((r) => r.id === access.registerId) || null;
+
   const businessName =
     String(user?.user_metadata?.business_name || user?.user_metadata?.full_name || "").trim() ||
     company.name;
@@ -28,12 +42,15 @@ export default async function AppLayout({
   return (
     <div className="app-shell">
       <ThemeScript theme={theme} />
+      <RegisterAccessGate limited={access.isLimitedCashier} />
       <Sidebar
         email={user?.email}
         businessName={businessName}
         businessType={businessType}
         planTier={planTier}
-        showDemoNav={showDemoNav}
+        showDemoNav={showDemoNav && !access.isLimitedCashier}
+        limitedCashier={access.isLimitedCashier}
+        registerLabel={activeRegister?.name ?? null}
       />
       <main className="main">{children}</main>
     </div>

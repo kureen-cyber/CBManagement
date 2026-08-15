@@ -53,6 +53,8 @@ model Company {
   posRegisters        PosRegister[]
   paymentTypes        PaymentType[]
   inventoryCategories InventoryCategory[]
+  variableNames       VariableNameCatalog[]
+  discountPresets     DiscountPreset[]
   customers           Customer[]
   suppliers           Supplier[]
   products            Product[]
@@ -101,6 +103,8 @@ model PosRegister {
   id        String   @id @default(cuid())
   companyId String
   name      String
+  /// 0 = POS 1 (full access), 1 = POS 2 (limited)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -174,7 +178,10 @@ model Product {
   category    String  @default("General")
   unit        String  @default("each")
   unitCost    Int     @default(0)
+  /// Fixed price in cents; ignored at POS when variablePrice is true
   unitPrice   Int     @default(0)
+  /// When true, cashier enters price at POS
+  variablePrice Boolean @default(false)
   stockQty    Float   @default(0)
   minStock    Float   @default(0)
   trackStock  Boolean @default(true)
@@ -184,14 +191,62 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier     Supplier?       @relation(fields: [supplierId], references: [id])
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier     Supplier?        @relation(fields: [supplierId], references: [id])
+  variables    ProductVariable[]
   stockMoves   StockMovement[]
   quoteLines   QuotationLine[]
   invoiceLines InvoiceLine[]
   jobMaterials JobMaterial[]
   saleLines    SaleLine[]
 
+  @@index([companyId])
+}
+
+/// Attribute on a product (e.g. Colour → Red, Blue, Black)
+model ProductVariable {
+  id        String   @id @default(cuid())
+  productId String
+  name      String
+  /// JSON string array of option labels
+  options   String   @default("[]")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+/// Reusable variable names for the company dropdown (Colour, Size, …)
+model VariableNameCatalog {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+/// Preset percentage discounts (editable at POS 1)
+model DiscountPreset {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  percent   Float
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
   @@index([companyId])
 }
 
@@ -423,6 +478,11 @@ model Sale {
   amountPaid    Int      @default(0)
   method        String   @default("CASH")
   notes         String?
+  discountPercent Float  @default(0)
+  discountAmount  Int    @default(0)
+  /// True when this sale is a refund of another sale
+  isRefund      Boolean  @default(false)
+  refundOfSaleId String?
   soldAt        DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
@@ -430,12 +490,15 @@ model Sale {
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer    Customer?    @relation(fields: [customerId], references: [id])
   posRegister PosRegister? @relation(fields: [posRegisterId], references: [id])
+  refundOf    Sale?        @relation("SaleRefunds", fields: [refundOfSaleId], references: [id])
+  refunds     Sale[]       @relation("SaleRefunds")
   lines       SaleLine[]
 
   @@unique([companyId, number])
   @@index([companyId])
   @@index([companyId, status])
   @@index([posRegisterId])
+  @@index([refundOfSaleId])
 }
 
 model SaleLine {

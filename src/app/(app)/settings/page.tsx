@@ -11,6 +11,10 @@ import {
   ensureDefaultInventoryCategories,
   ensureDefaultPaymentTypes,
 } from "@/lib/catalog";
+import {
+  readActiveRegisterIdFromCookies,
+  resolveRegisterAccess,
+} from "@/lib/register-access";
 import { PageHeader } from "@/components/ui";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
@@ -21,27 +25,35 @@ export default async function SettingsPage() {
   await ensureDefaultPaymentTypes(companyId);
   await ensureDefaultInventoryCategories(companyId);
 
-  const [posRegisters, paymentTypes, inventoryCategories] = await Promise.all([
-    prisma.posRegister.findMany({
-      where: { companyId },
-      orderBy: { createdAt: "asc" },
-      take: 4,
-    }),
-    prisma.paymentType.findMany({
-      where: { companyId },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-    }),
-    prisma.inventoryCategory.findMany({
-      where: { companyId },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const [posRegisters, paymentTypes, inventoryCategories, discountPresets] =
+    await Promise.all([
+      prisma.posRegister.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 4,
+      }),
+      prisma.paymentType.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      }),
+      prisma.inventoryCategory.findMany({
+        where: { companyId },
+        orderBy: { name: "asc" },
+      }),
+      prisma.discountPreset.findMany({
+        where: { companyId },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+    ]);
+
+  const activeRegisterId = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(posRegisters, activeRegisterId);
 
   return (
     <div className="stack">
       <PageHeader
         title="Settings"
-        description="Theme, receipts, features, payment types, categories, and printers."
+        description="Theme, receipts, features, payment types, categories, discounts, and printers."
       />
       <Suspense fallback={<div className="muted">Loading settings…</div>}>
         <SettingsPanel
@@ -72,6 +84,13 @@ export default async function SettingsPage() {
             id: c.id,
             name: c.name,
           }))}
+          discountPresets={discountPresets.map((d) => ({
+            id: d.id,
+            name: d.name,
+            percent: d.percent,
+            active: d.active,
+          }))}
+          canEditDiscounts={access.canEditDiscounts}
           planTier={parsePlanTier(company.planTier)}
           posRegisters={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         />

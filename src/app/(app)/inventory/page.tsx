@@ -1,23 +1,50 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { ensureDefaultInventoryCategories } from "@/lib/catalog";
+import {
+  readActiveRegisterIdFromCookies,
+  resolveRegisterAccess,
+} from "@/lib/register-access";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
 
 export const dynamic = "force-dynamic";
 
+function parseOptions(raw: string): string[] {
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v.map((o) => String(o)) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function InventoryPage() {
   const { companyId } = await requireCompany();
   await ensureDefaultInventoryCategories(companyId);
 
-  const [suppliers, products, categories] = await Promise.all([
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const activeRegisterId = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(registers, activeRegisterId);
+
+  const [suppliers, products, categories, variableNames] = await Promise.all([
     prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.product.findMany({
       where: { companyId },
       orderBy: { name: "asc" },
-      include: { supplier: true },
+      include: {
+        supplier: true,
+        variables: { orderBy: { sortOrder: "asc" } },
+      },
     }),
     prisma.inventoryCategory.findMany({
+      where: { companyId },
+      orderBy: { name: "asc" },
+    }),
+    prisma.variableNameCatalog.findMany({
       where: { companyId },
       orderBy: { name: "asc" },
     }),
@@ -26,10 +53,16 @@ export default async function InventoryPage() {
   return (
     <div className="stack">
       <PageHeader
-        title="Inventory"
-        description="Opening + purchases − usage = current stock. Manage categories in Settings → Categories."
+        title={access.canManageInventory ? "Inventory" : "Stock levels"}
+        description={
+          access.canManageInventory
+            ? "Opening + purchases − usage = current stock. Manage categories in Settings → Categories."
+            : "View-only stock levels for this register. Inventory edits require POS register 1."
+        }
       />
       <InventoryClient
+        canManage={access.canManageInventory}
+        variableNames={variableNames.map((v) => v.name)}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
         categories={categories.map((c) => c.name)}
         initialProducts={products.map((p) => ({
@@ -40,11 +73,16 @@ export default async function InventoryPage() {
           unit: p.unit,
           unitCost: p.unitCost,
           unitPrice: p.unitPrice,
+          variablePrice: p.variablePrice,
           stockQty: p.stockQty,
           minStock: p.minStock,
           trackStock: p.trackStock,
           isService: p.isService,
           supplierName: p.supplier?.name ?? null,
+          variables: p.variables.map((v) => ({
+            name: v.name,
+            options: parseOptions(v.options),
+          })),
         }))}
       />
     </div>

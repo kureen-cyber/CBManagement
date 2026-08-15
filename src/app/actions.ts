@@ -44,10 +44,24 @@ export async function createSupplier(formData: FormData) {
 
 export async function createProduct(formData: FormData) {
   const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
+    "@/lib/register-access"
+  );
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canManageInventory) {
+    throw new Error("Only POS register 1 can manage inventory");
+  }
   const trackStock = formData.get("trackStock") === "on";
   const isService = formData.get("isService") === "on";
   const opening = Number(formData.get("stockQty") || 0);
   const category = String(formData.get("category") || "General").trim() || "General";
+  const unitPriceCents = dollarsToCents(formData.get("unitPrice"));
+  const variablePrice =
+    formData.get("variablePrice") === "on" || (!isService && unitPriceCents <= 0);
 
   // Keep company category list in sync with free-text / dropdown choices
   const existingCat = await prisma.inventoryCategory.findFirst({
@@ -65,6 +79,30 @@ export async function createProduct(formData: FormData) {
     if (!supplier) throw new Error("Supplier not found");
   }
 
+  let variables: { name: string; options: string[] }[] = [];
+  const rawVars = String(formData.get("variablesJson") || "").trim();
+  if (rawVars) {
+    try {
+      const parsed = JSON.parse(rawVars) as { name?: string; options?: string[] | string }[];
+      if (Array.isArray(parsed)) {
+        variables = parsed
+          .map((v) => {
+            const name = String(v.name || "").trim();
+            const opts = Array.isArray(v.options)
+              ? v.options.map((o) => String(o).trim()).filter(Boolean)
+              : String(v.options || "")
+                  .split(",")
+                  .map((o) => o.trim())
+                  .filter(Boolean);
+            return { name, options: opts };
+          })
+          .filter((v) => v.name && v.options.length);
+      }
+    } catch {
+      /* ignore bad JSON */
+    }
+  }
+
   const product = await prisma.product.create({
     data: {
       companyId,
@@ -73,14 +111,33 @@ export async function createProduct(formData: FormData) {
       category,
       unit: String(formData.get("unit") || "each"),
       unitCost: dollarsToCents(formData.get("unitCost")),
-      unitPrice: dollarsToCents(formData.get("unitPrice")),
+      unitPrice: variablePrice ? 0 : unitPriceCents,
+      variablePrice,
       minStock: Number(formData.get("minStock") || 0),
       stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
       supplierId,
+      variables: {
+        create: variables.map((v, i) => ({
+          name: v.name,
+          options: JSON.stringify(v.options),
+          sortOrder: i,
+        })),
+      },
     },
+    include: { variables: true },
   });
+
+  for (const v of variables) {
+    await prisma.variableNameCatalog
+      .upsert({
+        where: { companyId_name: { companyId, name: v.name } },
+        create: { companyId, name: v.name },
+        update: {},
+      })
+      .catch(() => null);
+  }
 
   if (!isService && opening !== 0) {
     await prisma.stockMovement.create({
@@ -107,15 +164,31 @@ export async function createProduct(formData: FormData) {
     unit: product.unit,
     unitCost: product.unitCost,
     unitPrice: product.unitPrice,
+    variablePrice: product.variablePrice,
     stockQty: product.stockQty,
     minStock: product.minStock,
     trackStock: product.trackStock,
     isService: product.isService,
+    variables: product.variables.map((v) => ({
+      name: v.name,
+      options: JSON.parse(v.options || "[]") as string[],
+    })),
   };
 }
 
 export async function deleteProduct(productId: string) {
   const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess, readActiveRegisterIdFromCookies } = await import(
+    "@/lib/register-access"
+  );
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canManageInventory) {
+    return { error: "Only POS register 1 can manage inventory" };
+  }
   const id = String(productId || "").trim();
   if (!id) return { error: "Missing product" };
 
@@ -464,6 +537,10 @@ export async function addTimeEntry(formData: FormData) {
 export type PosLineInput = {
   productId: string;
   quantity: number;
+  /** Cents — required when product.variablePrice */
+  unitPrice?: number;
+  /** e.g. Colour: Red, Size: L */
+  variantLabel?: string;
 };
 
 async function buildPosLines(
@@ -489,12 +566,27 @@ async function buildPosLines(
         available: product.stockQty,
       });
     }
-    const lineTotal = Math.round(product.unitPrice * line.quantity);
+
+    let unitPrice = product.unitPrice;
+    if (product.variablePrice) {
+      const override = Number(line.unitPrice);
+      if (!Number.isFinite(override) || override < 0) {
+        throw new Error(`Enter a price for ${product.name}`);
+      }
+      unitPrice = Math.round(override);
+    } else if (line.unitPrice != null && Number.isFinite(line.unitPrice)) {
+      // Ignore client overrides for fixed-price items
+      unitPrice = product.unitPrice;
+    }
+
+    const variant = String(line.variantLabel || "").trim();
+    const description = variant ? `${product.name} (${variant})` : product.name;
+    const lineTotal = Math.round(unitPrice * line.quantity);
     return {
       productId: product.id,
-      description: product.name,
+      description,
       quantity: line.quantity,
-      unitPrice: product.unitPrice,
+      unitPrice,
       lineTotal,
       trackStock,
     };
@@ -602,8 +694,20 @@ export async function saveOpenTicket(input: {
   return { ticketId: sale.id, number: sale.number };
 }
 
-export async function voidOpenTicket(ticketId: string) {
+export async function voidOpenTicket(ticketId: string, posRegisterId?: string | null) {
   const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access");
+  const cookieReg = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(registers, posRegisterId || cookieReg);
+  if (!access.canVoidTickets) {
+    return { error: "Only POS register 1 can delete/void saved tickets." };
+  }
+
   const sale = await prisma.sale.findFirst({
     where: { id: ticketId, companyId, status: "OPEN" },
   });
@@ -616,6 +720,27 @@ export async function voidOpenTicket(ticketId: string) {
   return { ok: true as const };
 }
 
+export async function setActivePosRegister(registerId: string) {
+  const { companyId } = await requireCompany();
+  const { cookies } = await import("next/headers");
+  const { POS_REGISTER_COOKIE } = await import("@/lib/register-access");
+  const id = String(registerId || "").trim();
+  if (id) {
+    const reg = await prisma.posRegister.findFirst({ where: { id, companyId } });
+    if (!reg) return { error: "Register not found" };
+  }
+  const store = await cookies();
+  if (!id) {
+    store.delete(POS_REGISTER_COOKIE);
+  } else {
+    store.set(POS_REGISTER_COOKIE, id, { path: "/", maxAge: 60 * 60 * 24 * 365 });
+  }
+  revalidatePath("/pos");
+  revalidatePath("/inventory");
+  revalidatePath("/");
+  return { ok: true as const };
+}
+
 export async function completePosSale(input: {
   lines: PosLineInput[];
   method: string;
@@ -623,6 +748,7 @@ export async function completePosSale(input: {
   notes?: string;
   posRegisterId?: string | null;
   ticketId?: string | null;
+  discountPercent?: number;
 }) {
   const { companyId, company, user } = await requireCompany();
   const { isFreeRetailTier, parsePlanTier } = await import("@/lib/tier");
@@ -648,9 +774,14 @@ export async function completePosSale(input: {
     if (!reg) posRegisterId = null;
   }
 
-  const builtResult = await buildPosLines(companyId, input.lines, {
-    enforceOutOfStock: company.featureOutOfStockWarn === true,
-  });
+  let builtResult;
+  try {
+    builtResult = await buildPosLines(companyId, input.lines, {
+      enforceOutOfStock: company.featureOutOfStockWarn === true,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not price cart" };
+  }
 
   if ("error" in builtResult && builtResult.error === "out_of_stock") {
     const first = builtResult.outOfStock[0]!;
@@ -682,10 +813,13 @@ export async function completePosSale(input: {
   }
 
   const subtotal = built.reduce((s, l) => s + l.lineTotal, 0);
+  const discountPercent = Math.max(0, Math.min(100, Number(input.discountPercent) || 0));
+  const discountAmount = Math.round(subtotal * (discountPercent / 100));
+  const taxable = Math.max(0, subtotal - discountAmount);
   const taxOn = company.taxEnabled !== false;
   const vatRate = taxOn ? (company.vatRate ?? 0.125) : 0;
-  const taxAmount = Math.round(subtotal * vatRate);
-  const total = subtotal + taxAmount;
+  const taxAmount = Math.round(taxable * vatRate);
+  const total = taxable + taxAmount;
   const method = input.method || "CASH";
 
   let sale;
@@ -705,6 +839,8 @@ export async function completePosSale(input: {
         taxAmount,
         total,
         amountPaid: total,
+        discountPercent,
+        discountAmount,
         method,
         notes: input.notes || null,
         soldAt: new Date(),
@@ -734,6 +870,8 @@ export async function completePosSale(input: {
         taxAmount,
         total,
         amountPaid: total,
+        discountPercent,
+        discountAmount,
         method,
         notes: input.notes || null,
         lines: {
@@ -833,4 +971,82 @@ export async function completePosSale(input: {
   revalidatePath("/");
 
   return { saleId: sale.id, number: sale.number, total, method };
+}
+
+/** Issue a full refund for a completed sale (both POS registers). Restores stock. */
+export async function refundPosSale(saleId: string, posRegisterId?: string | null) {
+  const { companyId, company } = await requireCompany();
+  const original = await prisma.sale.findFirst({
+    where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
+    include: { lines: true },
+  });
+  if (!original) return { error: "Sale not found" };
+
+  const already = await prisma.sale.findFirst({
+    where: { companyId, refundOfSaleId: original.id, isRefund: true },
+  });
+  if (already) return { error: "This sale was already refunded" };
+
+  let registerId: string | null = posRegisterId || original.posRegisterId || null;
+  if (registerId) {
+    const reg = await prisma.posRegister.findFirst({ where: { id: registerId, companyId } });
+    if (!reg) registerId = null;
+  }
+
+  const refund = await prisma.sale.create({
+    data: {
+      companyId,
+      number: await nextNumber("REF", "sale", companyId),
+      customerId: original.customerId,
+      posRegisterId: registerId,
+      status: "COMPLETED",
+      subtotal: -Math.abs(original.subtotal),
+      taxAmount: -Math.abs(original.taxAmount),
+      total: -Math.abs(original.total),
+      amountPaid: -Math.abs(original.total),
+      discountPercent: original.discountPercent,
+      discountAmount: -Math.abs(original.discountAmount),
+      method: original.method,
+      notes: `Refund of ${original.number}`,
+      isRefund: true,
+      refundOfSaleId: original.id,
+      lines: {
+        create: original.lines.map((l) => ({
+          productId: l.productId,
+          description: `Refund: ${l.description}`,
+          quantity: l.quantity,
+          unitPrice: -Math.abs(l.unitPrice),
+          lineTotal: -Math.abs(l.lineTotal),
+        })),
+      },
+    },
+  });
+
+  for (const line of original.lines) {
+    if (!line.productId) continue;
+    const product = await prisma.product.findFirst({
+      where: { id: line.productId, companyId },
+    });
+    if (!product || !product.trackStock || product.isService) continue;
+    await prisma.stockMovement.create({
+      data: {
+        productId: product.id,
+        type: "RETURN",
+        quantity: line.quantity,
+        unitCost: product.unitCost,
+        reference: refund.number,
+        notes: `Refund of ${original.number}`,
+      },
+    });
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { stockQty: { increment: line.quantity } },
+    });
+  }
+
+  revalidatePath("/pos");
+  revalidatePath(`/pos/receipt/${original.id}`);
+  revalidatePath("/inventory");
+  revalidatePath("/reports");
+  return { saleId: refund.id, number: refund.number, originalNumber: original.number };
 }

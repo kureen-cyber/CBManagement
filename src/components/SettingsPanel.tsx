@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState, useTransition } from "react";
 import {
+  DEFAULT_RECEIPT_FOOTER,
   HOME_LAYOUTS,
   LANGUAGES,
   type HomeLayout,
@@ -13,6 +14,7 @@ import {
   updateGeneralSettings,
   updatePosRegisters,
   updatePrinterSettings,
+  updateReceiptSettings,
   updateTaxSettings,
 } from "@/app/actions/settings";
 import {
@@ -23,12 +25,13 @@ import {
 } from "@/lib/tier";
 import { Panel } from "@/components/ui";
 
-type Tab = "general" | "taxes" | "printers" | "pos";
+type Tab = "general" | "taxes" | "printers" | "receipts" | "pos";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "taxes", label: "Taxes" },
   { id: "printers", label: "Printers" },
+  { id: "receipts", label: "Receipts" },
   { id: "pos", label: "POS registers" },
 ];
 
@@ -41,6 +44,12 @@ export function SettingsPanel({
   vatRate,
   receiptPrinting,
   printerName,
+  receiptLogoData,
+  receiptHeader,
+  receiptFooter,
+  receiptShowCustomer,
+  receiptShowComments,
+  receiptLanguage,
   planTier,
   posRegisters,
 }: {
@@ -52,6 +61,12 @@ export function SettingsPanel({
   vatRate: number;
   receiptPrinting: boolean;
   printerName: string | null;
+  receiptLogoData: string | null;
+  receiptHeader: string | null;
+  receiptFooter: string | null;
+  receiptShowCustomer: boolean;
+  receiptShowComments: boolean;
+  receiptLanguage: LanguageCode;
   planTier: PlanTier;
   posRegisters: { id: string; name: string }[];
 }) {
@@ -64,6 +79,12 @@ export function SettingsPanel({
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(receiptLogoData);
+  const [removeLogo, setRemoveLogo] = useState(false);
+
+  useEffect(() => {
+    if (!removeLogo) setLogoPreview(receiptLogoData);
+  }, [receiptLogoData, removeLogo]);
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -102,6 +123,23 @@ export function SettingsPanel({
     });
   }
 
+  function onReceipts(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    if (removeLogo) fd.set("removeLogo", "on");
+    startTransition(async () => {
+      const result = await updateReceiptSettings(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setRemoveLogo(false);
+      setSaved("Receipt settings saved");
+      router.refresh();
+    });
+  }
+
   function onPosRegisters(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -119,6 +157,8 @@ export function SettingsPanel({
 
   const reg1 = posRegisters[0]?.name ?? "";
   const reg2 = posRegisters[1]?.name ?? "";
+  const headerDefault = receiptHeader?.trim() || businessName;
+  const footerDefault = receiptFooter?.trim() || DEFAULT_RECEIPT_FOOTER;
 
   return (
     <div className="stack">
@@ -286,6 +326,128 @@ export function SettingsPanel({
             </label>
             <button className="btn btn-primary" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save printers"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "receipts" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onReceipts} encType="multipart/form-data">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Receipts</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Control how your POS receipts look — logo, header, footer, and what details to include.
+            </p>
+
+            <label className="field">
+              Business logo
+              <input
+                name="receiptLogo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setRemoveLogo(false);
+                  const url = URL.createObjectURL(file);
+                  setLogoPreview(url);
+                }}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                PNG, JPEG, WebP, or GIF · max 300KB
+              </span>
+            </label>
+
+            {logoPreview && !removeLogo ? (
+              <div className="receipt-logo-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoPreview} alt="Receipt logo preview" />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setRemoveLogo(true);
+                    setLogoPreview(null);
+                  }}
+                >
+                  Remove logo
+                </button>
+              </div>
+            ) : null}
+
+            <label className="field">
+              Header
+              <input
+                name="receiptHeader"
+                type="text"
+                defaultValue={headerDefault}
+                placeholder={businessName || "Your business name"}
+                maxLength={120}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                Defaults to your business name
+              </span>
+            </label>
+
+            <label className="field">
+              Footer
+              <input
+                name="receiptFooter"
+                type="text"
+                defaultValue={footerDefault}
+                placeholder={DEFAULT_RECEIPT_FOOTER}
+                maxLength={200}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                Defaults to “{DEFAULT_RECEIPT_FOOTER}”
+              </span>
+            </label>
+
+            <fieldset className="settings-fieldset">
+              <legend>Show on receipt</legend>
+              <div className="stack" style={{ gap: "0.65rem" }}>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowCustomer"
+                    defaultChecked={receiptShowCustomer}
+                  />
+                  <span>
+                    <strong>Show customer info</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Include the customer name (or Walk-in) on the receipt
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowComments"
+                    defaultChecked={receiptShowComments}
+                  />
+                  <span>
+                    <strong>Show comments</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Include sale notes / comments when present
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label className="field">
+              Receipt language
+              <select name="receiptLanguage" defaultValue={receiptLanguage}>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save receipts"}
             </button>
           </form>
         </Panel>

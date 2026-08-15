@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import {
+  receiptFooterText,
+  receiptHeaderText,
+  receiptLabels,
+} from "@/lib/settings";
+import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
   parsePlanTier,
@@ -23,6 +28,11 @@ export default async function ReceiptPage({
   const { companyId, company } = await requireCompany();
   const planTier = parsePlanTier(company.planTier);
   const since = receiptVisibleSince(planTier);
+  const labels = receiptLabels(company.receiptLanguage);
+  const header = receiptHeaderText(company);
+  const footer = receiptFooterText(company);
+  const showCustomer = company.receiptShowCustomer !== false;
+  const showComments = company.receiptShowComments === true;
 
   const sale = await prisma.sale.findFirst({
     where: { id, companyId },
@@ -49,6 +59,12 @@ export default async function ReceiptPage({
   }
 
   const canPrint = company.receiptPrinting !== false;
+  const locale =
+    company.receiptLanguage === "es"
+      ? "es-ES"
+      : company.receiptLanguage === "fr"
+        ? "fr-FR"
+        : "en-TT";
 
   return (
     <div className="stack">
@@ -67,36 +83,46 @@ export default async function ReceiptPage({
 
       <Panel className="receipt-sheet" style={{ padding: "1.5rem", maxWidth: 420 }}>
         <div style={{ textAlign: "center" }}>
+          {company.receiptLogoData ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={company.receiptLogoData}
+              alt=""
+              className="receipt-logo"
+            />
+          ) : null}
           <div className="brand-mark" style={{ fontSize: "1.35rem" }}>
-            {company.name || "CBManagement"}
+            {header}
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
-            Sales receipt
+            {labels.salesReceipt}
             {isFreeRetailTier(planTier) ? ` · ${FREE_TIER_MAX_TRANSACTION_DAYS}-day visibility` : ""}
           </div>
         </div>
 
         <div className="stack" style={{ marginTop: "1rem", fontSize: "0.92rem" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Receipt #</span>
+            <span>{labels.receiptNo}</span>
             <strong>{sale.number}</strong>
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Date</span>
-            <span>{sale.soldAt.toLocaleString("en-TT")}</span>
+            <span>{labels.date}</span>
+            <span>{sale.soldAt.toLocaleString(locale)}</span>
           </div>
           {sale.posRegister ? (
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span>Register</span>
+              <span>{labels.register}</span>
               <span>{sale.posRegister.name}</span>
             </div>
           ) : null}
+          {showCustomer ? (
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span>{labels.customer}</span>
+              <span>{sale.customer?.name ?? labels.walkIn}</span>
+            </div>
+          ) : null}
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Customer</span>
-            <span>{sale.customer?.name ?? "Walk-in"}</span>
-          </div>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Payment</span>
+            <span>{labels.payment}</span>
             <span>{sale.method}</span>
           </div>
         </div>
@@ -106,9 +132,9 @@ export default async function ReceiptPage({
         <table className="data" style={{ fontSize: "0.88rem" }}>
           <thead>
             <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Total</th>
+              <th>{labels.item}</th>
+              <th>{labels.qty}</th>
+              <th>{labels.total}</th>
             </tr>
           </thead>
           <tbody>
@@ -117,7 +143,7 @@ export default async function ReceiptPage({
                 <td>
                   {l.description}
                   <div className="muted" style={{ fontSize: "0.75rem" }}>
-                    {formatTTD(l.unitPrice)} each
+                    {formatTTD(l.unitPrice)} {labels.each}
                   </div>
                 </td>
                 <td>{l.quantity}</td>
@@ -128,23 +154,35 @@ export default async function ReceiptPage({
         </table>
 
         <div className="row" style={{ justifyContent: "space-between", marginTop: "1rem" }}>
-          <span>Subtotal</span>
+          <span>{labels.subtotal}</span>
           <span className="money">{formatTTD(sale.subtotal)}</span>
         </div>
         {sale.taxAmount > 0 && company.taxEnabled !== false ? (
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>VAT ({((company.vatRate ?? 0.125) * 100).toFixed(1)}%)</span>
+            <span>
+              {labels.vat} ({((company.vatRate ?? 0.125) * 100).toFixed(1)}%)
+            </span>
             <span className="money">{formatTTD(sale.taxAmount)}</span>
           </div>
         ) : null}
         <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
-          <strong>Total paid</strong>
+          <strong>{labels.totalPaid}</strong>
           <strong className="money" style={{ fontSize: "1.25rem" }}>
             {formatTTD(sale.total)}
           </strong>
         </div>
+
+        {showComments && sale.notes?.trim() ? (
+          <div style={{ marginTop: "1rem", fontSize: "0.88rem" }}>
+            <strong>{labels.comments}</strong>
+            <p className="muted" style={{ margin: "0.35rem 0 0", whiteSpace: "pre-wrap" }}>
+              {sale.notes.trim()}
+            </p>
+          </div>
+        ) : null}
+
         <p className="muted" style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.8rem" }}>
-          Thank you for your business
+          {footer}
         </p>
       </Panel>
     </div>

@@ -26,6 +26,18 @@ model Company {
   /// Allow printing receipts from POS
   receiptPrinting Boolean  @default(true)
   printerName     String?
+  /// Optional logo as data URL (small PNG/JPEG/WebP)
+  receiptLogoData String?
+  /// Receipt header text; blank falls back to business name
+  receiptHeader   String?
+  /// Receipt footer text; blank falls back to thank-you default
+  receiptFooter   String?
+  /// Show customer name on printed/viewed receipts
+  receiptShowCustomer Boolean @default(true)
+  /// Show sale notes/comments on receipts
+  receiptShowComments Boolean @default(false)
+  /// Receipt language: en | es | fr
+  receiptLanguage String @default("en")
   /// FREE_RETAIL | STANDARD
   planTier        String   @default("STANDARD")
   createdAt       DateTime @default(now())

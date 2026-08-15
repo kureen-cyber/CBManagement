@@ -24,7 +24,7 @@ export default async function SettingsPage() {
     <div className="stack">
       <PageHeader
         title="Settings"
-        description="Theme, POS registers, VAT, and receipt printers."
+        description="Theme, receipts, POS registers, VAT, and printers."
       />
       <Suspense fallback={<div className="muted">Loading settings…</div>}>
         <SettingsPanel
@@ -36,6 +36,12 @@ export default async function SettingsPage() {
           vatRate={company.vatRate}
           receiptPrinting={company.receiptPrinting}
           printerName={company.printerName}
+          receiptLogoData={company.receiptLogoData}
+          receiptHeader={company.receiptHeader}
+          receiptFooter={company.receiptFooter}
+          receiptShowCustomer={company.receiptShowCustomer}
+          receiptShowComments={company.receiptShowComments}
+          receiptLanguage={parseLanguage(company.receiptLanguage)}
           planTier={parsePlanTier(company.planTier)}
           posRegisters={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         />

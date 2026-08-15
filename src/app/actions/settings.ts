@@ -8,12 +8,27 @@ import {
   parseHomeLayout,
   parseLanguage,
   parseTheme,
+  RECEIPT_LOGO_MAX_BYTES,
 } from "@/lib/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
   isFreeRetailTier,
   parsePlanTier,
 } from "@/lib/tier";
+
+const LOGO_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+
+async function fileToDataUrl(file: File): Promise<string | null> {
+  if (!file || file.size === 0) return null;
+  if (!LOGO_MIME.has(file.type)) {
+    throw new Error("Logo must be a PNG, JPEG, WebP, or GIF image");
+  }
+  if (file.size > RECEIPT_LOGO_MAX_BYTES) {
+    throw new Error("Logo must be 300KB or smaller");
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type};base64,${buffer.toString("base64")}`;
+}
 
 export async function updateGeneralSettings(formData: FormData) {
   const { companyId } = await requireCompany();
@@ -70,6 +85,56 @@ export async function updatePrinterSettings(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/pos");
+}
+
+export async function updateReceiptSettings(formData: FormData) {
+  const { companyId } = await requireCompany();
+
+  const receiptHeader = String(formData.get("receiptHeader") || "").trim() || null;
+  const receiptFooter = String(formData.get("receiptFooter") || "").trim() || null;
+  const receiptShowCustomer = formData.get("receiptShowCustomer") === "on";
+  const receiptShowComments = formData.get("receiptShowComments") === "on";
+  const receiptLanguage = parseLanguage(formData.get("receiptLanguage"));
+  const removeLogo = formData.get("removeLogo") === "on";
+
+  const data: {
+    receiptHeader: string | null;
+    receiptFooter: string | null;
+    receiptShowCustomer: boolean;
+    receiptShowComments: boolean;
+    receiptLanguage: string;
+    receiptLogoData?: string | null;
+  } = {
+    receiptHeader,
+    receiptFooter,
+    receiptShowCustomer,
+    receiptShowComments,
+    receiptLanguage,
+  };
+
+  if (removeLogo) {
+    data.receiptLogoData = null;
+  } else {
+    const logo = formData.get("receiptLogo");
+    if (logo instanceof File && logo.size > 0) {
+      try {
+        data.receiptLogoData = await fileToDataUrl(logo);
+      } catch (err) {
+        return {
+          error: err instanceof Error ? err.message : "Could not upload logo",
+        };
+      }
+    }
+  }
+
+  await prisma.company.update({
+    where: { id: companyId },
+    data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
 }
 
 /** Save up to two named POS registers (free retail limit). */

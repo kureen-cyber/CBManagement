@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && prisma db push && next build",
+  "crons": [
+    {
+      "path": "/api/cron/low-stock",
+      "schedule": "0 13 * * 1"
+    }
+  ]
+}

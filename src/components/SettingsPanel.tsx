@@ -16,6 +16,12 @@ import {
   updatePrinterSettings,
   updateReceiptSettings,
   updateTaxSettings,
+  updateFeatureSettings,
+  addPaymentType,
+  togglePaymentType,
+  deletePaymentType,
+  addInventoryCategory,
+  deleteInventoryCategory,
 } from "@/app/actions/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
@@ -25,13 +31,16 @@ import {
 } from "@/lib/tier";
 import { Panel } from "@/components/ui";
 
-type Tab = "general" | "taxes" | "printers" | "receipts" | "pos";
+type Tab = "general" | "taxes" | "printers" | "receipts" | "features" | "payments" | "categories" | "pos";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "taxes", label: "Taxes" },
   { id: "printers", label: "Printers" },
   { id: "receipts", label: "Receipts" },
+  { id: "features", label: "Features" },
+  { id: "payments", label: "Payment types" },
+  { id: "categories", label: "Categories" },
   { id: "pos", label: "POS registers" },
 ];
 
@@ -50,6 +59,11 @@ export function SettingsPanel({
   receiptShowCustomer,
   receiptShowComments,
   receiptLanguage,
+  featureOpenTickets,
+  featureLowStockEmail,
+  featureOutOfStockWarn,
+  paymentTypes,
+  inventoryCategories,
   planTier,
   posRegisters,
 }: {
@@ -67,6 +81,11 @@ export function SettingsPanel({
   receiptShowCustomer: boolean;
   receiptShowComments: boolean;
   receiptLanguage: LanguageCode;
+  featureOpenTickets: boolean;
+  featureLowStockEmail: boolean;
+  featureOutOfStockWarn: boolean;
+  paymentTypes: { id: string; code: string; label: string; active: boolean }[];
+  inventoryCategories: { id: string; name: string }[];
   planTier: PlanTier;
   posRegisters: { id: string; name: string }[];
 }) {
@@ -136,6 +155,48 @@ export function SettingsPanel({
       }
       setRemoveLogo(false);
       setSaved("Receipt settings saved");
+      router.refresh();
+    });
+  }
+
+  function onFeatures(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      await updateFeatureSettings(fd);
+      setSaved("Feature settings saved");
+      router.refresh();
+    });
+  }
+
+  function onAddPayment(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addPaymentType(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      (e.target as HTMLFormElement).reset();
+      setSaved("Payment type added");
+      router.refresh();
+    });
+  }
+
+  function onAddCategory(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addInventoryCategory(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      (e.target as HTMLFormElement).reset();
+      setSaved("Category added");
       router.refresh();
     });
   }
@@ -450,6 +511,197 @@ export function SettingsPanel({
               {pending ? "Saving…" : "Save receipts"}
             </button>
           </form>
+        </Panel>
+      ) : null}
+
+      {tab === "features" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onFeatures}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Features</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Turn optional POS and inventory behaviours on or off for your business.
+            </p>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureOpenTickets"
+                defaultChecked={featureOpenTickets}
+              />
+              <span>
+                <strong>Open Ticket</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Save and edit orders before completing payment. Shows a Saved Tickets tab on POS.
+                </span>
+              </span>
+            </label>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureLowStockEmail"
+                defaultChecked={featureLowStockEmail}
+              />
+              <span>
+                <strong>Low stock notification</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Weekly email of items at or below minimum stock, plus alerts when stock drops after
+                  a sale. Sent to your account email (requires RESEND_API_KEY on the server).
+                </span>
+              </span>
+            </label>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureOutOfStockWarn"
+                defaultChecked={featureOutOfStockWarn}
+              />
+              <span>
+                <strong>Out of stock</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Warn cashiers when they try to sell unavailable stock, and email your account.
+                </span>
+              </span>
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save features"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "payments" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Payment types</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Add the payment methods available at checkout (cash, debit card, credit card, cheque,
+              and more).
+            </p>
+
+            <ul className="settings-list">
+              {paymentTypes.map((pt) => (
+                <li key={pt.id} className="settings-list-row">
+                  <div>
+                    <strong>{pt.label}</strong>
+                    <div className="muted" style={{ fontSize: "0.78rem" }}>
+                      {pt.code} · {pt.active ? "Active" : "Disabled"}
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: "0.4rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("id", pt.id);
+                        if (!pt.active) fd.set("active", "on");
+                        startTransition(async () => {
+                          await togglePaymentType(fd);
+                          setSaved(pt.active ? "Payment type disabled" : "Payment type enabled");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      {pt.active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("id", pt.id);
+                        startTransition(async () => {
+                          await deletePaymentType(fd);
+                          setSaved("Payment type removed");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {paymentTypes.length === 0 ? (
+                <li className="muted">No payment types yet — add one below.</li>
+              ) : null}
+            </ul>
+
+            <form className="stack" onSubmit={onAddPayment}>
+              <label className="field">
+                New payment method
+                <input
+                  name="label"
+                  type="text"
+                  required
+                  placeholder="e.g. Cash, Debit card, Cheque"
+                  autoComplete="off"
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Add payment type"}
+              </button>
+            </form>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "categories" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Inventory categories</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Categories you add here appear in the Items / Inventory and POS dropdown menus.
+            </p>
+
+            <ul className="settings-list">
+              {inventoryCategories.map((cat) => (
+                <li key={cat.id} className="settings-list-row">
+                  <strong>{cat.name}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={pending}
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.set("id", cat.id);
+                      startTransition(async () => {
+                        await deleteInventoryCategory(fd);
+                        setSaved("Category removed");
+                        router.refresh();
+                      });
+                    }}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+              {inventoryCategories.length === 0 ? (
+                <li className="muted">No categories yet — add one below.</li>
+              ) : null}
+            </ul>
+
+            <form className="stack" onSubmit={onAddCategory}>
+              <label className="field">
+                New category
+                <input
+                  name="name"
+                  type="text"
+                  required
+                  placeholder="e.g. Grocery, Gift items"
+                  autoComplete="off"
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Add category"}
+              </button>
+            </form>
+          </div>
         </Panel>
       ) : null}
 

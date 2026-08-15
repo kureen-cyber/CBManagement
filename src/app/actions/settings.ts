@@ -137,6 +137,106 @@ export async function updateReceiptSettings(formData: FormData) {
   return { ok: true as const };
 }
 
+export async function updateFeatureSettings(formData: FormData) {
+  const { companyId } = await requireCompany();
+  await prisma.company.update({
+    where: { id: companyId },
+    data: {
+      featureOpenTickets: formData.get("featureOpenTickets") === "on",
+      featureLowStockEmail: formData.get("featureLowStockEmail") === "on",
+      featureOutOfStockWarn: formData.get("featureOutOfStockWarn") === "on",
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  revalidatePath("/inventory");
+  return { ok: true as const };
+}
+
+export async function addPaymentType(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const { slugPaymentCode, ensureDefaultPaymentTypes } = await import("@/lib/catalog");
+  await ensureDefaultPaymentTypes(companyId);
+
+  const label = String(formData.get("label") || "").trim();
+  if (!label) return { error: "Enter a payment method name" };
+  let code = slugPaymentCode(label);
+  const existing = await prisma.paymentType.findUnique({
+    where: { companyId_code: { companyId, code } },
+  });
+  if (existing) {
+    code = `${code}_${Date.now().toString(36).slice(-4)}`.slice(0, 32);
+  }
+  const maxSort = await prisma.paymentType.aggregate({
+    where: { companyId },
+    _max: { sortOrder: true },
+  });
+  await prisma.paymentType.create({
+    data: {
+      companyId,
+      code,
+      label,
+      active: true,
+      sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  revalidatePath("/payments");
+  revalidatePath("/expenses");
+  return { ok: true as const };
+}
+
+export async function togglePaymentType(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "");
+  const active = formData.get("active") === "on";
+  const row = await prisma.paymentType.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Payment type not found" };
+  await prisma.paymentType.update({ where: { id }, data: { active } });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function deletePaymentType(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "");
+  const row = await prisma.paymentType.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Payment type not found" };
+  await prisma.paymentType.delete({ where: { id } });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function addInventoryCategory(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) return { error: "Enter a category name" };
+  const exists = await prisma.inventoryCategory.findFirst({
+    where: { companyId, name: { equals: name, mode: "insensitive" } },
+  });
+  if (exists) return { error: "That category already exists" };
+  await prisma.inventoryCategory.create({ data: { companyId, name } });
+  revalidatePath("/settings");
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function deleteInventoryCategory(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "");
+  const row = await prisma.inventoryCategory.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Category not found" };
+  await prisma.inventoryCategory.delete({ where: { id } });
+  revalidatePath("/settings");
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
 /** Save up to two named POS registers (free retail limit). */
 export async function updatePosRegisters(formData: FormData) {
   const { companyId, company } = await requireCompany();

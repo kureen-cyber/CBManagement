@@ -38,23 +38,62 @@ model Company {
   receiptShowComments Boolean @default(false)
   /// Receipt language: en | es | fr
   receiptLanguage String @default("en")
+  /// Feature: save/edit POS tickets before payment
+  featureOpenTickets Boolean @default(false)
+  /// Feature: weekly low-stock email digest
+  featureLowStockEmail Boolean @default(false)
+  /// Feature: warn (and email) when selling out-of-stock items
+  featureOutOfStockWarn Boolean @default(false)
   /// FREE_RETAIL | STANDARD
   planTier        String   @default("STANDARD")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  members      CompanyMember[]
-  posRegisters PosRegister[]
-  customers    Customer[]
-  suppliers    Supplier[]
-  products     Product[]
-  employees    Employee[]
-  quotations   Quotation[]
-  jobs         Job[]
-  invoices     Invoice[]
-  payments     Payment[]
-  expenses     Expense[]
-  sales        Sale[]
+  members             CompanyMember[]
+  posRegisters        PosRegister[]
+  paymentTypes        PaymentType[]
+  inventoryCategories InventoryCategory[]
+  customers           Customer[]
+  suppliers           Supplier[]
+  products            Product[]
+  employees           Employee[]
+  quotations          Quotation[]
+  jobs                Job[]
+  invoices            Invoice[]
+  payments            Payment[]
+  expenses            Expense[]
+  sales               Sale[]
+}
+
+/// Company-defined POS / expense payment methods
+model PaymentType {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  label     String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+/// Company-defined inventory / product categories
+model InventoryCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 /// Named POS station / till (free retail allows up to 2).
@@ -377,7 +416,7 @@ model Sale {
   number        String
   customerId    String?
   posRegisterId String?
-  status        String   @default("COMPLETED")
+  status        String   @default("COMPLETED") // OPEN | COMPLETED | VOID
   subtotal      Int      @default(0)
   taxAmount     Int      @default(0)
   total         Int      @default(0)
@@ -386,6 +425,7 @@ model Sale {
   notes         String?
   soldAt        DateTime @default(now())
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer    Customer?    @relation(fields: [customerId], references: [id])
@@ -394,6 +434,7 @@ model Sale {
 
   @@unique([companyId, number])
   @@index([companyId])
+  @@index([companyId, status])
   @@index([posRegisterId])
 }
 

@@ -50,7 +50,7 @@ export default async function ReportsPage({
       }),
       prisma.sale.aggregate({
         _sum: { total: true },
-        where: { companyId, soldAt: { gte: rangeStart, lte: rangeEnd } },
+        where: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
       }),
       prisma.expense.findMany({
         where: { companyId, date: { gte: rangeStart, lte: rangeEnd } },
@@ -61,7 +61,9 @@ export default async function ReportsPage({
         select: { method: true, amount: true, reference: true, notes: true },
       }),
       prisma.saleLine.findMany({
-        where: { sale: { companyId, soldAt: { gte: rangeStart, lte: rangeEnd } } },
+        where: {
+          sale: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
+        },
         include: {
           product: true,
           sale: { select: { number: true, soldAt: true, method: true } },
@@ -69,7 +71,7 @@ export default async function ReportsPage({
         orderBy: { sale: { soldAt: "desc" } },
       }),
       prisma.sale.findMany({
-        where: { companyId, soldAt: { gte: rangeStart, lte: rangeEnd } },
+        where: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
         select: { soldAt: true, total: true },
         orderBy: { soldAt: "asc" },
       }),

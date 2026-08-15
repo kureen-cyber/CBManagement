@@ -48,6 +48,14 @@ export async function createProduct(formData: FormData) {
   const isService = formData.get("isService") === "on";
   const opening = Number(formData.get("stockQty") || 0);
   const category = String(formData.get("category") || "General").trim() || "General";
+
+  // Keep company category list in sync with free-text / dropdown choices
+  const existingCat = await prisma.inventoryCategory.findFirst({
+    where: { companyId, name: { equals: category, mode: "insensitive" } },
+  });
+  if (!existingCat) {
+    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+  }
   const supplierId = String(formData.get("supplierId") || "") || null;
 
   if (supplierId) {
@@ -458,14 +466,165 @@ export type PosLineInput = {
   quantity: number;
 };
 
+async function buildPosLines(
+  companyId: string,
+  lines: PosLineInput[],
+  opts?: { enforceOutOfStock?: boolean },
+) {
+  const products = await prisma.product.findMany({
+    where: { companyId, id: { in: lines.map((l) => l.productId) } },
+  });
+  const byId = Object.fromEntries(products.map((p) => [p.id, p]));
+
+  const outOfStock: { name: string; requested: number; available: number }[] = [];
+
+  const built = lines.map((line) => {
+    const product = byId[line.productId];
+    if (!product) throw new Error("Product missing");
+    const trackStock = product.trackStock && !product.isService;
+    if (trackStock && product.stockQty < line.quantity) {
+      outOfStock.push({
+        name: product.name,
+        requested: line.quantity,
+        available: product.stockQty,
+      });
+    }
+    const lineTotal = Math.round(product.unitPrice * line.quantity);
+    return {
+      productId: product.id,
+      description: product.name,
+      quantity: line.quantity,
+      unitPrice: product.unitPrice,
+      lineTotal,
+      trackStock,
+    };
+  });
+
+  if (opts?.enforceOutOfStock && outOfStock.length) {
+    return { error: "out_of_stock" as const, outOfStock, built, byId };
+  }
+
+  return { built, byId, outOfStock };
+}
+
+/** Save or update an OPEN ticket (no payment / no stock movement yet). */
+export async function saveOpenTicket(input: {
+  ticketId?: string | null;
+  lines: PosLineInput[];
+  method?: string;
+  customerId?: string | null;
+  notes?: string;
+  posRegisterId?: string | null;
+}) {
+  const { companyId, company } = await requireCompany();
+  if (!company.featureOpenTickets) {
+    return { error: "Open tickets are disabled. Enable them in Settings → Features." };
+  }
+  if (!input.lines.length) return { error: "Cart is empty" };
+
+  const builtResult = await buildPosLines(companyId, input.lines);
+  if ("error" in builtResult && builtResult.error) {
+    return { error: "Could not save ticket" };
+  }
+  const { built } = builtResult;
+  const subtotal = built.reduce((s, l) => s + l.lineTotal, 0);
+  const taxOn = company.taxEnabled !== false;
+  const vatRate = taxOn ? (company.vatRate ?? 0.125) : 0;
+  const taxAmount = Math.round(subtotal * vatRate);
+  const total = subtotal + taxAmount;
+
+  let posRegisterId: string | null = input.posRegisterId || null;
+  if (posRegisterId) {
+    const reg = await prisma.posRegister.findFirst({
+      where: { id: posRegisterId, companyId },
+    });
+    if (!reg) posRegisterId = null;
+  }
+
+  if (input.ticketId) {
+    const existing = await prisma.sale.findFirst({
+      where: { id: input.ticketId, companyId, status: "OPEN" },
+    });
+    if (!existing) return { error: "Open ticket not found" };
+    await prisma.saleLine.deleteMany({ where: { saleId: existing.id } });
+    const sale = await prisma.sale.update({
+      where: { id: existing.id },
+      data: {
+        customerId: input.customerId || null,
+        posRegisterId,
+        method: input.method || existing.method || "CASH",
+        notes: input.notes || null,
+        subtotal,
+        taxAmount,
+        total,
+        amountPaid: 0,
+        lines: {
+          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
+            productId,
+            description,
+            quantity,
+            unitPrice,
+            lineTotal,
+          })),
+        },
+      },
+    });
+    revalidatePath("/pos");
+    return { ticketId: sale.id, number: sale.number };
+  }
+
+  const sale = await prisma.sale.create({
+    data: {
+      companyId,
+      number: await nextNumber("TKT", "sale", companyId),
+      customerId: input.customerId || null,
+      posRegisterId,
+      status: "OPEN",
+      subtotal,
+      taxAmount,
+      total,
+      amountPaid: 0,
+      method: input.method || "CASH",
+      notes: input.notes || null,
+      lines: {
+        create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
+          productId,
+          description,
+          quantity,
+          unitPrice,
+          lineTotal,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/pos");
+  return { ticketId: sale.id, number: sale.number };
+}
+
+export async function voidOpenTicket(ticketId: string) {
+  const { companyId } = await requireCompany();
+  const sale = await prisma.sale.findFirst({
+    where: { id: ticketId, companyId, status: "OPEN" },
+  });
+  if (!sale) return { error: "Open ticket not found" };
+  await prisma.sale.update({
+    where: { id: sale.id },
+    data: { status: "VOID" },
+  });
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
 export async function completePosSale(input: {
   lines: PosLineInput[];
   method: string;
   customerId?: string | null;
   notes?: string;
   posRegisterId?: string | null;
+  ticketId?: string | null;
 }) {
-  const { companyId, company } = await requireCompany();
+  const { companyId, company, user } = await requireCompany();
   const { isFreeRetailTier, parsePlanTier } = await import("@/lib/tier");
   const planTier = parsePlanTier(company.planTier);
 
@@ -489,24 +648,31 @@ export async function completePosSale(input: {
     if (!reg) posRegisterId = null;
   }
 
-  const products = await prisma.product.findMany({
-    where: { companyId, id: { in: input.lines.map((l) => l.productId) } },
+  const builtResult = await buildPosLines(companyId, input.lines, {
+    enforceOutOfStock: company.featureOutOfStockWarn === true,
   });
-  const byId = Object.fromEntries(products.map((p) => [p.id, p]));
 
-  const built = input.lines.map((line) => {
-    const product = byId[line.productId];
-    if (!product) throw new Error("Product missing");
-    const lineTotal = Math.round(product.unitPrice * line.quantity);
+  if ("error" in builtResult && builtResult.error === "out_of_stock") {
+    const first = builtResult.outOfStock[0]!;
+    const ownerEmail =
+      user && "email" in user ? String((user as { email?: string | null }).email || "") : "";
+    const { notifyOutOfStockAttempt } = await import("@/lib/stock-alerts");
+    await notifyOutOfStockAttempt({
+      companyId,
+      companyName: company.name,
+      toEmail: ownerEmail,
+      productName: first.name,
+      requestedQty: first.requested,
+      availableQty: first.available,
+    });
     return {
-      productId: product.id,
-      description: product.name,
-      quantity: line.quantity,
-      unitPrice: product.unitPrice,
-      lineTotal,
-      trackStock: product.trackStock && !product.isService,
+      error: `Out of stock: ${builtResult.outOfStock
+        .map((o) => `${o.name} (have ${o.available}, need ${o.requested})`)
+        .join("; ")}. An alert email was sent.`,
     };
-  });
+  }
+
+  const { built, byId } = builtResult;
 
   if (input.customerId) {
     const customer = await prisma.customer.findFirst({
@@ -520,31 +686,68 @@ export async function completePosSale(input: {
   const vatRate = taxOn ? (company.vatRate ?? 0.125) : 0;
   const taxAmount = Math.round(subtotal * vatRate);
   const total = subtotal + taxAmount;
+  const method = input.method || "CASH";
 
-  const sale = await prisma.sale.create({
-    data: {
-      companyId,
-      number: await nextNumber("POS", "sale", companyId),
-      customerId: input.customerId || null,
-      posRegisterId,
-      status: "COMPLETED",
-      subtotal,
-      taxAmount,
-      total,
-      amountPaid: total,
-      method: input.method || "CASH",
-      notes: input.notes || null,
-      lines: {
-        create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
-          productId,
-          description,
-          quantity,
-          unitPrice,
-          lineTotal,
-        })),
+  let sale;
+  if (input.ticketId) {
+    const existing = await prisma.sale.findFirst({
+      where: { id: input.ticketId, companyId, status: "OPEN" },
+    });
+    if (!existing) return { error: "Open ticket not found" };
+    await prisma.saleLine.deleteMany({ where: { saleId: existing.id } });
+    sale = await prisma.sale.update({
+      where: { id: existing.id },
+      data: {
+        customerId: input.customerId || null,
+        posRegisterId,
+        status: "COMPLETED",
+        subtotal,
+        taxAmount,
+        total,
+        amountPaid: total,
+        method,
+        notes: input.notes || null,
+        soldAt: new Date(),
+        number: existing.number.startsWith("TKT")
+          ? await nextNumber("POS", "sale", companyId)
+          : existing.number,
+        lines: {
+          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
+            productId,
+            description,
+            quantity,
+            unitPrice,
+            lineTotal,
+          })),
+        },
       },
-    },
-  });
+    });
+  } else {
+    sale = await prisma.sale.create({
+      data: {
+        companyId,
+        number: await nextNumber("POS", "sale", companyId),
+        customerId: input.customerId || null,
+        posRegisterId,
+        status: "COMPLETED",
+        subtotal,
+        taxAmount,
+        total,
+        amountPaid: total,
+        method,
+        notes: input.notes || null,
+        lines: {
+          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
+            productId,
+            description,
+            quantity,
+            unitPrice,
+            lineTotal,
+          })),
+        },
+      },
+    });
+  }
 
   for (const line of built) {
     if (!line.trackStock) continue;
@@ -562,6 +765,31 @@ export async function completePosSale(input: {
       where: { id: line.productId! },
       data: { stockQty: { decrement: line.quantity } },
     });
+
+    // Low-stock email when feature enabled and item crosses min threshold
+    if (company.featureLowStockEmail) {
+      const updated = await prisma.product.findUnique({ where: { id: line.productId! } });
+      if (updated && updated.stockQty <= updated.minStock) {
+        const ownerEmail =
+          user && "email" in user ? String((user as { email?: string | null }).email || "") : "";
+        if (ownerEmail) {
+          const { sendEmail } = await import("@/lib/email");
+          await sendEmail({
+            to: ownerEmail,
+            subject: `[CBManagement] Low stock — ${updated.name}`,
+            text: [
+              `Business: ${company.name}`,
+              ``,
+              `${updated.name} is low or out of stock.`,
+              `Quantity on hand: ${updated.stockQty}`,
+              `Minimum: ${updated.minStock}`,
+              ``,
+              `— Complete Business Management (CBManagement)`,
+            ].join("\n"),
+          });
+        }
+      }
+    }
   }
 
   if (input.customerId) {
@@ -570,14 +798,13 @@ export async function completePosSale(input: {
         companyId,
         customerId: input.customerId,
         amount: total,
-        method: input.method || "CASH",
+        method,
         reference: sale.number,
         notes: "POS sale",
         paidAt: new Date(),
       },
     });
   } else {
-    // Walk-in: use/create a per-company walk-in customer (never another business's customer)
     let walkIn = await prisma.customer.findFirst({
       where: { companyId, name: "Walk-in Customer" },
       orderBy: { createdAt: "asc" },
@@ -592,7 +819,7 @@ export async function completePosSale(input: {
         companyId,
         customerId: walkIn.id,
         amount: total,
-        method: input.method || "CASH",
+        method,
         reference: sale.number,
         notes: "POS walk-in sale",
         paidAt: new Date(),
@@ -605,5 +832,5 @@ export async function completePosSale(input: {
   revalidatePath("/payments");
   revalidatePath("/");
 
-  return { saleId: sale.id, number: sale.number, total, method: input.method || "CASH" };
+  return { saleId: sale.id, number: sale.number, total, method };
 }

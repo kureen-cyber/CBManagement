@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { completePosSale, createCustomer, createProduct } from "@/app/actions";
+import {
+  completePosSale,
+  createCustomer,
+  createProduct,
+  saveOpenTicket,
+  voidOpenTicket,
+} from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { CategoryInput } from "@/components/CategoryInput";
@@ -24,25 +30,52 @@ type Customer = { id: string; name: string };
 
 type CartLine = { productId: string; name: string; unitPrice: number; quantity: number };
 
+type OpenTicket = {
+  id: string;
+  number: string;
+  method: string;
+  customerId: string | null;
+  customerName: string | null;
+  posRegisterId: string | null;
+  total: number;
+  updatedAt: string;
+  lines: { productId: string | null; description: string; quantity: number; unitPrice: number }[];
+};
+
+type PaymentTypeOption = { code: string; label: string };
+
 export function PosTerminal({
   products: initialProducts,
   customers,
   retailMode = false,
   registers = [],
   requireRegister = false,
+  openTicketsEnabled = false,
+  outOfStockWarn = false,
+  paymentTypes = [],
+  categories = [],
+  openTickets: initialTickets = [],
 }: {
   products: Product[];
   customers: Customer[];
   retailMode?: boolean;
   registers?: { id: string; name: string }[];
   requireRegister?: boolean;
+  openTicketsEnabled?: boolean;
+  outOfStockWarn?: boolean;
+  paymentTypes?: PaymentTypeOption[];
+  categories?: string[];
+  openTickets?: OpenTicket[];
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
+  const [tickets, setTickets] = useState(initialTickets);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [method, setMethod] = useState("CASH");
+  const [method, setMethod] = useState(paymentTypes[0]?.code || "CASH");
   const [customerId, setCustomerId] = useState("");
   const [posRegisterId, setPosRegisterId] = useState(registers[0]?.id ?? "");
+  const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+  const [view, setView] = useState<"sell" | "tickets">("sell");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [receiptHref, setReceiptHref] = useState<string | null>(null);
@@ -61,7 +94,21 @@ export function PosTerminal({
     setProducts(initialProducts);
   }, [initialProducts]);
 
-  const categories = useMemo(() => {
+  useEffect(() => {
+    setTickets(initialTickets);
+  }, [initialTickets]);
+
+  useEffect(() => {
+    if (paymentTypes.length && !paymentTypes.some((p) => p.code === method)) {
+      setMethod(paymentTypes[0]!.code);
+    }
+  }, [paymentTypes, method]);
+
+  const categorySuggestions = categories.length
+    ? categories
+    : [...PRODUCT_CATEGORIES, ...products.map((p) => p.category)];
+
+  const productCategories = useMemo(() => {
     const set = new Set(products.map((p) => p.category || "General"));
     return ["ALL", ...[...set].sort()];
   }, [products]);
@@ -84,6 +131,16 @@ export function PosTerminal({
     setMessage(null);
     setError(null);
     setReceiptHref(null);
+
+    const existingQty = cart.find((l) => l.productId === p.id)?.quantity ?? 0;
+    const nextQty = existingQty + 1;
+    if (outOfStockWarn && p.trackStock && !p.isService && p.stockQty < nextQty) {
+      setError(
+        `Out of stock: ${p.name} (available ${p.stockQty}). Enable restocking or reduce quantity.`,
+      );
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((l) => l.productId === p.id);
       if (existing) {
@@ -99,11 +156,54 @@ export function PosTerminal({
   }
 
   function updateQty(productId: string, quantity: number) {
+    const product = products.find((p) => p.id === productId);
+    if (
+      outOfStockWarn &&
+      product &&
+      product.trackStock &&
+      !product.isService &&
+      quantity > product.stockQty
+    ) {
+      setError(
+        `Out of stock: ${product.name} (available ${product.stockQty}).`,
+      );
+      return;
+    }
     setCart((prev) =>
       prev
         .map((l) => (l.productId === productId ? { ...l, quantity } : l))
         .filter((l) => l.quantity > 0),
     );
+  }
+
+  function clearTicket() {
+    setCart([]);
+    setOpenTicketId(null);
+    setCustomerId("");
+    setMessage(null);
+    setError(null);
+    setReceiptHref(null);
+  }
+
+  function loadTicket(ticket: OpenTicket) {
+    setView("sell");
+    setOpenTicketId(ticket.id);
+    setMethod(ticket.method || paymentTypes[0]?.code || "CASH");
+    setCustomerId(ticket.customerId || "");
+    if (ticket.posRegisterId) setPosRegisterId(ticket.posRegisterId);
+    setCart(
+      ticket.lines
+        .filter((l) => l.productId)
+        .map((l) => ({
+          productId: l.productId!,
+          name: l.description,
+          unitPrice: l.unitPrice,
+          quantity: l.quantity,
+        })),
+    );
+    setMessage(`Editing ticket ${ticket.number}`);
+    setError(null);
+    setReceiptHref(null);
   }
 
   function onProductDeleted(id: string) {
@@ -142,6 +242,31 @@ export function PosTerminal({
     });
   }
 
+  function holdTicket() {
+    setMessage(null);
+    setError(null);
+    if (!cart.length) {
+      setError("Cart is empty");
+      return;
+    }
+    startTransition(async () => {
+      const result = await saveOpenTicket({
+        ticketId: openTicketId,
+        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        method,
+        customerId: customerId || null,
+        posRegisterId: posRegisterId || null,
+      });
+      if ("error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setOpenTicketId(result.ticketId ?? null);
+      setMessage(`Ticket ${result.number} saved`);
+      router.refresh();
+    });
+  }
+
   function checkout() {
     setMessage(null);
     setError(null);
@@ -156,12 +281,13 @@ export function PosTerminal({
         method,
         customerId: customerId || null,
         posRegisterId: posRegisterId || null,
+        ticketId: openTicketId,
       });
       if ("error" in result && result.error) {
         setError(result.error);
         return;
       }
-      setCart([]);
+      clearTicket();
       setMessage(`Receipt ${result.number} — ${formatTTD(result.total ?? 0)}`);
       if (result.saleId) setReceiptHref(`/pos/receipt/${result.saleId}`);
       router.refresh();
@@ -170,272 +296,352 @@ export function PosTerminal({
 
   return (
     <div className="stack">
-      {registers.length > 0 || requireRegister ? (
-        <label className="field" style={{ maxWidth: 320 }}>
-          Active POS register
-          <select
-            value={posRegisterId}
-            onChange={(e) => setPosRegisterId(e.target.value)}
-            required={requireRegister}
-          >
-            {registers.length === 0 ? (
-              <option value="">No registers named yet</option>
-            ) : (
-              registers.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))
-            )}
-          </select>
-        </label>
-      ) : null}
-
-      {retailMode ? (
-        <div className="row">
+      {openTicketsEnabled ? (
+        <div className="settings-tabs" role="tablist">
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              setShowCustomerForm((v) => !v);
-              setShowProductForm(false);
-            }}
+            className={view === "sell" ? "settings-tab active" : "settings-tab"}
+            onClick={() => setView("sell")}
           >
-            Register customer
+            New sale
           </button>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              setShowProductForm((v) => !v);
-              setShowCustomerForm(false);
-            }}
+            className={view === "tickets" ? "settings-tab active" : "settings-tab"}
+            onClick={() => setView("tickets")}
           >
-            Register inventory
+            Saved tickets ({tickets.length})
           </button>
-          <a className="btn btn-secondary btn-sm" href="/api/inventory/export">
-            Export stock list
-          </a>
         </div>
       ) : null}
 
-      {showCustomerForm ? (
-        <div className="panel" style={{ padding: "1rem" }}>
-          <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register customer</h3>
-          <form action={createCustomer} className="form-grid" autoComplete="off">
-            <label className="field">
-              Name
-              <input name="name" required placeholder="Walk-in regular" autoComplete="organization" />
+      {view === "tickets" && openTicketsEnabled ? (
+        <div className="panel" style={{ padding: "1.1rem" }}>
+          <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem" }}>Saved tickets</h2>
+          <p className="muted" style={{ marginTop: 0, fontSize: "0.9rem" }}>
+            Open a ticket to edit lines, then charge when the customer is ready.
+          </p>
+          <div className="stack" style={{ gap: "0.65rem" }}>
+            {tickets.map((t) => (
+              <div key={t.id} className="settings-list-row">
+                <div>
+                  <strong>{t.number}</strong>
+                  <div className="muted" style={{ fontSize: "0.8rem" }}>
+                    {t.customerName || "Walk-in"} · {formatTTD(t.total)} ·{" "}
+                    {new Date(t.updatedAt).toLocaleString("en-TT")}
+                  </div>
+                  <div className="muted" style={{ fontSize: "0.78rem" }}>
+                    {t.lines.map((l) => `${l.quantity}× ${l.description}`).join(", ")}
+                  </div>
+                </div>
+                <div className="row" style={{ gap: "0.4rem" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => loadTicket(t)}
+                  >
+                    Open
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const result = await voidOpenTicket(t.id);
+                        if ("error" in result && result.error) {
+                          setError(result.error);
+                          return;
+                        }
+                        setTickets((prev) => prev.filter((x) => x.id !== t.id));
+                        if (openTicketId === t.id) clearTicket();
+                        setMessage(`Voided ${t.number}`);
+                        router.refresh();
+                      });
+                    }}
+                  >
+                    Void
+                  </button>
+                </div>
+              </div>
+            ))}
+            {tickets.length === 0 ? (
+              <div className="muted">No saved tickets. Hold a cart from New sale to create one.</div>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <>
+          {registers.length > 0 || requireRegister ? (
+            <label className="field" style={{ maxWidth: 320 }}>
+              Active POS register
+              <select
+                value={posRegisterId}
+                onChange={(e) => setPosRegisterId(e.target.value)}
+                required={requireRegister}
+              >
+                {registers.length === 0 ? (
+                  <option value="">No registers named yet</option>
+                ) : (
+                  registers.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))
+                )}
+              </select>
             </label>
-            <label className="field">
-              Phone
-              <input name="phone" placeholder="868-555-0100" autoComplete="off" />
-            </label>
-            <label className="field">
-              Email
-              <input name="email" type="email" autoComplete="off" />
-            </label>
-            <div className="full">
-              <button className="btn btn-primary btn-sm" type="submit">
-                Save customer
+          ) : null}
+
+          {retailMode ? (
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setShowCustomerForm((v) => !v);
+                  setShowProductForm(false);
+                }}
+              >
+                Register customer
               </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setShowProductForm((v) => !v);
+                  setShowCustomerForm(false);
+                }}
+              >
+                Register inventory
+              </button>
+              <a className="btn btn-secondary btn-sm" href="/api/inventory/export">
+                Export stock list
+              </a>
             </div>
-          </form>
-        </div>
-      ) : null}
+          ) : null}
 
-      {showProductForm ? (
-        <div className="panel" style={{ padding: "1rem" }}>
-          <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory / service</h3>
-          <form action={onCreateProduct} className="form-grid">
-            <label className="field">
-              Name
-              <input name="name" required placeholder="Soft drink or Oil change" />
-            </label>
-            <label className="field">
-              Category
-              <CategoryInput
-                name="category"
-                defaultValue="General"
-                suggestions={[...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]}
-                listId="pos-category-suggestions"
-              />
-            </label>
-            <label className="field">
-              SKU
-              <input name="sku" placeholder="SKU-001" />
-            </label>
-            <label className="field">
-              Unit price (TT$)
-              <input name="unitPrice" type="number" step="0.01" defaultValue="10" required />
-            </label>
-            <label className="field">
-              Unit cost (TT$)
-              <input name="unitCost" type="number" step="0.01" defaultValue="6" />
-            </label>
-            {!registerAsService ? (
-              <>
+          {showCustomerForm ? (
+            <div className="panel" style={{ padding: "1rem" }}>
+              <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register customer</h3>
+              <form action={createCustomer} className="form-grid" autoComplete="off">
+                <label className="field">
+                  Name
+                  <input name="name" required placeholder="Walk-in regular" autoComplete="organization" />
+                </label>
+                <label className="field">
+                  Phone
+                  <input name="phone" placeholder="868-555-0100" autoComplete="off" />
+                </label>
+                <label className="field">
+                  Email
+                  <input name="email" type="email" autoComplete="off" />
+                </label>
+                <div className="full">
+                  <button className="btn btn-primary btn-sm" type="submit">
+                    Save customer
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {showProductForm ? (
+            <div className="panel" style={{ padding: "1rem" }}>
+              <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory / service</h3>
+              <form action={onCreateProduct} className="form-grid">
+                <label className="field">
+                  Name
+                  <input name="name" required placeholder="Soft drink or Oil change" />
+                </label>
+                <label className="field">
+                  Category
+                  <CategoryInput
+                    name="category"
+                    defaultValue={categorySuggestions[0] || "General"}
+                    suggestions={categorySuggestions}
+                    listId="pos-category-suggestions"
+                  />
+                </label>
+                <label className="field">
+                  Unit price
+                  <input name="unitPrice" type="number" step="0.01" defaultValue="0" required />
+                </label>
                 <label className="field">
                   Opening stock
-                  <input name="stockQty" type="number" step="1" defaultValue="20" />
+                  <input
+                    name="stockQty"
+                    type="number"
+                    step="0.01"
+                    defaultValue="0"
+                    disabled={registerAsService}
+                  />
+                </label>
+                <label className="choice-card full">
+                  <input
+                    type="checkbox"
+                    name="isService"
+                    checked={registerAsService}
+                    onChange={(e) => setRegisterAsService(e.target.checked)}
+                  />
+                  <span>Service (fixed price, no stock)</span>
+                </label>
+                {!registerAsService ? (
+                  <label className="choice-card full">
+                    <input type="checkbox" name="trackStock" defaultChecked />
+                    <span>Track stock</span>
+                  </label>
+                ) : null}
+                <div className="full">
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
+                    Save item
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          <div className="pos-grid">
+            <div className="panel" style={{ padding: "1.1rem" }}>
+              <div className="row" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
+                <input
+                  type="search"
+                  placeholder="Search products"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  style={{ maxWidth: 160 }}
+                >
+                  {productCategories.map((c) => (
+                    <option key={c} value={c}>
+                      {c === "ALL" ? "All categories" : c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="product-grid">
+                {filtered.map((p) => (
+                  <div key={p.id} className="product-tile-wrap">
+                    <button type="button" className="product-tile" onClick={() => addProduct(p)}>
+                      <strong>{p.name}</strong>
+                      <div className="muted" style={{ fontSize: "0.78rem" }}>
+                        {p.category}
+                        {p.trackStock && !p.isService
+                          ? ` · stock ${p.stockQty}`
+                          : p.isService
+                            ? " · service"
+                            : ""}
+                      </div>
+                      <div className="money">{formatTTD(p.unitPrice)}</div>
+                    </button>
+                    <ItemMenu productId={p.id} productName={p.name} onDeleted={onProductDeleted} />
+                  </div>
+                ))}
+                {filtered.length === 0 ? <div className="muted">No products match.</div> : null}
+              </div>
+            </div>
+
+            <div className="panel" style={{ padding: "1.1rem" }}>
+              <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem" }}>
+                {openTicketId ? "Editing ticket" : "Cart / Ticket"}
+              </h2>
+              <div className="cart-lines">
+                {cart.map((l) => (
+                  <div key={l.productId} className="cart-line">
+                    <div>
+                      <strong>{l.name}</strong>
+                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        {formatTTD(l.unitPrice)} each
+                      </div>
+                    </div>
+                    <div className="row">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={l.quantity}
+                        style={{ width: 72 }}
+                        onChange={(e) => updateQty(l.productId, Number(e.target.value) || 0)}
+                      />
+                      <span className="money">{formatTTD(l.unitPrice * l.quantity)}</span>
+                    </div>
+                  </div>
+                ))}
+                {cart.length === 0 ? <div className="muted">Tap products to add.</div> : null}
+              </div>
+
+              <div className="stack" style={{ marginTop: "1rem" }}>
+                <label className="field">
+                  Customer (optional)
+                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                    <option value="">Walk-in</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="field">
-                  Min stock
-                  <input name="minStock" type="number" step="1" defaultValue="5" />
+                  Payment method
+                  <select value={method} onChange={(e) => setMethod(e.target.value)}>
+                    {(paymentTypes.length
+                      ? paymentTypes
+                      : [
+                          { code: "CASH", label: "Cash" },
+                          { code: "CARD", label: "Card" },
+                          { code: "BANK", label: "Bank transfer" },
+                        ]
+                    ).map((p) => (
+                      <option key={p.code} value={p.code}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-              </>
-            ) : null}
-            <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
-              <input
-                name="isService"
-                type="checkbox"
-                checked={registerAsService}
-                onChange={(e) => setRegisterAsService(e.target.checked)}
-              />
-              Fixed-price service (lists on POS)
-            </label>
-            <input type="hidden" name="unit" value="each" />
-            {!registerAsService ? <input type="hidden" name="trackStock" value="on" /> : null}
-            <div className="full">
-              <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Save item"}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      <div className="pos-layout">
-        <div className="stack">
-          <div className="row">
-            <input
-              placeholder="Search products or services…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ flex: 1, minWidth: 160 }}
-            />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{ maxWidth: 200 }}
-            >
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c === "ALL" ? "All categories" : c}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="product-grid">
-            {filtered.map((p) => (
-              <div key={p.id} className="product-tile-wrap">
-                <ItemMenu
-                  productId={p.id}
-                  productName={p.name}
-                  onDeleted={onProductDeleted}
-                />
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="muted">Total</span>
+                  <span className="value money" style={{ fontSize: "1.5rem" }}>
+                    {formatTTD(total)}
+                  </span>
+                </div>
+                {error ? <div className="badge badge-danger">{error}</div> : null}
+                {message ? <div className="badge badge-ok">{message}</div> : null}
+                {receiptHref ? (
+                  <Link className="btn btn-accent" href={receiptHref}>
+                    View / print receipt
+                  </Link>
+                ) : null}
                 <button
+                  className="btn btn-primary"
                   type="button"
-                  className="product-tile"
-                  onClick={() => addProduct(p)}
+                  disabled={!cart.length || pending}
+                  onClick={checkout}
                 >
-                  <div className="name">{p.name}</div>
-                  <div className="meta money">{formatTTD(p.unitPrice)}</div>
-                  <div className="meta">
-                    {p.category}
-                    {" · "}
-                    {p.isService || !p.trackStock
-                      ? "Service"
-                      : `Stock ${p.stockQty} ${p.unit}`}
-                  </div>
+                  {pending ? "Processing…" : "Charge & generate receipt"}
+                </button>
+                {openTicketsEnabled ? (
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    disabled={!cart.length || pending}
+                    onClick={holdTicket}
+                  >
+                    {openTicketId ? "Update saved ticket" : "Save as open ticket"}
+                  </button>
+                ) : null}
+                <button className="btn btn-secondary" type="button" onClick={clearTicket}>
+                  Clear cart
                 </button>
               </div>
-            ))}
-            {filtered.length === 0 ? (
-              <div className="muted">No products match.</div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="panel" style={{ padding: "1.1rem" }}>
-          <h2 style={{ margin: "0 0 0.75rem", fontSize: "1.2rem" }}>Cart / Ticket</h2>
-          <div className="cart-lines">
-            {cart.map((l) => (
-              <div key={l.productId} className="cart-line">
-                <div>
-                  <strong>{l.name}</strong>
-                  <div className="muted" style={{ fontSize: "0.8rem" }}>
-                    {formatTTD(l.unitPrice)} each
-                  </div>
-                </div>
-                <div className="row">
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={l.quantity}
-                    style={{ width: 72 }}
-                    onChange={(e) => updateQty(l.productId, Number(e.target.value) || 0)}
-                  />
-                  <span className="money">{formatTTD(l.unitPrice * l.quantity)}</span>
-                </div>
-              </div>
-            ))}
-            {cart.length === 0 ? <div className="muted">Tap products to add.</div> : null}
-          </div>
-
-          <div className="stack" style={{ marginTop: "1rem" }}>
-            <label className="field">
-              Customer (optional)
-              <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">Walk-in</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Payment method
-              <select value={method} onChange={(e) => setMethod(e.target.value)}>
-                <option value="CASH">Cash</option>
-                <option value="CARD">Card</option>
-                <option value="BANK">Bank transfer</option>
-              </select>
-            </label>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="muted">Total</span>
-              <span className="value money" style={{ fontSize: "1.5rem" }}>
-                {formatTTD(total)}
-              </span>
             </div>
-            {error ? <div className="badge badge-danger">{error}</div> : null}
-            {message ? <div className="badge badge-ok">{message}</div> : null}
-            {receiptHref ? (
-              <Link className="btn btn-accent" href={receiptHref}>
-                View / print receipt
-              </Link>
-            ) : null}
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={!cart.length || pending}
-              onClick={checkout}
-            >
-              {pending ? "Processing…" : "Charge & generate receipt"}
-            </button>
-            <button
-              className="btn btn-secondary"
-              type="button"
-              disabled={!cart.length || pending}
-              onClick={() => setCart([])}
-            >
-              Clear cart
-            </button>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

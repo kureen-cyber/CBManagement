@@ -27,9 +27,11 @@ export type InventoryProduct = {
 export function InventoryClient({
   initialProducts,
   suppliers,
+  categories = [],
 }: {
   initialProducts: InventoryProduct[];
   suppliers: { id: string; name: string }[];
+  categories?: string[];
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
@@ -94,8 +96,12 @@ export function InventoryClient({
             Category
             <CategoryInput
               name="category"
-              defaultValue="General"
-              suggestions={[...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]}
+              defaultValue={categories[0] || "General"}
+              suggestions={
+                categories.length
+                  ? categories
+                  : [...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]
+              }
               listId="inventory-category-suggestions"
             />
           </label>

@@ -4,6 +4,10 @@ import { requireCompany } from "@/lib/company";
 import { getBusinessType } from "@/lib/session-business";
 import { isRetailOnly } from "@/lib/business-type";
 import {
+  ensureDefaultInventoryCategories,
+  ensureDefaultPaymentTypes,
+} from "@/lib/catalog";
+import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
   parsePlanTier,
@@ -17,28 +21,49 @@ export const dynamic = "force-dynamic";
 
 export default async function PosPage() {
   const { companyId, company } = await requireCompany();
+  await ensureDefaultPaymentTypes(companyId);
+  await ensureDefaultInventoryCategories(companyId);
+
   const businessType = await getBusinessType();
   const retailMode = isRetailOnly(businessType) || businessType === "BOTH";
   const planTier = parsePlanTier(company.planTier);
   const since = receiptVisibleSince(planTier);
 
-  const [products, customers, sales, posRegisters] = await Promise.all([
-    prisma.product.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    prisma.sale.findMany({
-      where: {
-        companyId,
-        ...(since ? { soldAt: { gte: since } } : {}),
-      },
-      orderBy: { soldAt: "desc" },
-      take: 12,
-      include: { customer: true, lines: true, posRegister: true },
-    }),
-    prisma.posRegister.findMany({
-      where: { companyId },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
+  const [products, customers, sales, posRegisters, paymentTypes, categories, openTickets] =
+    await Promise.all([
+      prisma.product.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+      prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+      prisma.sale.findMany({
+        where: {
+          companyId,
+          status: "COMPLETED",
+          ...(since ? { soldAt: { gte: since } } : {}),
+        },
+        orderBy: { soldAt: "desc" },
+        take: 12,
+        include: { customer: true, lines: true, posRegister: true },
+      }),
+      prisma.posRegister.findMany({
+        where: { companyId },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.paymentType.findMany({
+        where: { companyId, active: true },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      }),
+      prisma.inventoryCategory.findMany({
+        where: { companyId },
+        orderBy: { name: "asc" },
+      }),
+      company.featureOpenTickets
+        ? prisma.sale.findMany({
+            where: { companyId, status: "OPEN" },
+            orderBy: { updatedAt: "desc" },
+            include: { customer: true, lines: true },
+            take: 50,
+          })
+        : Promise.resolve([]),
+    ]);
 
   return (
     <div className="stack">
@@ -67,7 +92,27 @@ export default async function PosPage() {
       <PosTerminal
         retailMode={retailMode}
         requireRegister={isFreeRetailTier(planTier)}
+        openTicketsEnabled={company.featureOpenTickets}
+        outOfStockWarn={company.featureOutOfStockWarn}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
+        paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
+        categories={categories.map((c) => c.name)}
+        openTickets={openTickets.map((t) => ({
+          id: t.id,
+          number: t.number,
+          method: t.method,
+          customerId: t.customerId,
+          customerName: t.customer?.name ?? null,
+          posRegisterId: t.posRegisterId,
+          total: t.total,
+          updatedAt: t.updatedAt.toISOString(),
+          lines: t.lines.map((l) => ({
+            productId: l.productId,
+            description: l.description,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+          })),
+        }))}
         products={products.map((p) => ({
           id: p.id,
           name: p.name,

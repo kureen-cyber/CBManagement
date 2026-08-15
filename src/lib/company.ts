@@ -85,6 +85,12 @@ export async function ensureCompanyForUser(user: AuthUser) {
     data: { userId: user.id, companyId: company.id, role: "OWNER" },
   });
 
+  const { ensureDefaultPaymentTypes, ensureDefaultInventoryCategories } = await import(
+    "@/lib/catalog"
+  );
+  await ensureDefaultPaymentTypes(company.id);
+  await ensureDefaultInventoryCategories(company.id);
+
   return company;
 }
 

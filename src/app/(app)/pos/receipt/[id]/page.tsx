@@ -21,6 +21,7 @@ import {
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { RefundButton } from "@/components/RefundButton";
+import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,11 @@ export default async function ReceiptPage({
         actions={
           <>
             <PrintButton enabled={canPrint} />
+            <EmailDocumentButton
+              kind="receipt"
+              documentId={sale.id}
+              defaultEmail={sale.customer?.email}
+            />
             <RefundButton
               saleId={sale.id}
               posRegisterId={access.registerId}

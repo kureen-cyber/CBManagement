@@ -7,6 +7,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
+import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,11 @@ export default async function InvoiceViewPage({
         actions={
           <>
             <PrintButton enabled={canPrint} />
+            <EmailDocumentButton
+              kind="invoice"
+              documentId={invoice.id}
+              defaultEmail={invoice.customer.email}
+            />
             <Link className="btn btn-secondary" href="/invoices">
               Back
             </Link>

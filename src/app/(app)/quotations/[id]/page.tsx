@@ -7,6 +7,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
+import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,11 @@ export default async function QuotationViewPage({
         actions={
           <>
             <PrintButton enabled={canPrint} />
+            <EmailDocumentButton
+              kind="quotation"
+              documentId={quote.id}
+              defaultEmail={quote.customer.email}
+            />
             <Link className="btn btn-secondary" href="/quotations">
               Back
             </Link>

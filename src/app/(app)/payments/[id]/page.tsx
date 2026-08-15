@@ -6,6 +6,7 @@ import { requireCompany } from "@/lib/company";
 import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
+import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,11 @@ export default async function PaymentReceiptPage({
         actions={
           <>
             <PrintButton enabled={canPrint} />
+            <EmailDocumentButton
+              kind="payment"
+              documentId={payment.id}
+              defaultEmail={payment.customer.email}
+            />
             <Link className="btn btn-secondary" href="/payments">
               Back
             </Link>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createQuotation } from "@/app/actions";
-import { formatTTD, sellingPriceFromMarkup } from "@/lib/money";
+import { formatTTD, toCents } from "@/lib/money";
+import { quotationClientLines } from "@/lib/quotation-pricing";
 
 export function QuotationForm({
   customers,
@@ -10,6 +11,41 @@ export function QuotationForm({
   customers: { id: string; name: string }[];
 }) {
   const [fixedPrice, setFixedPrice] = useState(false);
+  const [labour, setLabour] = useState("2500");
+  const [materials, setMaterials] = useState("1800");
+  const [equipment, setEquipment] = useState("500");
+  const [transport, setTransport] = useState("300");
+  const [markupPct, setMarkupPct] = useState("25");
+  const [fixedAmount, setFixedAmount] = useState("5100");
+
+  const preview = useMemo(() => {
+    const labourC = toCents(Number(labour) || 0);
+    const materialsC = toCents(Number(materials) || 0);
+    const equipmentC = toCents(Number(equipment) || 0);
+    const transportC = toCents(Number(transport) || 0);
+    const markup = Number(markupPct) || 0;
+    const fixed = toCents(Number(fixedAmount) || 0);
+    const lines = quotationClientLines({
+      labourCost: labourC,
+      materialsCost: materialsC,
+      equipmentCost: equipmentC,
+      transportCost: transportC,
+      markupPct: fixedPrice ? 0 : markup,
+      fixedPrice,
+      total: fixedPrice
+        ? fixed > 0
+          ? fixed
+          : labourC + materialsC + equipmentC + transportC
+        : 0,
+    });
+    // For non-fixed, total is sum of marked-up lines
+    const total = fixedPrice
+      ? fixed > 0
+        ? fixed
+        : lines.reduce((s, l) => s + l.amount, 0)
+      : lines.reduce((s, l) => s + l.amount, 0);
+    return { lines, total };
+  }, [labour, materials, equipment, transport, markupPct, fixedPrice, fixedAmount]);
 
   return (
     <form action={createQuotation} className="form-grid">
@@ -31,20 +67,44 @@ export function QuotationForm({
         <input name="title" placeholder="Electrical installation" />
       </label>
       <label className="field">
-        Labour (TT$)
-        <input name="labourCost" type="number" step="0.01" defaultValue="2500" />
+        Labour cost (TT$)
+        <input
+          name="labourCost"
+          type="number"
+          step="0.01"
+          value={labour}
+          onChange={(e) => setLabour(e.target.value)}
+        />
       </label>
       <label className="field">
-        Materials (TT$)
-        <input name="materialsCost" type="number" step="0.01" defaultValue="1800" />
+        Materials cost (TT$)
+        <input
+          name="materialsCost"
+          type="number"
+          step="0.01"
+          value={materials}
+          onChange={(e) => setMaterials(e.target.value)}
+        />
       </label>
       <label className="field">
-        Equipment (TT$)
-        <input name="equipmentCost" type="number" step="0.01" defaultValue="500" />
+        Equipment cost (TT$)
+        <input
+          name="equipmentCost"
+          type="number"
+          step="0.01"
+          value={equipment}
+          onChange={(e) => setEquipment(e.target.value)}
+        />
       </label>
       <label className="field">
-        Transport (TT$)
-        <input name="transportCost" type="number" step="0.01" defaultValue="300" />
+        Transport cost (TT$)
+        <input
+          name="transportCost"
+          type="number"
+          step="0.01"
+          value={transport}
+          onChange={(e) => setTransport(e.target.value)}
+        />
       </label>
 
       <label className="choice-card full">
@@ -63,21 +123,54 @@ export function QuotationForm({
       </label>
 
       {fixedPrice ? (
-        <label className="field">
+        <label className="field full">
           Fixed price (TT$)
-          <input name="fixedPriceAmount" type="number" step="0.01" required defaultValue="5100" />
+          <input
+            name="fixedPriceAmount"
+            type="number"
+            step="0.01"
+            required
+            value={fixedAmount}
+            onChange={(e) => setFixedAmount(e.target.value)}
+          />
         </label>
       ) : (
-        <>
-          <label className="field">
-            Markup %
-            <input name="markupPct" type="number" step="0.1" defaultValue="25" />
-          </label>
-          <div className="full muted" style={{ fontSize: "0.85rem" }}>
-            Example cost TT$5,100 @ 25% → {formatTTD(sellingPriceFromMarkup(510000, 25))}
-          </div>
-        </>
+        <label className="field full">
+          Markup %
+          <input
+            name="markupPct"
+            type="number"
+            step="0.1"
+            value={markupPct}
+            onChange={(e) => setMarkupPct(e.target.value)}
+          />
+          <span className="muted" style={{ fontSize: "0.8rem" }}>
+            Applied inside each item on the customer quote (not shown as a separate line)
+          </span>
+        </label>
       )}
+
+      <div className="full panel" style={{ padding: "0.85rem 1rem" }}>
+        <strong style={{ fontSize: "0.9rem" }}>Customer quote preview</strong>
+        <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
+          {preview.lines.map((l) => (
+            <div key={l.label} className="row" style={{ justifyContent: "space-between" }}>
+              <span>{l.label}</span>
+              <span className="money">{formatTTD(l.amount)}</span>
+            </div>
+          ))}
+          {preview.lines.length === 0 ? (
+            <div className="muted">Enter costs to preview marked-up amounts.</div>
+          ) : null}
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", marginTop: "0.35rem", fontWeight: 700 }}
+          >
+            <span>Total</span>
+            <span className="money">{formatTTD(preview.total)}</span>
+          </div>
+        </div>
+      </div>
 
       <div className="full">
         <button className="btn btn-primary" type="submit">

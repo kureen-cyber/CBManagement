@@ -5,6 +5,7 @@ import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
 import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
+import { quotationClientLines } from "@/lib/quotation-pricing";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
@@ -25,8 +26,7 @@ export default async function QuotationViewPage({
   });
   if (!quote) notFound();
 
-  const cost =
-    quote.labourCost + quote.materialsCost + quote.equipmentCost + quote.transportCost;
+  const clientLines = quotationClientLines(quote);
   const header = receiptHeaderText(company);
   const footer = receiptFooterText(company);
   const canPrint = company.receiptPrinting !== false;
@@ -100,30 +100,12 @@ export default async function QuotationViewPage({
             </tr>
           </thead>
           <tbody>
-            {quote.labourCost ? (
-              <tr>
-                <td>Labour</td>
-                <td className="money">{formatTTD(quote.labourCost)}</td>
+            {clientLines.map((l) => (
+              <tr key={l.label}>
+                <td>{l.label}</td>
+                <td className="money">{formatTTD(l.amount)}</td>
               </tr>
-            ) : null}
-            {quote.materialsCost ? (
-              <tr>
-                <td>Materials</td>
-                <td className="money">{formatTTD(quote.materialsCost)}</td>
-              </tr>
-            ) : null}
-            {quote.equipmentCost ? (
-              <tr>
-                <td>Equipment</td>
-                <td className="money">{formatTTD(quote.equipmentCost)}</td>
-              </tr>
-            ) : null}
-            {quote.transportCost ? (
-              <tr>
-                <td>Transport</td>
-                <td className="money">{formatTTD(quote.transportCost)}</td>
-              </tr>
-            ) : null}
+            ))}
             {quote.lines.map((l) => (
               <tr key={l.id}>
                 <td>
@@ -138,22 +120,7 @@ export default async function QuotationViewPage({
           </tbody>
         </table>
 
-        <div className="row" style={{ justifyContent: "space-between", marginTop: "1rem" }}>
-          <span>Cost base</span>
-          <span className="money">{formatTTD(cost)}</span>
-        </div>
-        {quote.fixedPrice ? (
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Pricing</span>
-            <span>Fixed price</span>
-          </div>
-        ) : (
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Markup</span>
-            <span>{quote.markupPct}%</span>
-          </div>
-        )}
-        <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
+        <div className="row" style={{ justifyContent: "space-between", marginTop: "0.85rem" }}>
           <strong>Total</strong>
           <strong className="money" style={{ fontSize: "1.25rem" }}>
             {formatTTD(quote.total)}

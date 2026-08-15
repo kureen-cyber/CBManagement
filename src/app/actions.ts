@@ -238,15 +238,17 @@ export async function createQuotation(formData: FormData) {
   const equipment = dollarsToCents(formData.get("equipmentCost"));
   const transport = dollarsToCents(formData.get("transportCost"));
   const fixedPrice = formData.get("fixedPrice") === "on";
-  const cost = labour + materials + equipment + transport;
   let markupPct = Number(formData.get("markupPct") || 25);
+  if (!Number.isFinite(markupPct) || markupPct < 0) markupPct = 0;
+
+  const { quotationSellTotal } = await import("@/lib/quotation-pricing");
   let total: number;
   if (fixedPrice) {
     markupPct = 0;
     const fixed = dollarsToCents(formData.get("fixedPriceAmount"));
-    total = fixed > 0 ? fixed : cost;
+    total = quotationSellTotal(labour, materials, equipment, transport, 0, true, fixed);
   } else {
-    total = sellingPriceFromMarkup(cost, markupPct);
+    total = quotationSellTotal(labour, materials, equipment, transport, markupPct, false);
   }
 
   await prisma.quotation.create({

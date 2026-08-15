@@ -157,20 +157,11 @@ export function buildQuotationEmail(opts: {
   dateLabel: string;
   customerName: string;
   title?: string | null;
-  labourCost: number;
-  materialsCost: number;
-  equipmentCost: number;
-  transportCost: number;
-  markupPct: number;
-  fixedPrice: boolean;
+  lines: { label: string; amount: number }[];
   total: number;
   notes?: string | null;
 }) {
-  const rows: { label: string; amount: number }[] = [];
-  if (opts.labourCost) rows.push({ label: "Labour", amount: opts.labourCost });
-  if (opts.materialsCost) rows.push({ label: "Materials", amount: opts.materialsCost });
-  if (opts.equipmentCost) rows.push({ label: "Equipment", amount: opts.equipmentCost });
-  if (opts.transportCost) rows.push({ label: "Transport", amount: opts.transportCost });
+  const rows = opts.lines;
 
   const bodyHtml = `
     <table style="width:100%;font-size:13px;border-collapse:collapse">
@@ -181,10 +172,7 @@ export function buildQuotationEmail(opts: {
         )
         .join("")}
     </table>
-    <div style="margin-top:12px;color:#6b7280;font-size:13px">
-      ${opts.fixedPrice ? "Fixed-price service" : `Markup ${opts.markupPct}%`}
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:18px">
+    <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:18px">
       <strong>Total</strong><strong>${esc(formatTTD(opts.total))}</strong>
     </div>
     ${opts.notes?.trim() ? `<p style="margin-top:16px;color:#6b7280">${esc(opts.notes.trim())}</p>` : ""}

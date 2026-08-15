@@ -85,6 +85,7 @@ export async function emailQuotation(input: { quotationId: string; toEmail: stri
   });
   if (!quote) return { error: "Quotation not found" };
 
+  const { quotationClientLines } = await import("@/lib/quotation-pricing");
   const payload = buildQuotationEmail({
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
@@ -92,12 +93,7 @@ export async function emailQuotation(input: { quotationId: string; toEmail: stri
     dateLabel: quote.createdAt.toLocaleDateString("en-TT"),
     customerName: quote.customer.name,
     title: quote.title,
-    labourCost: quote.labourCost,
-    materialsCost: quote.materialsCost,
-    equipmentCost: quote.equipmentCost,
-    transportCost: quote.transportCost,
-    markupPct: quote.markupPct,
-    fixedPrice: quote.fixedPrice,
+    lines: quotationClientLines(quote),
     total: quote.total,
     notes: quote.notes,
   });

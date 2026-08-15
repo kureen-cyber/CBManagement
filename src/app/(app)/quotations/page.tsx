@@ -25,7 +25,7 @@ export default async function QuotationsPage() {
     <div className="stack">
       <PageHeader
         title="Quotations"
-        description="Labour + materials + equipment + transport, with markup — or fixed-price services."
+        description="Enter your costs, then set markup % at the end. Customers see one marked-up figure per item — markup is not listed separately."
       />
       <Panel style={{ padding: "1.25rem" }}>
         <QuotationForm customers={customers.map((c) => ({ id: c.id, name: c.name }))} />

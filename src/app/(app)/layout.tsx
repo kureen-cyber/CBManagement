@@ -6,6 +6,7 @@ import { getBusinessType } from "@/lib/session-business";
 import { syncCompanyFromUser } from "@/lib/company";
 import { parseTheme } from "@/lib/settings";
 import { isLocalhostDemoHost, parsePlanTier } from "@/lib/tier";
+import { isDemoModeEnabled } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { resolveRegisterAccess } from "@/lib/register-access";
 import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
@@ -23,7 +24,8 @@ export default async function AppLayout({
   const theme = parseTheme(company.theme);
   const planTier = parsePlanTier(company.planTier);
   const hdrs = await headers();
-  const showDemoNav = isLocalhostDemoHost(hdrs.get("host"));
+  const showDemoNav =
+    isDemoModeEnabled() || isLocalhostDemoHost(hdrs.get("host"));
 
   const registers = await prisma.posRegister.findMany({
     where: { companyId: company.id },
@@ -42,15 +44,23 @@ export default async function AppLayout({
       <ThemeScript theme={theme} />
       <RegisterAccessGate limited={access.isLimitedCashier} />
       <Sidebar
-        email={user?.email}
-        businessName={businessName}
+        email={user?.email ?? (isDemoModeEnabled() ? "demo@localhost" : undefined)}
+        businessName={isDemoModeEnabled() && !user ? `${businessName} (Demo)` : businessName}
         businessType={businessType}
         planTier={planTier}
         showDemoNav={showDemoNav && !access.isLimitedCashier}
         limitedCashier={access.isLimitedCashier}
         registerLabel={activeRegister?.name ?? null}
       />
-      <main className="main">{children}</main>
+      <main className="main">
+        {isDemoModeEnabled() && !user ? (
+          <div className="info-banner" style={{ marginBottom: "1rem" }}>
+            Local demo mode — browsing without sign-in. Set{" "}
+            <code>NEXT_PUBLIC_DEMO_MODE=false</code> when finished.
+          </div>
+        ) : null}
+        {children}
+      </main>
     </div>
   );
 }

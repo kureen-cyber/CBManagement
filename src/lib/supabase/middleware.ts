@@ -13,9 +13,20 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/auth") ||
     path.startsWith("/api/cron");
 
+  // Local demo: skip auth entirely so the app can be browsed without sign-in.
+  if (isDemoModeEnabled()) {
+    if (path.startsWith("/login") || path.startsWith("/signup")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/home";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
   // Without Supabase: require login unless demo mode is explicitly enabled
   if (!isSupabaseConfigured()) {
-    if (!isDemoModeEnabled() && !isPublic && !path.startsWith("/_next")) {
+    if (!isPublic && !path.startsWith("/_next")) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);

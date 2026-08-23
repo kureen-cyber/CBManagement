@@ -96,12 +96,21 @@ export async function ensureCompanyForUser(user: AuthUser) {
 
 /**
  * Current signed-in company. Prefer this over findFirst.
- * Throws if there is no authenticated user.
+ * In local demo mode, falls back to a demo company when there is no session.
  */
 export async function requireCompany() {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   if (!user) {
+    const { isDemoModeEnabled } = await import("@/lib/constants");
+    if (isDemoModeEnabled()) {
+      const company = await syncCompanyFromUser(null);
+      return {
+        user: { id: "demo-local", email: "demo@localhost", user_metadata: {} },
+        company,
+        companyId: company.id,
+      };
+    }
     throw new Error("Unauthorized");
   }
   const company = await ensureCompanyForUser(user);

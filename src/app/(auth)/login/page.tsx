@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
-import { isSupabaseConfigured } from "@/lib/constants";
+import { isDemoModeEnabled, isSupabaseConfigured } from "@/lib/constants";
 import { Panel } from "@/components/ui";
 
 function LoginForm() {
@@ -15,6 +15,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const configured = isSupabaseConfigured();
+  const demoMode = isDemoModeEnabled();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -68,17 +69,34 @@ function LoginForm() {
         Sign in to run your business from one place.
       </p>
 
-      <Link
-        href="/signup"
-        className="btn btn-primary"
-        style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
-      >
-        Create account / Sign up
-      </Link>
+      {demoMode ? (
+        <Link
+          href="/home"
+          className="btn btn-primary"
+          style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
+        >
+          Continue in demo mode (no sign-in)
+        </Link>
+      ) : (
+        <Link
+          href="/signup"
+          className="btn btn-primary"
+          style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
+        >
+          Create account / Sign up
+        </Link>
+      )}
 
       {!configured ? (
         <div className="info-banner" style={{ marginTop: "1rem" }}>
           Supabase keys are not set yet. Add them to enable sign-in.
+        </div>
+      ) : null}
+
+      {demoMode ? (
+        <div className="info-banner" style={{ marginTop: "1rem" }}>
+          Local demo mode is on. Auth is skipped until you turn off{" "}
+          <code>NEXT_PUBLIC_DEMO_MODE</code>.
         </div>
       ) : null}
 

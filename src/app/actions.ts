@@ -197,6 +197,61 @@ export async function createCustomer(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function createSupplier(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("Enter a supplier name");
+  await prisma.supplier.create({
+    data: {
+      companyId,
+      name,
+      address: String(formData.get("address") || "").trim() || null,
+      phone: String(formData.get("contact") || formData.get("phone") || "").trim() || null,
+      email: String(formData.get("email") || "").trim() || null,
+      salesRep: String(formData.get("salesRep") || "").trim() || null,
+      notes: String(formData.get("notes") || "").trim() || null,
+    },
+  });
+  revalidatePath("/suppliers");
+}
+
+export async function createSupplierItem(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const supplierId = String(formData.get("supplierId") || "").trim();
+  if (!supplierId) throw new Error("Missing supplier");
+  const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
+  if (!supplier) throw new Error("Supplier not found");
+
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("Enter an item name");
+  const unit = String(formData.get("unit") || "each").trim() || "each";
+
+  await prisma.supplierItem.create({
+    data: {
+      companyId,
+      supplierId,
+      name,
+      unit,
+      unitCost: dollarsToCents(formData.get("unitCost")),
+      notes: String(formData.get("notes") || "").trim() || null,
+    },
+  });
+  revalidatePath("/suppliers");
+  revalidatePath(`/suppliers/${supplierId}`);
+}
+
+export async function deleteSupplierItem(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  const supplierId = String(formData.get("supplierId") || "").trim();
+  const row = await prisma.supplierItem.findFirst({ where: { id, companyId } });
+  if (!row) throw new Error("Item not found");
+  await prisma.supplierItem.delete({ where: { id } });
+  revalidatePath("/suppliers");
+  if (supplierId) revalidatePath(`/suppliers/${supplierId}`);
+  revalidatePath(`/suppliers/${row.supplierId}`);
+}
+
 export async function createProduct(formData: FormData) {
   const { companyId } = await requireCompany();
   const access = await requireInventoryManageAccess(companyId);

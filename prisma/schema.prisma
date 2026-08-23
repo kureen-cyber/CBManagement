@@ -72,6 +72,7 @@ model Company {
   discountPresets     DiscountPreset[]
   customers           Customer[]
   suppliers           Supplier[]
+  supplierItems       SupplierItem[]
   products            Product[]
   employees           Employee[]
   quotations          Quotation[]
@@ -199,17 +200,42 @@ model Supplier {
   companyId String
   name      String
   email     String?
+  /// Phone or primary contact line
   phone     String?
   address   String?
+  /// Supplier sales representative
+  salesRep  String?
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   products Product[]
   expenses Expense[]
+  items    SupplierItem[]
 
   @@index([companyId])
+}
+
+/// Supply / procurement line catalog for a supplier (cost + unit of measure).
+model SupplierItem {
+  id         String   @id @default(cuid())
+  companyId  String
+  supplierId String
+  name       String
+  /// each | kg | lb | case | dozen | m | L | pack · …
+  unit       String   @default("each")
+  /// Procurement cost in cents
+  unitCost   Int      @default(0)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([supplierId])
 }
 
 model Product {

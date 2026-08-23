@@ -8,9 +8,25 @@ export const NAV_ITEMS = [
   { href: "/payments", label: "Payments" },
   { href: "/expenses", label: "Expenses" },
   { href: "/inventory", label: "Inventory" },
+  { href: "/suppliers", label: "Suppliers" },
   { href: "/employees", label: "Employees" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
+] as const;
+
+/** Common units for supplier procurement lines and inventory. */
+export const SUPPLY_UNITS = [
+  "each",
+  "kg",
+  "lb",
+  "g",
+  "case",
+  "dozen",
+  "pack",
+  "box",
+  "m",
+  "L",
+  "bag",
 ] as const;
 
 /** Suggestion chips only — users can type any expense category. */

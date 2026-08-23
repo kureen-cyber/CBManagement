@@ -81,7 +81,7 @@ export async function emailQuotation(input: { quotationId: string; toEmail: stri
 
   const quote = await prisma.quotation.findFirst({
     where: { id: input.quotationId, companyId },
-    include: { customer: true },
+    include: { customer: true, lines: true },
   });
   if (!quote) return { error: "Quotation not found" };
 

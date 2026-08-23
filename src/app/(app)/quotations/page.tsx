@@ -44,7 +44,12 @@ export default async function QuotationsPage() {
           </thead>
           <tbody>
             {quotations.map((q) => {
-              const cost = q.labourCost + q.materialsCost + q.equipmentCost + q.transportCost;
+              const cost =
+                q.labourCost +
+                q.materialsCost +
+                q.equipmentCost +
+                q.transportCost +
+                q.otherCost;
               return (
                 <tr key={q.id}>
                   <td>

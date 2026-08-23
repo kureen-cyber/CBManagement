@@ -396,14 +396,42 @@ export async function createQuotation(formData: FormData) {
   let markupPct = Number(formData.get("markupPct") || 25);
   if (!Number.isFinite(markupPct) || markupPct < 0) markupPct = 0;
 
+  let extraCosts: { label: string; cost: number }[] = [];
+  const rawExtras = String(formData.get("extraCostsJson") || "").trim();
+  if (rawExtras) {
+    try {
+      const parsed = JSON.parse(rawExtras) as { name?: string; amount?: string | number }[];
+      if (Array.isArray(parsed)) {
+        extraCosts = parsed
+          .map((e) => ({
+            label: String(e.name || "").trim(),
+            cost: dollarsToCents(e.amount as FormDataEntryValue),
+          }))
+          .filter((e) => e.label && e.cost > 0);
+      }
+    } catch {
+      /* ignore bad JSON */
+    }
+  }
+  const otherCost = extraCosts.reduce((s, e) => s + e.cost, 0);
+
   const { quotationSellTotal } = await import("@/lib/quotation-pricing");
   let total: number;
   if (fixedPrice) {
     markupPct = 0;
     const fixed = dollarsToCents(formData.get("fixedPriceAmount"));
-    total = quotationSellTotal(labour, materials, equipment, transport, 0, true, fixed);
+    total = quotationSellTotal(labour, materials, equipment, transport, 0, true, fixed, extraCosts);
   } else {
-    total = quotationSellTotal(labour, materials, equipment, transport, markupPct, false);
+    total = quotationSellTotal(
+      labour,
+      materials,
+      equipment,
+      transport,
+      markupPct,
+      false,
+      undefined,
+      extraCosts,
+    );
   }
 
   await prisma.quotation.create({
@@ -417,11 +445,22 @@ export async function createQuotation(formData: FormData) {
       materialsCost: materials,
       equipmentCost: equipment,
       transportCost: transport,
+      otherCost,
       markupPct,
       fixedPrice,
       subtotal: total,
       total,
       status: "DRAFT",
+      lines: {
+        create: extraCosts.map((e) => ({
+          description: e.label,
+          category: "CUSTOM",
+          quantity: 1,
+          unitCost: e.cost,
+          unitPrice: e.cost,
+          lineTotal: e.cost,
+        })),
+      },
     },
   });
 

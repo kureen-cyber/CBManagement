@@ -5,6 +5,8 @@ import { createQuotation } from "@/app/actions";
 import { formatTTD, toCents } from "@/lib/money";
 import { quotationClientLines } from "@/lib/quotation-pricing";
 
+type ExtraDraft = { name: string; amount: string };
+
 export function QuotationForm({
   customers,
 }: {
@@ -17,6 +19,7 @@ export function QuotationForm({
   const [transport, setTransport] = useState("300");
   const [markupPct, setMarkupPct] = useState("25");
   const [fixedAmount, setFixedAmount] = useState("5100");
+  const [extras, setExtras] = useState<ExtraDraft[]>([{ name: "", amount: "" }]);
 
   const preview = useMemo(() => {
     const labourC = toCents(Number(labour) || 0);
@@ -25,6 +28,12 @@ export function QuotationForm({
     const transportC = toCents(Number(transport) || 0);
     const markup = Number(markupPct) || 0;
     const fixed = toCents(Number(fixedAmount) || 0);
+    const extraCosts = extras
+      .map((e) => ({
+        label: e.name.trim(),
+        cost: toCents(Number(e.amount) || 0),
+      }))
+      .filter((e) => e.label && e.cost > 0);
     const lines = quotationClientLines({
       labourCost: labourC,
       materialsCost: materialsC,
@@ -35,20 +44,33 @@ export function QuotationForm({
       total: fixedPrice
         ? fixed > 0
           ? fixed
-          : labourC + materialsC + equipmentC + transportC
+          : labourC +
+            materialsC +
+            equipmentC +
+            transportC +
+            extraCosts.reduce((s, e) => s + e.cost, 0)
         : 0,
+      extraCosts,
     });
-    // For non-fixed, total is sum of marked-up lines
     const total = fixedPrice
       ? fixed > 0
         ? fixed
         : lines.reduce((s, l) => s + l.amount, 0)
       : lines.reduce((s, l) => s + l.amount, 0);
     return { lines, total };
-  }, [labour, materials, equipment, transport, markupPct, fixedPrice, fixedAmount]);
+  }, [labour, materials, equipment, transport, markupPct, fixedPrice, fixedAmount, extras]);
 
   return (
     <form action={createQuotation} className="form-grid">
+      <input
+        type="hidden"
+        name="extraCostsJson"
+        value={JSON.stringify(
+          extras
+            .map((e) => ({ name: e.name.trim(), amount: e.amount }))
+            .filter((e) => e.name && Number(e.amount) > 0),
+        )}
+      />
       <label className="field">
         Customer
         <select name="customerId" required defaultValue="">
@@ -106,6 +128,67 @@ export function QuotationForm({
           onChange={(e) => setTransport(e.target.value)}
         />
       </label>
+
+      <div className="full panel" style={{ padding: "1rem" }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <strong>Additional cost category</strong>
+            <div className="muted" style={{ fontSize: "0.82rem", marginTop: "0.2rem" }}>
+              Name a custom cost (e.g. Permits, Subcontractor) and enter the amount
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            aria-label="Add another cost category"
+            onClick={() => setExtras((prev) => [...prev, { name: "", amount: "" }])}
+          >
+            +
+          </button>
+        </div>
+        <div className="stack" style={{ marginTop: "0.85rem", gap: "0.65rem" }}>
+          {extras.map((row, idx) => (
+            <div key={idx} className="row" style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+              <label className="field" style={{ flex: "1 1 160px" }}>
+                Category name
+                <input
+                  value={row.name}
+                  onChange={(e) =>
+                    setExtras((prev) =>
+                      prev.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="e.g. Permits"
+                />
+              </label>
+              <label className="field" style={{ flex: "1 1 120px" }}>
+                Cost (TT$)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={row.amount}
+                  onChange={(e) =>
+                    setExtras((prev) =>
+                      prev.map((r, i) => (i === idx ? { ...r, amount: e.target.value } : r)),
+                    )
+                  }
+                  placeholder="0.00"
+                />
+              </label>
+              {extras.length > 1 ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setExtras((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
 
       <label className="choice-card full">
         <input

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CBManagement — One-Pager</title>
+  <style>
+    @page { size: letter; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #142426;
+      background: #fff;
+    }
+    .page {
+      width: 8.5in;
+      height: 11in;
+      padding: 0.55in 0.6in;
+      background:
+        radial-gradient(520px 280px at 0% 0%, rgba(61, 184, 188, 0.16), transparent 55%),
+        radial-gradient(420px 240px at 100% 0%, rgba(196, 92, 38, 0.12), transparent 50%),
+        linear-gradient(160deg, #f7fbfb 0%, #f4f7f2 100%);
+    }
+    .brand {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #0a6b6e;
+      margin: 0 0 0.12in;
+    }
+    h1 {
+      margin: 0 0 0.12in;
+      font-size: 32px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: #064e51;
+    }
+    .lede {
+      margin: 0 0 0.28in;
+      font-size: 15px;
+      line-height: 1.45;
+      color: #3d5558;
+      max-width: 7.1in;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 0.22in;
+      margin-bottom: 0.22in;
+    }
+    .card {
+      background: rgba(255,255,255,0.88);
+      border: 1px solid rgba(10,107,110,0.16);
+      border-radius: 14px;
+      padding: 0.18in 0.2in;
+    }
+    h2 {
+      margin: 0 0 0.1in;
+      font-size: 14px;
+      color: #0a6b6e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    p, li { font-size: 13px; line-height: 1.4; color: #2a3d40; margin: 0; }
+    ul { margin: 0.06in 0 0; padding-left: 0.18in; }
+    li { margin: 0.05in 0; }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.16in;
+      margin-bottom: 0.22in;
+    }
+    .num {
+      font-size: 22px;
+      font-weight: 800;
+      color: #c45c26;
+      margin: 0.04in 0;
+    }
+    .ask {
+      background: linear-gradient(120deg, #0a6b6e, #0e7a7d);
+      color: #fff;
+      border-radius: 14px;
+      padding: 0.2in 0.22in;
+    }
+    .ask h2 { color: #9ad9db; }
+    .ask p { color: #fff; font-size: 14px; }
+    .footer {
+      margin-top: 0.22in;
+      font-size: 11px;
+      color: #6a7d80;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="brand">CBManagement</div>
+    <h1>Caribbean SME ERP + POS — one place to run the shop.</h1>
+    <p class="lede">
+      Affordable cloud software for Trinidad &amp; Tobago and Caribbean small businesses that
+      currently run on WhatsApp, spreadsheets, and notebooks. Live product:
+      https://cbmanagement.vercel.app
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Problem</h2>
+        <p>Operators lose money when orders, stock, jobs, invoices, and cash live in different places. Global POS tools are USD-priced and retail-biased; enterprise ERP is too heavy.</p>
+      </div>
+      <div class="card">
+        <h2>Solution</h2>
+        <p>Self-serve SaaS that covers sell → operate → know: POS, inventory, customers, jobs, invoices, payments, expenses, and plain-language reports — with TTD and VAT controls.</p>
+      </div>
+    </div>
+
+    <div class="row3">
+      <div class="card"><h2>Model</h2><div class="num">TT$99–750+</div><p>Monthly subscriptions · flagship Business TT$199 · no setup fees</p></div>
+      <div class="card"><h2>Beachhead</h2><div class="num">T&amp;T</div><p>Trades + mixed retail/service SMEs, then wider Caribbean</p></div>
+      <div class="card"><h2>Status</h2><div class="num">Live</div><p>Production V1 on Vercel · Supabase Auth · Postgres data</p></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Why we win</h2>
+        <ul>
+          <li>Retail + service in one app (not POS-only)</li>
+          <li>TTD pricing and local VAT toggle</li>
+          <li>Signup that shapes the product for how you earn</li>
+          <li>Founder-led build already shipping in production</li>
+        </ul>
+      </div>
+      <div class="ask">
+        <h2>The ask</h2>
+        <p><strong>TT$25,000–40,000</strong> seed for customer acquisition, local support, and product hardening while converting trials to paid Business plans.</p>
+        <p style="margin-top:0.12in">Contact via GitHub @kureen-cyber · Hult Cohort 2026</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>CBManagement · Confidential one-pager</span>
+      <span>Source: business plan + live product</span>
+    </div>
+  </div>
+</body>
+</html>

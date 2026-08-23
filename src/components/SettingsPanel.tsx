@@ -1,0 +1,1071 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useEffect, useState, useTransition } from "react";
+import {
+  DEFAULT_RECEIPT_FOOTER,
+  HOME_LAYOUTS,
+  LANGUAGES,
+  type HomeLayout,
+  type LanguageCode,
+  type Theme,
+} from "@/lib/settings";
+import {
+  updateGeneralSettings,
+  updatePosRegisters,
+  updatePrinterSettings,
+  updateReceiptSettings,
+  updateTaxSettings,
+  updateFeatureSettings,
+  addPaymentType,
+  togglePaymentType,
+  deletePaymentType,
+  addInventoryCategory,
+  deleteInventoryCategory,
+  addDiscountPreset,
+  updateDiscountPreset,
+  deleteDiscountPreset,
+} from "@/app/actions/settings";
+import {
+  FREE_RETAIL_MAX_POS_REGISTERS,
+  FREE_TIER_MAX_TRANSACTION_DAYS,
+  PLAN_TIER_LABELS,
+  type PlanTier,
+} from "@/lib/tier";
+import { Panel } from "@/components/ui";
+
+type Tab =
+  | "general"
+  | "taxes"
+  | "printers"
+  | "receipts"
+  | "features"
+  | "payments"
+  | "categories"
+  | "discounts"
+  | "pos";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "taxes", label: "Taxes" },
+  { id: "printers", label: "Printers" },
+  { id: "receipts", label: "Receipts" },
+  { id: "features", label: "Features" },
+  { id: "payments", label: "Payment types" },
+  { id: "categories", label: "Categories" },
+  { id: "discounts", label: "Discounts" },
+  { id: "pos", label: "POS registers" },
+];
+
+export function SettingsPanel({
+  businessName,
+  theme,
+  language,
+  homeLayout,
+  taxEnabled,
+  vatRate,
+  receiptPrinting,
+  printerName,
+  receiptLogoData,
+  businessLogoData,
+  letterheadData,
+  receiptHeader,
+  receiptFooter,
+  receiptShowCustomer,
+  receiptShowComments,
+  receiptHoneyPersons = false,
+  receiptShowApiaryNumber = false,
+  receiptApiaryNumber = null,
+  receiptShowOprNumber = false,
+  receiptOprNumber = null,
+  receiptLanguage,
+  featureOpenTickets,
+  featureLowStockEmail,
+  featureOutOfStockWarn,
+  paymentTypes,
+  inventoryCategories,
+  discountPresets = [],
+  planTier,
+  posRegisters,
+  canEditDiscounts = true,
+}: {
+  businessName: string;
+  theme: Theme;
+  language: LanguageCode;
+  homeLayout: HomeLayout;
+  taxEnabled: boolean;
+  vatRate: number;
+  receiptPrinting: boolean;
+  printerName: string | null;
+  receiptLogoData: string | null;
+  businessLogoData: string | null;
+  letterheadData: string | null;
+  receiptHeader: string | null;
+  receiptFooter: string | null;
+  receiptShowCustomer: boolean;
+  receiptShowComments: boolean;
+  receiptHoneyPersons?: boolean;
+  receiptShowApiaryNumber?: boolean;
+  receiptApiaryNumber?: string | null;
+  receiptShowOprNumber?: boolean;
+  receiptOprNumber?: string | null;
+  receiptLanguage: LanguageCode;
+  featureOpenTickets: boolean;
+  featureLowStockEmail: boolean;
+  featureOutOfStockWarn: boolean;
+  paymentTypes: { id: string; code: string; label: string; active: boolean }[];
+  inventoryCategories: { id: string; name: string }[];
+  discountPresets?: { id: string; name: string; percent: number; active: boolean }[];
+  planTier: PlanTier;
+  posRegisters: { id: string; name: string }[];
+  canEditDiscounts?: boolean;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "general";
+  const [tab, setTab] = useState<Tab>(
+    TABS.some((t) => t.id === initialTab) ? initialTab : "general",
+  );
+  const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(receiptLogoData);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [businessLogoPreview, setBusinessLogoPreview] = useState<string | null>(businessLogoData);
+  const [removeBusinessLogo, setRemoveBusinessLogo] = useState(false);
+  const [letterheadPreview, setLetterheadPreview] = useState<string | null>(letterheadData);
+  const [removeLetterhead, setRemoveLetterhead] = useState(false);
+
+  useEffect(() => {
+    if (!removeLogo) setLogoPreview(receiptLogoData);
+  }, [receiptLogoData, removeLogo]);
+
+  useEffect(() => {
+    if (!removeBusinessLogo) setBusinessLogoPreview(businessLogoData);
+  }, [businessLogoData, removeBusinessLogo]);
+
+  useEffect(() => {
+    if (!removeLetterhead) setLetterheadPreview(letterheadData);
+  }, [letterheadData, removeLetterhead]);
+
+  function selectTab(next: Tab) {
+    setTab(next);
+    setSaved(null);
+    setError(null);
+    router.replace(`/settings?tab=${next}`, { scroll: false });
+  }
+
+  function onGeneral(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    if (removeBusinessLogo) fd.set("removeBusinessLogo", "on");
+    if (removeLetterhead) fd.set("removeLetterhead", "on");
+    startTransition(async () => {
+      setError(null);
+      const result = await updateGeneralSettings(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved("General settings saved");
+      setRemoveBusinessLogo(false);
+      setRemoveLetterhead(false);
+      router.refresh();
+    });
+  }
+
+  function onTaxes(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      await updateTaxSettings(fd);
+      setSaved("Tax settings saved");
+      router.refresh();
+    });
+  }
+
+  function onPrinters(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      await updatePrinterSettings(fd);
+      setSaved("Printer settings saved");
+      router.refresh();
+    });
+  }
+
+  function onReceipts(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    if (removeLogo) fd.set("removeLogo", "on");
+    startTransition(async () => {
+      const result = await updateReceiptSettings(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setRemoveLogo(false);
+      setSaved("Receipt settings saved");
+      router.refresh();
+    });
+  }
+
+  function onFeatures(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      await updateFeatureSettings(fd);
+      setSaved("Feature settings saved");
+      router.refresh();
+    });
+  }
+
+  function onAddPayment(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addPaymentType(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      (e.target as HTMLFormElement).reset();
+      setSaved("Payment type added");
+      router.refresh();
+    });
+  }
+
+  function onAddCategory(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addInventoryCategory(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      (e.target as HTMLFormElement).reset();
+      setSaved("Category added");
+      router.refresh();
+    });
+  }
+
+  function onPosRegisters(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await updatePosRegisters(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved("POS registers saved");
+      router.refresh();
+    });
+  }
+
+  function onAddDiscount(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await addDiscountPreset(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSaved("Discount added");
+      (e.target as HTMLFormElement).reset();
+      router.refresh();
+    });
+  }
+
+  const reg1 = posRegisters[0]?.name ?? "";
+  const reg2 = posRegisters[1]?.name ?? "";
+  const headerDefault = receiptHeader?.trim() || businessName;
+  const footerDefault = receiptFooter?.trim() || DEFAULT_RECEIPT_FOOTER;
+
+  return (
+    <div className="stack">
+      <div className="settings-tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={tab === t.id ? "settings-tab active" : "settings-tab"}
+            onClick={() => selectTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {saved ? <div className="badge badge-ok">{saved}</div> : null}
+      {error ? <div className="badge badge-danger">{error}</div> : null}
+
+      {tab === "general" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" encType="multipart/form-data" onSubmit={onGeneral}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Business</h2>
+            <label className="field">
+              Business name
+              <input
+                name="businessName"
+                type="text"
+                defaultValue={businessName}
+                required
+                placeholder="Your business name"
+              />
+            </label>
+            <div className="info-banner">
+              Plan: <strong>{PLAN_TIER_LABELS[planTier]}</strong>
+              {planTier === "FREE_RETAIL"
+                ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
+                : null}
+            </div>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Branding</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Logo and letterhead appear on invoices, quotations, and reports automatically.
+            </p>
+
+            <div className="panel" style={{ padding: "1rem" }}>
+              <strong>Business logo</strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
+                Shown on invoices, quotations, reports, and POS receipts.
+              </p>
+              <label className="field">
+                Upload logo
+                <input
+                  name="businessLogo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveBusinessLogo(false);
+                    setBusinessLogoPreview(URL.createObjectURL(file));
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 300KB
+                </span>
+              </label>
+              {businessLogoPreview && !removeBusinessLogo ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={businessLogoPreview} alt="Business logo preview" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveBusinessLogo(true);
+                      setBusinessLogoPreview(null);
+                    }}
+                  >
+                    Remove logo
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="panel" style={{ padding: "1rem" }}>
+              <strong>Letterhead</strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
+                Wide header image for branded documents and report printouts.
+              </p>
+              <label className="field">
+                Upload letterhead
+                <input
+                  name="letterhead"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveLetterhead(false);
+                    setLetterheadPreview(URL.createObjectURL(file));
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 800KB
+                </span>
+              </label>
+              {letterheadPreview && !removeLetterhead ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={letterheadPreview} alt="Letterhead preview" className="document-letterhead" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveLetterhead(true);
+                      setLetterheadPreview(null);
+                    }}
+                  >
+                    Remove letterhead
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
+            <fieldset className="settings-fieldset">
+              <legend>Theme</legend>
+              <div className="row">
+                <label className="choice-pill">
+                  <input type="radio" name="theme" value="light" defaultChecked={theme === "light"} />
+                  Light
+                </label>
+                <label className="choice-pill">
+                  <input type="radio" name="theme" value="dark" defaultChecked={theme === "dark"} />
+                  Dark
+                </label>
+              </div>
+            </fieldset>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Home screen</h2>
+            <fieldset className="settings-fieldset">
+              <legend>Item layout</legend>
+              <div className="stack" style={{ gap: "0.65rem" }}>
+                {HOME_LAYOUTS.map((layout) => (
+                  <label key={layout.value} className="choice-card">
+                    <input
+                      type="radio"
+                      name="homeLayout"
+                      value={layout.value}
+                      defaultChecked={homeLayout === layout.value}
+                    />
+                    <span>
+                      <strong>{layout.label}</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                        {layout.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Language</h2>
+            <label className="field">
+              Display language
+              <select name="language" defaultValue={language}>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save general"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "taxes" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onTaxes}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>VAT</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Turn tax on or off for sales. When enabled, VAT is applied at the rate below
+              (Trinidad & Tobago standard is 12.5%).
+            </p>
+            <label className="choice-card">
+              <input type="checkbox" name="taxEnabled" defaultChecked={taxEnabled} />
+              <span>
+                <strong>Enable tax / VAT</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  When off, receipts and POS totals exclude VAT
+                </span>
+              </span>
+            </label>
+            <label className="field" style={{ maxWidth: 220 }}>
+              VAT rate (%)
+              <input
+                name="vatPercent"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                defaultValue={(vatRate * 100).toFixed(1)}
+                required
+              />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save taxes"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "printers" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onPrinters}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Receipt printing</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Enable printing receipts from the POS receipt screen. Uses your device’s print dialog
+              (browser or connected printer).
+            </p>
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="receiptPrinting"
+                defaultChecked={receiptPrinting}
+              />
+              <span>
+                <strong>Allow printing receipts</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Show the Print receipt button on sale receipts
+                </span>
+              </span>
+            </label>
+            <label className="field">
+              Preferred printer name (optional)
+              <input
+                name="printerName"
+                type="text"
+                defaultValue={printerName ?? ""}
+                placeholder="e.g. Front counter receipt printer"
+              />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save printers"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "receipts" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onReceipts} encType="multipart/form-data">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Receipts</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Control how your POS receipts look — logo, header, footer, and what details to include.
+            </p>
+
+            <label className="field">
+              Business logo
+              <input
+                name="receiptLogo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setRemoveLogo(false);
+                  const url = URL.createObjectURL(file);
+                  setLogoPreview(url);
+                }}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                PNG, JPEG, WebP, or GIF · max 300KB
+              </span>
+            </label>
+
+            {logoPreview && !removeLogo ? (
+              <div className="receipt-logo-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoPreview} alt="Receipt logo preview" />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setRemoveLogo(true);
+                    setLogoPreview(null);
+                  }}
+                >
+                  Remove logo
+                </button>
+              </div>
+            ) : null}
+
+            <label className="field">
+              Header
+              <input
+                name="receiptHeader"
+                type="text"
+                defaultValue={headerDefault}
+                placeholder={businessName || "Your business name"}
+                maxLength={120}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                Defaults to your business name
+              </span>
+            </label>
+
+            <label className="field">
+              Footer
+              <input
+                name="receiptFooter"
+                type="text"
+                defaultValue={footerDefault}
+                placeholder={DEFAULT_RECEIPT_FOOTER}
+                maxLength={200}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                Defaults to “{DEFAULT_RECEIPT_FOOTER}”
+              </span>
+            </label>
+
+            <fieldset className="settings-fieldset">
+              <legend>Show on receipt</legend>
+              <div className="stack" style={{ gap: "0.65rem" }}>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowCustomer"
+                    defaultChecked={receiptShowCustomer}
+                  />
+                  <span>
+                    <strong>Show customer info</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Include the customer name (or Walk-in) on the receipt
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowComments"
+                    defaultChecked={receiptShowComments}
+                  />
+                  <span>
+                    <strong>Show comments</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Include sale notes / comments when present
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptHoneyPersons"
+                    defaultChecked={receiptHoneyPersons}
+                  />
+                  <span>
+                    <strong>Persons involved (honey sales)</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Enable a field on POS to record persons involved in the sale of honey
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowApiaryNumber"
+                    defaultChecked={receiptShowApiaryNumber}
+                  />
+                  <span>
+                    <strong>Apiary Number</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Print the Apiary Number on receipts
+                    </span>
+                  </span>
+                </label>
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="receiptShowOprNumber"
+                    defaultChecked={receiptShowOprNumber}
+                  />
+                  <span>
+                    <strong>OPR #</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Print the OPR number on receipts
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div className="form-grid">
+              <label className="field">
+                Apiary Number
+                <input
+                  name="receiptApiaryNumber"
+                  type="text"
+                  defaultValue={receiptApiaryNumber || ""}
+                  placeholder="e.g. APY-001"
+                  maxLength={80}
+                />
+              </label>
+              <label className="field">
+                OPR #
+                <input
+                  name="receiptOprNumber"
+                  type="text"
+                  defaultValue={receiptOprNumber || ""}
+                  placeholder="e.g. OPR-12345"
+                  maxLength={80}
+                />
+              </label>
+            </div>
+
+            <label className="field">
+              Receipt language
+              <select name="receiptLanguage" defaultValue={receiptLanguage}>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save receipts"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "features" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onFeatures}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Features</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Turn optional POS and inventory behaviours on or off for your business.
+            </p>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureOpenTickets"
+                defaultChecked={featureOpenTickets}
+              />
+              <span>
+                <strong>Open Ticket</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Save and edit orders before completing payment. Shows a Saved Tickets tab on POS.
+                </span>
+              </span>
+            </label>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureLowStockEmail"
+                defaultChecked={featureLowStockEmail}
+              />
+              <span>
+                <strong>Low stock notification</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Weekly email of items at or below minimum stock, plus alerts when stock drops after
+                  a sale. Sent to your account email (requires RESEND_API_KEY on the server).
+                </span>
+              </span>
+            </label>
+
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="featureOutOfStockWarn"
+                defaultChecked={featureOutOfStockWarn}
+              />
+              <span>
+                <strong>Out of stock</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Warn cashiers when they try to sell unavailable stock, and email your account.
+                </span>
+              </span>
+            </label>
+
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save features"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+
+      {tab === "payments" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Payment types</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Add the payment methods available at checkout (cash, debit card, credit card, cheque,
+              and more).
+            </p>
+
+            <ul className="settings-list">
+              {paymentTypes.map((pt) => (
+                <li key={pt.id} className="settings-list-row">
+                  <div>
+                    <strong>{pt.label}</strong>
+                    <div className="muted" style={{ fontSize: "0.78rem" }}>
+                      {pt.code} · {pt.active ? "Active" : "Disabled"}
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: "0.4rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("id", pt.id);
+                        if (!pt.active) fd.set("active", "on");
+                        startTransition(async () => {
+                          await togglePaymentType(fd);
+                          setSaved(pt.active ? "Payment type disabled" : "Payment type enabled");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      {pt.active ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("id", pt.id);
+                        startTransition(async () => {
+                          await deletePaymentType(fd);
+                          setSaved("Payment type removed");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {paymentTypes.length === 0 ? (
+                <li className="muted">No payment types yet — add one below.</li>
+              ) : null}
+            </ul>
+
+            <form className="stack" onSubmit={onAddPayment}>
+              <label className="field">
+                New payment method
+                <input
+                  name="label"
+                  type="text"
+                  required
+                  placeholder="e.g. Cash, Debit card, Cheque"
+                  autoComplete="off"
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Add payment type"}
+              </button>
+            </form>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "categories" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Inventory categories</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Categories you add here appear in the Items / Inventory and POS dropdown menus.
+            </p>
+
+            <ul className="settings-list">
+              {inventoryCategories.map((cat) => (
+                <li key={cat.id} className="settings-list-row">
+                  <strong>{cat.name}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={pending}
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.set("id", cat.id);
+                      startTransition(async () => {
+                        await deleteInventoryCategory(fd);
+                        setSaved("Category removed");
+                        router.refresh();
+                      });
+                    }}
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+              {inventoryCategories.length === 0 ? (
+                <li className="muted">No categories yet — add one below.</li>
+              ) : null}
+            </ul>
+
+            <form className="stack" onSubmit={onAddCategory}>
+              <label className="field">
+                New category
+                <input
+                  name="name"
+                  type="text"
+                  required
+                  placeholder="e.g. Grocery, Gift items"
+                  autoComplete="off"
+                />
+              </label>
+              <button className="btn btn-primary" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Add category"}
+              </button>
+            </form>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "discounts" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Percentage discounts</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Presets appear in the POS discount dropdown. Only POS register 1 can add or edit
+              these.
+            </p>
+            {!canEditDiscounts ? (
+              <div className="info-banner">
+                Switch to POS register 1 to edit discount presets. Register 2 can still apply
+                existing discounts at checkout.
+              </div>
+            ) : null}
+            <div className="stack" style={{ gap: "0.65rem" }}>
+              {discountPresets.map((d) => (
+                <div key={d.id} className="settings-list-row">
+                  {canEditDiscounts ? (
+                    <form
+                      className="row"
+                      style={{ gap: "0.5rem", flexWrap: "wrap", flex: 1 }}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setError(null);
+                        const fd = new FormData(e.currentTarget);
+                        startTransition(async () => {
+                          const result = await updateDiscountPreset(fd);
+                          if (result && "error" in result && result.error) {
+                            setError(result.error);
+                            return;
+                          }
+                          setSaved("Discount updated");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <input type="hidden" name="id" value={d.id} />
+                      <input name="name" defaultValue={d.name} required style={{ flex: "1 1 120px" }} />
+                      <input
+                        name="percent"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max="100"
+                        defaultValue={d.percent}
+                        required
+                        style={{ width: 88 }}
+                      />
+                      <span className="muted">%</span>
+                      <button className="btn btn-secondary btn-sm" type="submit" disabled={pending}>
+                        Save
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        disabled={pending}
+                        onClick={() => {
+                          const fd = new FormData();
+                          fd.set("id", d.id);
+                          startTransition(async () => {
+                            const result = await deleteDiscountPreset(fd);
+                            if (result && "error" in result && result.error) {
+                              setError(result.error);
+                              return;
+                            }
+                            setSaved("Discount removed");
+                            router.refresh();
+                          });
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </form>
+                  ) : (
+                    <div>
+                      <strong>{d.name}</strong>
+                      <span className="muted"> · {d.percent}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {discountPresets.length === 0 ? (
+                <div className="muted">No discount presets yet.</div>
+              ) : null}
+            </div>
+            {canEditDiscounts ? (
+              <form className="form-grid" onSubmit={onAddDiscount}>
+                <label className="field">
+                  Name
+                  <input name="name" required placeholder="Staff discount" />
+                </label>
+                <label className="field">
+                  Percent
+                  <input name="percent" type="number" step="0.01" min="0.01" max="100" required placeholder="10" />
+                </label>
+                <div className="full">
+                  <button className="btn btn-primary" type="submit" disabled={pending}>
+                    {pending ? "Saving…" : "Add discount"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "pos" ? (
+        <Panel style={{ padding: "1.25rem" }}>
+          <form className="stack" onSubmit={onPosRegisters}>
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS registers</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Free Retail includes up to {FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.
+              Choose which register is active when ringing sales.
+            </p>
+            <div className="info-banner">
+              <strong>Register 1</strong> — full access (inventory, settings, void tickets,
+              edit discounts). <strong>Register 2</strong> — POS + stock levels only; can save
+              and edit tickets and issue refunds, but cannot delete tickets.
+            </div>
+            <label className="field">
+              POS register 1 name (full access)
+              <input
+                name="register1"
+                type="text"
+                required
+                defaultValue={reg1 || "Front counter"}
+                placeholder="Front counter"
+                autoComplete="off"
+              />
+            </label>
+            <label className="field">
+              POS register 2 name (POS + stock only)
+              <input
+                name="register2"
+                type="text"
+                defaultValue={reg2}
+                placeholder="Side till"
+                autoComplete="off"
+              />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={pending}>
+              {pending ? "Saving…" : "Save POS registers"}
+            </button>
+          </form>
+        </Panel>
+      ) : null}
+    </div>
+  );
+}

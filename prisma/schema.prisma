@@ -17,8 +17,10 @@ model Company {
   taxEnabled      Boolean  @default(true)
   /// RETAIL | SERVICE | BOTH
   businessType    String   @default("BOTH")
-  /// light | dark
+  /// light | dark | red-white-black | yellow-parrot
   theme           String   @default("light")
+  /// card | list — default inventory browsing layout
+  inventoryViewMode String @default("card")
   /// en | es | fr
   language        String   @default("en")
   /// RETAIL | RETAIL_SERVICE — home screen item layout
@@ -101,6 +103,8 @@ model InventoryCategory {
   id        String   @id @default(cuid())
   companyId String
   name      String
+  /// Hex colour for category badges (e.g. #C41E3A)
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -199,6 +203,8 @@ model Product {
   trackStock  Boolean @default(true)
   isService   Boolean @default(false)
   supplierId  String?
+  /// Optional product photo as data URL (PNG/JPEG/WebP)
+  imageData   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

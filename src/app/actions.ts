@@ -6,6 +6,23 @@ import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
+import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES } from "@/lib/settings";
+
+const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+
+async function productImageFromForm(formData: FormData): Promise<string | null | undefined> {
+  if (formData.get("removeImage") === "on") return null;
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) return undefined;
+  if (!IMAGE_MIME.has(file.type)) {
+    throw new Error("Product photo must be a PNG, JPEG, WebP, or GIF image");
+  }
+  if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new Error(`Product photo must be ${Math.round(PRODUCT_IMAGE_MAX_BYTES / 1000)}KB or smaller`);
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type};base64,${buffer.toString("base64")}`;
+}
 
 function dollarsToCents(value: FormDataEntryValue | null): number {
   const n = Number(value ?? 0);
@@ -65,6 +82,7 @@ function mapProductResponse(product: {
   minStock: number;
   trackStock: boolean;
   isService: boolean;
+  imageData?: string | null;
   variables: { name: string; options: string }[];
 }) {
   return {
@@ -80,6 +98,7 @@ function mapProductResponse(product: {
     minStock: product.minStock,
     trackStock: product.trackStock,
     isService: product.isService,
+    imageData: product.imageData ?? null,
     variables: product.variables.map((v) => ({
       name: v.name,
       options: JSON.parse(v.options || "[]") as string[],
@@ -121,7 +140,26 @@ export async function createProduct(formData: FormData) {
     where: { companyId, name: { equals: category, mode: "insensitive" } },
   });
   if (!existingCat) {
-    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+    const existingColors = await prisma.inventoryCategory.findMany({
+      where: { companyId, color: { not: null } },
+      select: { color: true },
+    });
+    await prisma.inventoryCategory
+      .create({
+        data: {
+          companyId,
+          name: category,
+          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
+        },
+      })
+      .catch(() => null);
+  }
+
+  let imageData: string | null | undefined;
+  try {
+    imageData = await productImageFromForm(formData);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
@@ -140,6 +178,7 @@ export async function createProduct(formData: FormData) {
       stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
+      ...(imageData !== undefined ? { imageData } : {}),
       variables: {
         create: variables.map((v, i) => ({
           name: v.name,
@@ -206,7 +245,26 @@ export async function updateProduct(formData: FormData) {
     where: { companyId, name: { equals: category, mode: "insensitive" } },
   });
   if (!existingCat) {
-    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+    const existingColors = await prisma.inventoryCategory.findMany({
+      where: { companyId, color: { not: null } },
+      select: { color: true },
+    });
+    await prisma.inventoryCategory
+      .create({
+        data: {
+          companyId,
+          name: category,
+          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
+        },
+      })
+      .catch(() => null);
+  }
+
+  let imageData: string | null | undefined;
+  try {
+    imageData = await productImageFromForm(formData);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
@@ -228,6 +286,7 @@ export async function updateProduct(formData: FormData) {
         trackStock: isService ? false : trackStock,
         isService,
         stockQty: isService ? 0 : existing.stockQty,
+        ...(imageData !== undefined ? { imageData } : {}),
         variables: {
           create: variables.map((v, i) => ({
             name: v.name,
@@ -1019,7 +1078,7 @@ export async function completePosSale(input: {
   let posRegisterId: string | null = input.posRegisterId || null;
   if (isFreeRetailTier(planTier)) {
     if (!posRegisterId) {
-      return { error: "Select a named POS register (Settings → POS registers)" };
+      return { error: "Select a named POS register (Settings → POS)" };
     }
     const reg = await prisma.posRegister.findFirst({
       where: { id: posRegisterId, companyId },

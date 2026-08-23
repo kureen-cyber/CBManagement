@@ -6,14 +6,16 @@ import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import {
   parseHomeLayout,
+  parseInventoryViewMode,
   parseLanguage,
+  parseCategoryColor,
   parseTheme,
+  nextCategoryColor,
   RECEIPT_LOGO_MAX_BYTES,
   LETTERHEAD_MAX_BYTES,
 } from "@/lib/settings";
 import {
-  FREE_RETAIL_MAX_POS_REGISTERS,
-  isFreeRetailTier,
+  maxPosRegistersForTier,
   parsePlanTier,
 } from "@/lib/tier";
 
@@ -285,7 +287,29 @@ export async function addInventoryCategory(formData: FormData) {
     where: { companyId, name: { equals: name, mode: "insensitive" } },
   });
   if (exists) return { error: "That category already exists" };
-  await prisma.inventoryCategory.create({ data: { companyId, name } });
+  const requestedColor = parseCategoryColor(formData.get("color"));
+  const existingColors = await prisma.inventoryCategory.findMany({
+    where: { companyId, color: { not: null } },
+    select: { color: true },
+  });
+  const color =
+    requestedColor ??
+    nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean));
+  await prisma.inventoryCategory.create({ data: { companyId, name, color } });
+  revalidatePath("/settings");
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  return { ok: true as const };
+}
+
+export async function updateInventoryCategoryColor(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "");
+  const color = parseCategoryColor(formData.get("color"));
+  if (!color) return { error: "Pick a valid colour" };
+  const row = await prisma.inventoryCategory.findFirst({ where: { id, companyId } });
+  if (!row) return { error: "Category not found" };
+  await prisma.inventoryCategory.update({ where: { id }, data: { color } });
   revalidatePath("/settings");
   revalidatePath("/inventory");
   revalidatePath("/pos");
@@ -304,11 +328,11 @@ export async function deleteInventoryCategory(formData: FormData) {
   return { ok: true as const };
 }
 
-/** Save up to two named POS registers (free retail limit). */
+/** Save named POS registers (free retail: 2, standard: up to 4). */
 export async function updatePosRegisters(formData: FormData) {
   const { companyId, company } = await requireCompany();
   const tier = parsePlanTier(company.planTier);
-  const max = isFreeRetailTier(tier) ? FREE_RETAIL_MAX_POS_REGISTERS : FREE_RETAIL_MAX_POS_REGISTERS;
+  const max = maxPosRegistersForTier(tier);
 
   const names = [1, 2, 3, 4]
     .map((n) => String(formData.get(`register${n}`) || "").trim())
@@ -359,6 +383,18 @@ export async function updatePosRegisters(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/pos");
   return { ok: true as const, count: names.length };
+}
+
+export async function updateInventoryViewMode(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const inventoryViewMode = parseInventoryViewMode(formData.get("inventoryViewMode"));
+  await prisma.company.update({
+    where: { id: companyId },
+    data: { inventoryViewMode },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/inventory");
+  return { ok: true as const };
 }
 
 export async function addDiscountPreset(formData: FormData) {

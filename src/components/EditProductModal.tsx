@@ -34,6 +34,8 @@ export function EditProductModal({
       options: v.options.join(", "),
     })),
   );
+  const [imagePreview, setImagePreview] = useState<string | null>(product.imageData ?? null);
+  const [removeImage, setRemoveImage] = useState(false);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -51,6 +53,7 @@ export function EditProductModal({
       .filter((v) => v.name && v.options.length);
     fd.set("variablesJson", JSON.stringify(payload));
     if (variablePrice) fd.set("variablePrice", "on");
+    if (removeImage) fd.set("removeImage", "on");
 
     setError(null);
     startTransition(async () => {
@@ -96,7 +99,7 @@ export function EditProductModal({
         <h3 id="edit-product-title" style={{ marginTop: 0 }}>
           Edit item
         </h3>
-        <form onSubmit={onSubmit} className="form-grid">
+        <form onSubmit={onSubmit} className="form-grid" encType="multipart/form-data">
           <label className="field">
             Name
             <input name="name" required defaultValue={product.name} />
@@ -118,6 +121,43 @@ export function EditProductModal({
               listId="edit-inventory-category-suggestions"
             />
           </label>
+          <label className="field full">
+            Item photo
+            <input
+              name="image"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setRemoveImage(false);
+                  setImagePreview(URL.createObjectURL(file));
+                }
+              }}
+            />
+          </label>
+          {imagePreview && !removeImage ? (
+            <div className="full">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreview}
+                alt={product.name}
+                className="inventory-thumb"
+                style={{ width: 120, height: 120 }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ marginTop: "0.5rem" }}
+                onClick={() => {
+                  setRemoveImage(true);
+                  setImagePreview(null);
+                }}
+              >
+                Remove photo
+              </button>
+            </div>
+          ) : null}
           <label className="field">
             Unit
             <input name="unit" defaultValue={product.unit} />

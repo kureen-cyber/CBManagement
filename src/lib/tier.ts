@@ -4,6 +4,7 @@ export const PLAN_TIERS = ["FREE_RETAIL", "STANDARD"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
 export const FREE_RETAIL_MAX_POS_REGISTERS = 2;
+export const STANDARD_MAX_POS_REGISTERS = 4;
 /** Free tiers may only view transactions within this many past days. */
 export const FREE_TIER_MAX_TRANSACTION_DAYS = 31;
 /** @deprecated use FREE_TIER_MAX_TRANSACTION_DAYS */
@@ -60,6 +61,10 @@ export function parsePlanTier(value: unknown): PlanTier {
 
 export function tierFromBusinessType(businessType: string): PlanTier {
   return String(businessType).toUpperCase() === "RETAIL" ? "FREE_RETAIL" : "STANDARD";
+}
+
+export function maxPosRegistersForTier(tier: PlanTier): number {
+  return isFreeRetailTier(tier) ? FREE_RETAIL_MAX_POS_REGISTERS : STANDARD_MAX_POS_REGISTERS;
 }
 
 export function isFreeRetailTier(tier: PlanTier): boolean {

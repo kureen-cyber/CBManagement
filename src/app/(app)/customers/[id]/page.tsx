@@ -124,7 +124,7 @@ export default async function CustomerDetailPage({
           </Link>
         }
       />
-      <div className="kpi-grid">
+      <div className="kpi-grid kpi-grid-6">
         <Panel className="kpi">
           <div className="label">Outstanding</div>
           <div className="value money">{formatTTD(outstanding)}</div>

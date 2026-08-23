@@ -4,7 +4,8 @@ import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
-import { addTimeEntry, createJob } from "@/app/actions";
+import { addTimeEntry, createJob, syncCompanyJobStatuses } from "@/app/actions";
+import { needsEngagementPeriod } from "@/lib/job-status";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function JobsPage() {
   await enforceTierPath("/jobs");
   const { companyId } = await requireCompany();
+  await syncCompanyJobStatuses(companyId);
+
   const [customers, employees, jobs] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.employee.findMany({
@@ -69,20 +72,66 @@ export default async function JobsPage() {
       <Panel className="table-wrap">
         <table className="data">
           <thead>
-            <tr><th>Job</th><th>Customer</th><th>Contract</th><th>Costs</th><th>Profit</th><th>Margin</th><th>Status</th></tr>
+            <tr>
+              <th>Job</th>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Engagement</th>
+              <th>Contract</th>
+              <th>Costs</th>
+              <th>Profit</th>
+              <th>Margin</th>
+              <th>Status</th>
+            </tr>
           </thead>
           <tbody>
             {jobs.map((j) => {
               const p = profitMap[j.id];
+              const needsDates = needsEngagementPeriod(j);
               return (
                 <tr key={j.id}>
-                  <td><Link href={`/jobs/${j.id}`}><strong>{j.number}</strong></Link><div className="muted" style={{ fontSize: "0.8rem" }}>{j.title}</div></td>
+                  <td>
+                    <Link href={`/jobs/${j.id}`}>
+                      <strong>{j.number}</strong>
+                    </Link>
+                    <div className="muted" style={{ fontSize: "0.8rem" }}>
+                      {j.title}
+                    </div>
+                  </td>
+                  <td>{j.createdAt.toLocaleDateString("en-TT")}</td>
                   <td>{j.customer.name}</td>
+                  <td>
+                    {needsDates ? (
+                      <Link href={`/jobs/${j.id}/engagement`} className="muted" style={{ fontSize: "0.85rem" }}>
+                        Not set — edit
+                      </Link>
+                    ) : (
+                      <span style={{ fontSize: "0.85rem" }}>
+                        {j.startDate?.toLocaleDateString("en-TT")} →{" "}
+                        {j.endDate?.toLocaleDateString("en-TT")}
+                      </span>
+                    )}
+                  </td>
                   <td className="money">{formatTTD(j.contractValue)}</td>
                   <td className="money">{formatTTD(p?.totalCost ?? 0)}</td>
                   <td className="money">{formatTTD(p?.profit ?? 0)}</td>
                   <td>{(p?.marginPct ?? 0).toFixed(1)}%</td>
-                  <td><StatusBadge status={j.status} /></td>
+                  <td>
+                    {needsDates ? (
+                      <div className="stack" style={{ gap: "0.25rem" }}>
+                        <StatusBadge status={j.status} />
+                        <Link
+                          href={`/jobs/${j.id}/engagement`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    ) : (
+                      <StatusBadge status={j.status} />
+                    )}
+                  </td>
                 </tr>
               );
             })}

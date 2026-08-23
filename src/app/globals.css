@@ -1616,3 +1616,52 @@ input:focus, select:focus, textarea:focus {
 .sales-summary-kpis {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
+
+.engagement-weekdays,
+.engagement-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.engagement-weekdays {
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.engagement-day {
+  appearance: none;
+  border: 1px solid transparent;
+  background: var(--input-bg);
+  border-radius: 10px;
+  min-height: 2.4rem;
+  font: inherit;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.engagement-day.empty {
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+
+.engagement-day:hover:not(.empty) {
+  border-color: var(--sea);
+}
+
+.engagement-day.today {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.engagement-day.in-range {
+  background: var(--sea-soft);
+}
+
+.engagement-day.selected {
+  background: var(--sea);
+  color: #fff;
+  font-weight: 700;
+}

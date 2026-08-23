@@ -1,11 +1,13 @@
-export const THEMES = ["light", "dark", "red-white-black", "yellow-parrot"] as const;
+export const THEMES = ["red-white-black", "yellow-parrot", "light", "dark"] as const;
 export type Theme = (typeof THEMES)[number];
 
+export const DEFAULT_THEME: Theme = "red-white-black";
+
 export const THEME_LABELS: Record<Theme, string> = {
-  light: "Light",
-  dark: "Dark",
   "red-white-black": "Red, white & black",
   "yellow-parrot": "Yellow & parrot green",
+  light: "Light",
+  dark: "Dark",
 };
 
 export const INVENTORY_VIEW_MODES = ["card", "list"] as const;
@@ -62,9 +64,9 @@ export function resolveBusinessLogo(company: CompanyBranding): string | null {
 }
 
 export function parseTheme(value: unknown): Theme {
-  const v = String(value || "light").toLowerCase();
+  const v = String(value || DEFAULT_THEME).toLowerCase();
   if (THEMES.includes(v as Theme)) return v as Theme;
-  return "light";
+  return DEFAULT_THEME;
 }
 
 /** Browser color-scheme hint for non light/dark themes. */

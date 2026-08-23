@@ -30,7 +30,7 @@ async function main() {
       currency: "TTD",
       vatRate: 0.125,
       businessType: "BOTH",
-      theme: "light",
+      theme: "red-white-black",
       language: "en",
       homeLayout: "RETAIL_SERVICE",
       receiptPrinting: true,

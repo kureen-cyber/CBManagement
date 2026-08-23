@@ -23,6 +23,9 @@
   --bg-3: #eef5f5;
   --input-bg: #ffffff;
   --tile-bg: #ffffff;
+  --sidebar-from: #064e51;
+  --sidebar-mid: #083f42;
+  --sidebar-to: #0a5558;
 }
 
 [data-theme="dark"] {
@@ -45,11 +48,14 @@
   --bg-3: #0c1213;
   --input-bg: #1a2426;
   --tile-bg: #1a2426;
+  --sidebar-from: #0e5558;
+  --sidebar-mid: #0a3f42;
+  --sidebar-to: #072e30;
 }
 
 [data-theme="red-white-black"] {
   --sea: #C41E3A;
-  --sea-deep: #1A1A1A;
+  --sea-deep: #9E1830;
   --sea-soft: #FCE8EC;
   --sand: #FFFFFF;
   --ink: #1A1A1A;
@@ -67,6 +73,9 @@
   --bg-3: #F5F5F5;
   --input-bg: #FFFFFF;
   --tile-bg: #FFFFFF;
+  --sidebar-from: #C41E3A;
+  --sidebar-mid: #9E1830;
+  --sidebar-to: #6E1020;
 }
 
 [data-theme="yellow-parrot"] {
@@ -89,6 +98,9 @@
   --bg-3: #FFF3CC;
   --input-bg: #FFFFFF;
   --tile-bg: #FFFFFF;
+  --sidebar-from: #00843D;
+  --sidebar-mid: #006B32;
+  --sidebar-to: #004D24;
 }
 
 @theme inline {
@@ -171,7 +183,7 @@ html[data-nav-collapsed="1"] {
 .sidebar {
   height: 100%;
   padding: 1.1rem 0.75rem 1rem;
-  background: linear-gradient(180deg, var(--sea-deep), #083f42 60%, #0a5558);
+  background: linear-gradient(180deg, var(--sidebar-from), var(--sidebar-mid) 60%, var(--sidebar-to));
   color: #f4fbfb;
   display: flex;
   flex-direction: column;
@@ -311,7 +323,7 @@ html[data-nav-collapsed="1"] {
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 0.85rem;
-  background: linear-gradient(180deg, var(--sea-deep), #0a5558);
+  background: linear-gradient(180deg, var(--sidebar-from), var(--sidebar-to));
   color: #f4fbfb;
   border-bottom: 1px solid rgba(255,255,255,0.12);
 }

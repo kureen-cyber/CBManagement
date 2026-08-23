@@ -101,7 +101,7 @@ export default async function JobsPage() {
                   <td>
                     {needsDates ? (
                       <Link href={`/jobs/${j.id}/engagement`} className="muted" style={{ fontSize: "0.85rem" }}>
-                        Update period of engagement
+                        Not set — edit
                       </Link>
                     ) : (
                       <span style={{ fontSize: "0.85rem" }}>

@@ -44,6 +44,7 @@ export function StatusBadge({ status }: { status: string }) {
     ACCEPTED: "badge-ok",
     REJECTED: "badge-danger",
     CONVERTED: "badge-ok",
+    UPDATE_ENGAGEMENT_PERIOD: "badge-warn",
     PENDING: "badge-warn",
     ACTIVE: "badge-ok",
     ON_HOLD: "badge-warn",
@@ -56,6 +57,7 @@ export function StatusBadge({ status }: { status: string }) {
     VOID: "badge-muted",
   };
   const labels: Record<string, string> = {
+    UPDATE_ENGAGEMENT_PERIOD: "Update engagement period",
     AWAITING_FINAL_PAYMENT: "Awaiting final payment",
     PENDING: "Pending",
     ACTIVE: "Active",

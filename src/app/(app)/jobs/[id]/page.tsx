@@ -59,11 +59,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <StatusBadge status={job.status} />
         {needsDates ? (
           <div className="info-banner" style={{ margin: 0, flex: "1 1 240px" }}>
-            Update period of engagement.{" "}
+            Set the start and end dates so this job can move to Pending / Active.{" "}
             <Link href={`/jobs/${job.id}/engagement`}>
               <strong>Edit</strong>
-            </Link>{" "}
-            to set the start and end dates on the calendar.
+            </Link>
           </div>
         ) : (
           <span className="muted" style={{ fontSize: "0.9rem" }}>

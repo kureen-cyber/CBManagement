@@ -606,7 +606,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       customerId: quote.customerId,
       quotationId: quote.id,
       title: quote.title || `Job from ${quote.number}`,
-      status: "PENDING",
+      status: "UPDATE_ENGAGEMENT_PERIOD",
       contractValue: quote.total,
       materials: quote.materialsCost
         ? {
@@ -836,7 +836,7 @@ export async function createJob(formData: FormData) {
       customerId,
       title: String(formData.get("title") || "").trim(),
       contractValue: dollarsToCents(formData.get("contractValue")),
-      status: "PENDING",
+      status: "UPDATE_ENGAGEMENT_PERIOD",
       notes: String(formData.get("notes") || "") || null,
     },
   });

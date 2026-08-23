@@ -621,9 +621,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
     },
   });
 
-  const due = new Date();
-  due.setDate(due.getDate() + 14);
-
+  // Due date is set when the job engagement end date is chosen
   await prisma.invoice.create({
     data: {
       companyId,
@@ -632,7 +630,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       jobId: job.id,
       quotationId: quote.id,
       status: "SENT",
-      dueDate: due,
+      dueDate: null,
       subtotal: quote.total,
       taxAmount: 0,
       total: quote.total,
@@ -712,11 +710,22 @@ export async function updateJobEngagement(formData: FormData) {
     data: { startDate, endDate },
   });
 
+  // Keep linked invoice due dates aligned with the job engagement end date
+  await prisma.invoice.updateMany({
+    where: {
+      jobId,
+      companyId,
+      status: { notIn: ["VOID", "CANCELLED"] },
+    },
+    data: { dueDate: endDate },
+  });
+
   await syncJobStatus(jobId, companyId);
 
   revalidatePath("/jobs");
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath(`/jobs/${jobId}/engagement`);
+  revalidatePath("/invoices");
   revalidatePath("/");
   return { ok: true as const };
 }
@@ -728,15 +737,19 @@ export async function createInvoice(formData: FormData) {
 
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
   if (!customer) throw new Error("Customer not found");
+
+  let due: Date | null = formData.get("dueDate")
+    ? new Date(String(formData.get("dueDate")))
+    : null;
+
   if (jobId) {
     const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
     if (!job) throw new Error("Job not found");
+    // Job invoices use the engagement end date as the due date when set
+    if (job.endDate) due = job.endDate;
   }
 
   const total = dollarsToCents(formData.get("total"));
-  const due = formData.get("dueDate")
-    ? new Date(String(formData.get("dueDate")))
-    : null;
 
   await prisma.invoice.create({
     data: {

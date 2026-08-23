@@ -74,6 +74,7 @@ export default async function JobsPage() {
           <thead>
             <tr>
               <th>Job</th>
+              <th>Date</th>
               <th>Customer</th>
               <th>Engagement</th>
               <th>Contract</th>
@@ -97,6 +98,7 @@ export default async function JobsPage() {
                       {j.title}
                     </div>
                   </td>
+                  <td>{j.createdAt.toLocaleDateString("en-TT")}</td>
                   <td>{j.customer.name}</td>
                   <td>
                     {needsDates ? (

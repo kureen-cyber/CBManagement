@@ -153,6 +153,7 @@ export function SettingsPanel({
     Math.max(posRegisters.length || 1, 1),
   );
   const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PALETTE[0]!);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!removeLogo) setLogoPreview(receiptLogoData);
@@ -936,59 +937,132 @@ export function SettingsPanel({
           <div className="stack">
             <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Inventory categories</h2>
             <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Categories you add here appear in the Items / Inventory and POS dropdown menus.
+              Click a category to assign a colour. Colours show on inventory items and POS.
             </p>
 
             <ul className="settings-list">
-              {inventoryCategories.map((cat) => (
-                <li key={cat.id} className="settings-list-row">
-                  <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
-                    <span
-                      className="category-dot"
-                      style={{ background: cat.color || "#5C6B6E", width: "0.75rem", height: "0.75rem" }}
-                    />
-                    <strong>{cat.name}</strong>
-                  </div>
-                  <div className="row" style={{ gap: "0.4rem", alignItems: "center" }}>
-                    <input
-                      type="color"
-                      defaultValue={cat.color || "#0A6B6E"}
-                      aria-label={`Colour for ${cat.name}`}
-                      disabled={pending}
-                      onChange={(e) => {
-                        const fd = new FormData();
-                        fd.set("id", cat.id);
-                        fd.set("color", e.target.value);
-                        startTransition(async () => {
-                          const result = await updateInventoryCategoryColor(fd);
-                          if (result && "error" in result && result.error) {
-                            setError(result.error);
-                            return;
-                          }
-                          setSaved("Category colour updated");
-                          router.refresh();
-                        });
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={pending}
-                      onClick={() => {
-                        const fd = new FormData();
-                        fd.set("id", cat.id);
-                        startTransition(async () => {
-                          await deleteInventoryCategory(fd);
-                          setSaved("Category removed");
-                          router.refresh();
-                        });
+              {inventoryCategories.map((cat) => {
+                const selected = selectedCategoryId === cat.id;
+                const color = cat.color || "#5C6B6E";
+                return (
+                  <li key={cat.id} className="stack" style={{ gap: "0.55rem" }}>
+                    <div
+                      className={
+                        selected
+                          ? "settings-list-row category-row selected"
+                          : "settings-list-row category-row"
+                      }
+                      role="button"
+                      tabIndex={0}
+                      onClick={() =>
+                        setSelectedCategoryId((id) => (id === cat.id ? null : cat.id))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedCategoryId((id) => (id === cat.id ? null : cat.id));
+                        }
                       }}
                     >
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              ))}
+                      <div className="row" style={{ gap: "0.65rem", alignItems: "center" }}>
+                        <span
+                          className="category-swatch"
+                          style={{ background: color }}
+                          aria-hidden
+                        />
+                        <strong>{cat.name}</strong>
+                        <span className="muted" style={{ fontSize: "0.8rem" }}>
+                          {selected ? "Pick a colour below" : "Click to set colour"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={pending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const fd = new FormData();
+                          fd.set("id", cat.id);
+                          startTransition(async () => {
+                            await deleteInventoryCategory(fd);
+                            if (selectedCategoryId === cat.id) setSelectedCategoryId(null);
+                            setSaved("Category removed");
+                            router.refresh();
+                          });
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+
+                    {selected ? (
+                      <div
+                        className="category-color-picker"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="row" style={{ gap: "0.45rem", flexWrap: "wrap", alignItems: "center" }}>
+                          {CATEGORY_COLOR_PALETTE.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              className="category-swatch pick"
+                              style={{
+                                background: c,
+                                outline:
+                                  color.toUpperCase() === c.toUpperCase()
+                                    ? "2px solid var(--ink)"
+                                    : "none",
+                                outlineOffset: 2,
+                              }}
+                              aria-label={`Set ${cat.name} to ${c}`}
+                              disabled={pending}
+                              onClick={() => {
+                                const fd = new FormData();
+                                fd.set("id", cat.id);
+                                fd.set("color", c);
+                                startTransition(async () => {
+                                  const result = await updateInventoryCategoryColor(fd);
+                                  if (result && "error" in result && result.error) {
+                                    setError(result.error);
+                                    return;
+                                  }
+                                  setSaved(`Colour updated for ${cat.name}`);
+                                  router.refresh();
+                                });
+                              }}
+                            />
+                          ))}
+                          <label className="category-custom-color">
+                            <span className="muted" style={{ fontSize: "0.8rem" }}>
+                              Custom
+                            </span>
+                            <input
+                              type="color"
+                              value={/^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#0A6B6E"}
+                              disabled={pending}
+                              aria-label={`Custom colour for ${cat.name}`}
+                              onChange={(e) => {
+                                const fd = new FormData();
+                                fd.set("id", cat.id);
+                                fd.set("color", e.target.value);
+                                startTransition(async () => {
+                                  const result = await updateInventoryCategoryColor(fd);
+                                  if (result && "error" in result && result.error) {
+                                    setError(result.error);
+                                    return;
+                                  }
+                                  setSaved(`Colour updated for ${cat.name}`);
+                                  router.refresh();
+                                });
+                              }}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
               {inventoryCategories.length === 0 ? (
                 <li className="muted">No categories yet — add one below.</li>
               ) : null}
@@ -1018,11 +1092,14 @@ export function SettingsPanel({
                     <button
                       key={c}
                       type="button"
-                      className="theme-swatch"
+                      className="category-swatch pick"
                       style={{
                         background: c,
-                        cursor: "pointer",
-                        border: newCategoryColor === c ? "2px solid var(--ink)" : "1px solid var(--line)",
+                        outline:
+                          newCategoryColor.toUpperCase() === c.toUpperCase()
+                            ? "2px solid var(--ink)"
+                            : "none",
+                        outlineOffset: 2,
                       }}
                       aria-label={`Use ${c}`}
                       onClick={() => setNewCategoryColor(c)}

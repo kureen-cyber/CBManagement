@@ -1145,6 +1145,64 @@ input:focus, select:focus, textarea:focus {
   border-radius: 10px;
 }
 
+.category-row {
+  cursor: pointer;
+  background: var(--input-bg);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.category-row:hover {
+  border-color: var(--sea);
+}
+
+.category-row.selected {
+  border-color: var(--sea);
+  background: var(--sea-soft);
+}
+
+.category-swatch {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.category-swatch.pick {
+  appearance: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.category-swatch.pick:hover {
+  transform: scale(1.08);
+}
+
+.category-color-picker {
+  padding: 0.55rem 0.75rem 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.category-custom-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.25rem;
+}
+
+.category-custom-color input[type="color"] {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
 /* ——— Marketing landing ——— */
 .landing {
   min-height: 100vh;

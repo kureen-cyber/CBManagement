@@ -6,10 +6,45 @@ import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
+import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 
 function dollarsToCents(value: FormDataEntryValue | null): number {
   const n = Number(value ?? 0);
   return toCents(Number.isFinite(n) ? n : 0);
+}
+
+/** Recompute and persist job status from engagement dates + invoice payments. */
+export async function syncJobStatus(jobId: string, companyId: string) {
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, companyId },
+    include: { invoices: { select: { total: true, amountPaid: true, status: true } } },
+  });
+  if (!job) return null;
+  // Leave manually cancelled / on-hold alone
+  if (job.status === "CANCELLED" || job.status === "ON_HOLD") return job.status;
+
+  const next = resolveJobStatus({
+    startDate: job.startDate,
+    endDate: job.endDate,
+    paymentsComplete: jobPaymentsComplete(job.invoices),
+  });
+  if (next !== job.status) {
+    await prisma.job.update({ where: { id: job.id }, data: { status: next } });
+  }
+  return next;
+}
+
+export async function syncCompanyJobStatuses(companyId: string) {
+  const jobs = await prisma.job.findMany({
+    where: {
+      companyId,
+      status: { notIn: ["CANCELLED", "ON_HOLD"] },
+    },
+    select: { id: true },
+  });
+  for (const j of jobs) {
+    await syncJobStatus(j.id, companyId);
+  }
 }
 
 async function requireInventoryManageAccess(companyId: string) {
@@ -571,7 +606,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       customerId: quote.customerId,
       quotationId: quote.id,
       title: quote.title || `Job from ${quote.number}`,
-      status: "ACTIVE",
+      status: "PENDING",
       contractValue: quote.total,
       materials: quote.materialsCost
         ? {
@@ -643,11 +678,47 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 
   revalidatePath("/quotations");
   revalidatePath("/jobs");
+  revalidatePath(`/jobs/${job.id}`);
   revalidatePath("/invoices");
   revalidatePath("/inventory");
   revalidatePath("/");
 
-  return { jobId: job.id };
+  redirect(`/jobs/${job.id}`);
+}
+
+export async function updateJobEngagement(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "").trim();
+  if (!jobId) return { error: "Missing job" };
+
+  const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+  if (!job) return { error: "Job not found" };
+
+  const startRaw = String(formData.get("startDate") || "").trim();
+  const endRaw = String(formData.get("endDate") || "").trim();
+  if (!startRaw || !endRaw) return { error: "Select both a start and end date" };
+
+  const startDate = new Date(`${startRaw}T00:00:00`);
+  const endDate = new Date(`${endRaw}T00:00:00`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return { error: "Invalid dates" };
+  }
+  if (endDate < startDate) {
+    return { error: "End date must be on or after the start date" };
+  }
+
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { startDate, endDate },
+  });
+
+  await syncJobStatus(jobId, companyId);
+
+  revalidatePath("/jobs");
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/jobs/${jobId}/engagement`);
+  revalidatePath("/");
+  return { ok: true as const };
 }
 
 export async function createInvoice(formData: FormData) {
@@ -689,6 +760,12 @@ export async function createInvoice(formData: FormData) {
       },
     },
   });
+
+  if (jobId) {
+    await syncJobStatus(jobId, companyId);
+    revalidatePath(`/jobs/${jobId}`);
+    revalidatePath("/jobs");
+  }
 
   revalidatePath("/invoices");
   revalidatePath("/");
@@ -733,6 +810,12 @@ export async function recordPayment(formData: FormData) {
       where: { id: invoice.id },
       data: { amountPaid, status },
     });
+
+    if (invoice.jobId) {
+      await syncJobStatus(invoice.jobId, companyId);
+      revalidatePath(`/jobs/${invoice.jobId}`);
+      revalidatePath("/jobs");
+    }
   }
 
   revalidatePath("/payments");
@@ -753,7 +836,7 @@ export async function createJob(formData: FormData) {
       customerId,
       title: String(formData.get("title") || "").trim(),
       contractValue: dollarsToCents(formData.get("contractValue")),
-      status: "ACTIVE",
+      status: "PENDING",
       notes: String(formData.get("notes") || "") || null,
     },
   });

@@ -71,6 +71,11 @@ export default async function QuotationsPage() {
                         View
                       </Link>
                       {q.status !== "CONVERTED" ? (
+                        <Link className="btn btn-secondary btn-sm" href={`/quotations/${q.id}/edit`}>
+                          Edit
+                        </Link>
+                      ) : null}
+                      {q.status !== "CONVERTED" ? (
                         <form
                           action={async () => {
                             "use server";

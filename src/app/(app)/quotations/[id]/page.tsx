@@ -38,6 +38,11 @@ export default async function QuotationViewPage({
         description={quote.number}
         actions={
           <>
+            {quote.status !== "CONVERTED" ? (
+              <Link className="btn btn-primary" href={`/quotations/${quote.id}/edit`}>
+                Edit
+              </Link>
+            ) : null}
             <PrintButton enabled={canPrint} />
             <EmailDocumentButton
               kind="quotation"
@@ -106,17 +111,13 @@ export default async function QuotationViewPage({
                 <td className="money">{formatTTD(l.amount)}</td>
               </tr>
             ))}
-            {quote.lines.map((l) => (
-              <tr key={l.id}>
-                <td>
-                  {l.description}
-                  <div className="muted" style={{ fontSize: "0.75rem" }}>
-                    {l.quantity} × {formatTTD(l.unitPrice)}
-                  </div>
+            {clientLines.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="muted">
+                  No line items
                 </td>
-                <td className="money">{formatTTD(l.lineTotal)}</td>
               </tr>
-            ))}
+            ) : null}
           </tbody>
         </table>
 

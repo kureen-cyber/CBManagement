@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
@@ -382,20 +383,7 @@ export async function createExpense(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function createQuotation(formData: FormData) {
-  const { companyId } = await requireCompany();
-  const customerId = String(formData.get("customerId"));
-  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
-  if (!customer) throw new Error("Customer not found");
-
-  const labour = dollarsToCents(formData.get("labourCost"));
-  const materials = dollarsToCents(formData.get("materialsCost"));
-  const equipment = dollarsToCents(formData.get("equipmentCost"));
-  const transport = dollarsToCents(formData.get("transportCost"));
-  const fixedPrice = formData.get("fixedPrice") === "on";
-  let markupPct = Number(formData.get("markupPct") || 25);
-  if (!Number.isFinite(markupPct) || markupPct < 0) markupPct = 0;
-
+function parseQuotationExtraCosts(formData: FormData) {
   let extraCosts: { label: string; cost: number }[] = [];
   const rawExtras = String(formData.get("extraCostsJson") || "").trim();
   if (rawExtras) {
@@ -413,6 +401,23 @@ export async function createQuotation(formData: FormData) {
       /* ignore bad JSON */
     }
   }
+  return extraCosts;
+}
+
+async function buildQuotationPayload(formData: FormData, companyId: string) {
+  const customerId = String(formData.get("customerId"));
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
+  if (!customer) throw new Error("Customer not found");
+
+  const labour = dollarsToCents(formData.get("labourCost"));
+  const materials = dollarsToCents(formData.get("materialsCost"));
+  const equipment = dollarsToCents(formData.get("equipmentCost"));
+  const transport = dollarsToCents(formData.get("transportCost"));
+  const fixedPrice = formData.get("fixedPrice") === "on";
+  let markupPct = Number(formData.get("markupPct") || 25);
+  if (!Number.isFinite(markupPct) || markupPct < 0) markupPct = 0;
+
+  const extraCosts = parseQuotationExtraCosts(formData);
   const otherCost = extraCosts.reduce((s, e) => s + e.cost, 0);
 
   const { quotationSellTotal } = await import("@/lib/quotation-pricing");
@@ -434,25 +439,46 @@ export async function createQuotation(formData: FormData) {
     );
   }
 
+  return {
+    customerId,
+    title: String(formData.get("title") || "") || null,
+    notes: String(formData.get("notes") || "") || null,
+    labourCost: labour,
+    materialsCost: materials,
+    equipmentCost: equipment,
+    transportCost: transport,
+    otherCost,
+    markupPct,
+    fixedPrice,
+    subtotal: total,
+    total,
+    extraCosts,
+  };
+}
+
+export async function createQuotation(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const payload = await buildQuotationPayload(formData, companyId);
+
   await prisma.quotation.create({
     data: {
       companyId,
       number: await nextNumber("Q", "quotation", companyId),
-      customerId,
-      title: String(formData.get("title") || "") || null,
-      notes: String(formData.get("notes") || "") || null,
-      labourCost: labour,
-      materialsCost: materials,
-      equipmentCost: equipment,
-      transportCost: transport,
-      otherCost,
-      markupPct,
-      fixedPrice,
-      subtotal: total,
-      total,
+      customerId: payload.customerId,
+      title: payload.title,
+      notes: payload.notes,
+      labourCost: payload.labourCost,
+      materialsCost: payload.materialsCost,
+      equipmentCost: payload.equipmentCost,
+      transportCost: payload.transportCost,
+      otherCost: payload.otherCost,
+      markupPct: payload.markupPct,
+      fixedPrice: payload.fixedPrice,
+      subtotal: payload.subtotal,
+      total: payload.total,
       status: "DRAFT",
       lines: {
-        create: extraCosts.map((e) => ({
+        create: payload.extraCosts.map((e) => ({
           description: e.label,
           category: "CUSTOM",
           quantity: 1,
@@ -465,6 +491,63 @@ export async function createQuotation(formData: FormData) {
   });
 
   revalidatePath("/quotations");
+}
+
+export async function updateQuotation(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("quotationId") || "").trim();
+  if (!id) throw new Error("Missing quotation");
+
+  const existing = await prisma.quotation.findFirst({
+    where: { id, companyId },
+    include: { lines: true },
+  });
+  if (!existing) throw new Error("Quotation not found");
+  if (existing.status === "CONVERTED") {
+    throw new Error("Converted quotations cannot be edited");
+  }
+
+  const payload = await buildQuotationPayload(formData, companyId);
+
+  await prisma.$transaction([
+    prisma.quotationLine.deleteMany({
+      where: {
+        quotationId: id,
+        category: { in: ["CUSTOM", "OTHER"] },
+      },
+    }),
+    prisma.quotation.update({
+      where: { id },
+      data: {
+        customerId: payload.customerId,
+        title: payload.title,
+        notes: payload.notes,
+        labourCost: payload.labourCost,
+        materialsCost: payload.materialsCost,
+        equipmentCost: payload.equipmentCost,
+        transportCost: payload.transportCost,
+        otherCost: payload.otherCost,
+        markupPct: payload.markupPct,
+        fixedPrice: payload.fixedPrice,
+        subtotal: payload.subtotal,
+        total: payload.total,
+        lines: {
+          create: payload.extraCosts.map((e) => ({
+            description: e.label,
+            category: "CUSTOM",
+            quantity: 1,
+            unitCost: e.cost,
+            unitPrice: e.cost,
+            lineTotal: e.cost,
+          })),
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath("/quotations");
+  revalidatePath(`/quotations/${id}`);
+  redirect(`/quotations/${id}`);
 }
 
 export async function acceptAndConvertQuotation(quotationId: string) {

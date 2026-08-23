@@ -1,25 +1,52 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createQuotation } from "@/app/actions";
-import { formatTTD, toCents } from "@/lib/money";
+import { createQuotation, updateQuotation } from "@/app/actions";
+import { formatTTD, fromCents, toCents } from "@/lib/money";
 import { quotationClientLines } from "@/lib/quotation-pricing";
 
 type ExtraDraft = { name: string; amount: string };
 
+export type QuotationFormInitial = {
+  id: string;
+  customerId: string;
+  title: string | null;
+  labourCost: number;
+  materialsCost: number;
+  equipmentCost: number;
+  transportCost: number;
+  markupPct: number;
+  fixedPrice: boolean;
+  total: number;
+  extras: { name: string; amount: number }[];
+};
+
+function centsToInput(cents: number) {
+  return String(fromCents(cents));
+}
+
 export function QuotationForm({
   customers,
+  initial,
 }: {
   customers: { id: string; name: string }[];
+  initial?: QuotationFormInitial;
 }) {
-  const [fixedPrice, setFixedPrice] = useState(false);
-  const [labour, setLabour] = useState("2500");
-  const [materials, setMaterials] = useState("1800");
-  const [equipment, setEquipment] = useState("500");
-  const [transport, setTransport] = useState("300");
-  const [markupPct, setMarkupPct] = useState("25");
-  const [fixedAmount, setFixedAmount] = useState("5100");
-  const [extras, setExtras] = useState<ExtraDraft[]>([{ name: "", amount: "" }]);
+  const isEdit = Boolean(initial?.id);
+  const [fixedPrice, setFixedPrice] = useState(initial?.fixedPrice ?? false);
+  const [labour, setLabour] = useState(initial ? centsToInput(initial.labourCost) : "2500");
+  const [materials, setMaterials] = useState(initial ? centsToInput(initial.materialsCost) : "1800");
+  const [equipment, setEquipment] = useState(initial ? centsToInput(initial.equipmentCost) : "500");
+  const [transport, setTransport] = useState(initial ? centsToInput(initial.transportCost) : "300");
+  const [markupPct, setMarkupPct] = useState(String(initial?.markupPct ?? 25));
+  const [fixedAmount, setFixedAmount] = useState(
+    initial?.fixedPrice ? centsToInput(initial.total) : "5100",
+  );
+  const [extras, setExtras] = useState<ExtraDraft[]>(
+    initial?.extras.length
+      ? initial.extras.map((e) => ({ name: e.name, amount: centsToInput(e.amount) }))
+      : [{ name: "", amount: "" }],
+  );
 
   const preview = useMemo(() => {
     const labourC = toCents(Number(labour) || 0);
@@ -61,7 +88,8 @@ export function QuotationForm({
   }, [labour, materials, equipment, transport, markupPct, fixedPrice, fixedAmount, extras]);
 
   return (
-    <form action={createQuotation} className="form-grid">
+    <form action={isEdit ? updateQuotation : createQuotation} className="form-grid">
+      {isEdit ? <input type="hidden" name="quotationId" value={initial!.id} /> : null}
       <input
         type="hidden"
         name="extraCostsJson"
@@ -73,7 +101,7 @@ export function QuotationForm({
       />
       <label className="field">
         Customer
-        <select name="customerId" required defaultValue="">
+        <select name="customerId" required defaultValue={initial?.customerId ?? ""}>
           <option value="" disabled>
             Select
           </option>
@@ -86,7 +114,7 @@ export function QuotationForm({
       </label>
       <label className="field">
         Title
-        <input name="title" placeholder="Electrical installation" />
+        <input name="title" placeholder="Electrical installation" defaultValue={initial?.title ?? ""} />
       </label>
       <label className="field">
         Labour cost (TT$)
@@ -255,10 +283,15 @@ export function QuotationForm({
         </div>
       </div>
 
-      <div className="full">
+      <div className="full row" style={{ gap: "0.5rem" }}>
         <button className="btn btn-primary" type="submit">
-          Save quotation
+          {isEdit ? "Save changes" : "Save quotation"}
         </button>
+        {isEdit ? (
+          <a className="btn btn-secondary" href={`/quotations/${initial!.id}`}>
+            Cancel
+          </a>
+        ) : null}
       </div>
     </form>
   );

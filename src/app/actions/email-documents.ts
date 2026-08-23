@@ -74,7 +74,11 @@ export async function emailPosReceipt(input: { saleId: string; toEmail: string }
   return { ok: true as const, to };
 }
 
-export async function emailQuotation(input: { quotationId: string; toEmail: string }) {
+export async function emailQuotation(input: {
+  quotationId: string;
+  toEmail: string;
+  includeNotesInCustomerView?: boolean;
+}) {
   const { companyId, company } = await requireCompany();
   const to = normalizeTo(input.toEmail);
   if (!isValidEmail(to)) return { error: "Enter a valid email address" };
@@ -95,7 +99,7 @@ export async function emailQuotation(input: { quotationId: string; toEmail: stri
     title: quote.title,
     lines: quotationClientLines(quote),
     total: quote.total,
-    notes: quote.notes,
+    notes: input.includeNotesInCustomerView ? quote.notes : null,
   });
 
   const result = await sendEmail({ to, ...payload });

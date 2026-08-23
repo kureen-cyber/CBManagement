@@ -48,6 +48,7 @@ export default async function QuotationViewPage({
               kind="quotation"
               documentId={quote.id}
               defaultEmail={quote.customer.email}
+              hasNotes={Boolean(quote.notes?.trim())}
             />
             <Link className="btn btn-secondary" href="/quotations">
               Back
@@ -128,16 +129,19 @@ export default async function QuotationViewPage({
           </strong>
         </div>
 
-        {quote.notes?.trim() ? (
-          <p className="muted" style={{ marginTop: "1rem", whiteSpace: "pre-wrap" }}>
-            {quote.notes.trim()}
-          </p>
-        ) : null}
-
         <p className="muted" style={{ textAlign: "center", marginTop: "1.25rem", fontSize: "0.8rem" }}>
           {footer}
         </p>
       </Panel>
+
+      {quote.notes?.trim() ? (
+        <Panel className="no-print" style={{ padding: "1rem 1.15rem" }}>
+          <strong style={{ fontSize: "0.9rem" }}>Internal notes (staff only)</strong>
+          <p className="muted" style={{ margin: "0.35rem 0 0", whiteSpace: "pre-wrap", fontSize: "0.92rem" }}>
+            {quote.notes.trim()}
+          </p>
+        </Panel>
+      ) : null}
     </div>
   );
 }

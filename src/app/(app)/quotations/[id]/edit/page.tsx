@@ -63,6 +63,7 @@ export default async function QuotationEditPage({
             fixedPrice: quote.fixedPrice,
             total: quote.total,
             extras,
+            notes: quote.notes,
           }}
         />
       </Panel>

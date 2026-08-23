@@ -201,6 +201,7 @@ export function buildQuotationEmail(opts: {
     opts.title ? `Title: ${opts.title}` : "",
     ...rows.map((r) => `${r.label}: ${formatTTD(r.amount)}`),
     `Total: ${formatTTD(opts.total)}`,
+    opts.notes?.trim() ? `Notes: ${opts.notes.trim()}` : "",
     opts.footer,
   ]
     .filter(Boolean)

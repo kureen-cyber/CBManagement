@@ -908,7 +908,8 @@ input:focus, select:focus, textarea:focus {
   .mobile-topbar,
   .nav-backdrop,
   .page-header .row,
-  .btn {
+  .btn,
+  .no-print {
     display: none !important;
   }
   .app-shell {

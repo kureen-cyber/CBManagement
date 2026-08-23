@@ -374,7 +374,7 @@ export function SettingsPanel({
       if (result && "storeId" in result && result.storeId) {
         setSelectedStoreId(result.storeId);
       }
-      setSaved("Store added (registers & view copied; categories use shared defaults)");
+      setSaved("Store added — started from your pilot store (changes stay local)");
       router.refresh();
     });
   }
@@ -1157,12 +1157,12 @@ export function SettingsPanel({
               ) : null}
             </div>
             <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-              Each store has its own registers and inventory view. Category lists start from
-              the same defaults on every store — edit them per store without affecting others.
+              Your first store is the pilot. New stores start with its inventory view, registers,
+              and category list so you don’t re-enter setup — then each store’s changes stay
+              local.
               {planTier === "FREE_RETAIL"
                 ? ` Free Retail includes ${FREE_RETAIL_MAX_STORES} store.`
-                : ` Standard allows up to ${STANDARD_MAX_STORES} stores.`}{" "}
-              New stores copy registers and inventory view from your first store.
+                : ` Standard allows up to ${STANDARD_MAX_STORES} stores.`}
             </p>
 
             {showAddStore ? (
@@ -1178,9 +1178,9 @@ export function SettingsPanel({
                   />
                 </label>
                 <p className="muted" style={{ margin: 0, fontSize: "0.82rem" }}>
-                  Registers and inventory view will be copied from{" "}
-                  <strong>{stores[0]?.name || "your first store"}</strong>. Categories start
-                  from the shared default list (editable for this store only).
+                  Will copy inventory view, registers, and categories from pilot store{" "}
+                  <strong>{stores[0]?.name || "Main store"}</strong>. Edits after that apply
+                  only to the new store.
                 </p>
                 <div className="row" style={{ gap: "0.5rem" }}>
                   <button className="btn btn-primary" type="submit" disabled={pending}>
@@ -1318,8 +1318,9 @@ export function SettingsPanel({
             {posSubTab === "categories" ? (
               <div key={`cats-${activeStore?.id || "none"}`} className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Default categories are the same across stores. Edits here apply only to{" "}
-                  {activeStore ? <strong>{activeStore.name}</strong> : "this store"}. Click a
+                  Category list for{" "}
+                  {activeStore ? <strong>{activeStore.name}</strong> : "this store"}. New
+                  stores inherit the pilot store’s list; changes here stay local. Click a
                   category to assign a colour.
                 </p>
 

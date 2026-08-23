@@ -419,12 +419,12 @@ export async function updateInventoryViewMode(formData: FormData) {
   return { ok: true as const };
 }
 
-/** Add a store, copying registers / categories / inventory view from the first (or selected) store. */
+/** Add a store by cloning the pilot (first) store's inventory view, registers, and categories. */
 export async function createStore(formData: FormData) {
   const { companyId, company } = await requireCompany();
   const stores = await ensureStoresForCompany(companyId);
-  const sourceStoreId =
-    String(formData.get("sourceStoreId") || "").trim() || stores[0]?.id || "";
+  // Always use the pilot store as the template
+  const sourceStoreId = stores[0]?.id || String(formData.get("sourceStoreId") || "").trim();
   const name = String(formData.get("name") || "").trim();
 
   const result = await duplicateStoreFromSource({

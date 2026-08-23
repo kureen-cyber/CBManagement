@@ -110,10 +110,10 @@ export default async function DemoTierPage() {
       </Panel>
 
       <Panel style={{ padding: "1.25rem" }}>
-        <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>POS registers</h2>
+        <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>POS</h2>
         <p className="muted" style={{ marginTop: 0 }}>
           Free Retail max: {FREE_RETAIL_MAX_POS_REGISTERS}. Configure in{" "}
-          <Link href="/settings?tab=pos">Settings → POS registers</Link>.
+          <Link href="/settings?tab=pos">Settings → POS</Link>.
         </p>
         {registers.length === 0 ? (
           <p>No registers named yet.</p>

@@ -3,6 +3,7 @@ import { requireCompany } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import {
   parseHomeLayout,
+  parseInventoryViewMode,
   parseLanguage,
   parseTheme,
 } from "@/lib/settings";
@@ -88,6 +89,7 @@ export default async function SettingsPage() {
           inventoryCategories={inventoryCategories.map((c) => ({
             id: c.id,
             name: c.name,
+            color: c.color,
           }))}
           discountPresets={discountPresets.map((d) => ({
             id: d.id,
@@ -98,6 +100,7 @@ export default async function SettingsPage() {
           canEditDiscounts={access.canEditDiscounts}
           planTier={parsePlanTier(company.planTier)}
           posRegisters={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
+          inventoryViewMode={parseInventoryViewMode(company.inventoryViewMode)}
         />
       </Suspense>
     </div>

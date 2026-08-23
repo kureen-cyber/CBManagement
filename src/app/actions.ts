@@ -3,13 +3,65 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { nextNumber } from "@/lib/business";
+import { nextNumber, nextSku } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
+import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES } from "@/lib/settings";
+import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
+
+const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+
+async function productImageFromForm(formData: FormData): Promise<string | null | undefined> {
+  if (formData.get("removeImage") === "on") return null;
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) return undefined;
+  if (!IMAGE_MIME.has(file.type)) {
+    throw new Error("Product photo must be a PNG, JPEG, WebP, or GIF image");
+  }
+  if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
+    throw new Error(`Product photo must be ${Math.round(PRODUCT_IMAGE_MAX_BYTES / 1000)}KB or smaller`);
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type};base64,${buffer.toString("base64")}`;
+}
 
 function dollarsToCents(value: FormDataEntryValue | null): number {
   const n = Number(value ?? 0);
   return toCents(Number.isFinite(n) ? n : 0);
+}
+
+/** Recompute and persist job status from engagement dates + invoice payments. */
+export async function syncJobStatus(jobId: string, companyId: string) {
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, companyId },
+    include: { invoices: { select: { total: true, amountPaid: true, status: true } } },
+  });
+  if (!job) return null;
+  // Leave manually cancelled / on-hold alone
+  if (job.status === "CANCELLED" || job.status === "ON_HOLD") return job.status;
+
+  const next = resolveJobStatus({
+    startDate: job.startDate,
+    endDate: job.endDate,
+    paymentsComplete: jobPaymentsComplete(job.invoices),
+  });
+  if (next !== job.status) {
+    await prisma.job.update({ where: { id: job.id }, data: { status: next } });
+  }
+  return next;
+}
+
+export async function syncCompanyJobStatuses(companyId: string) {
+  const jobs = await prisma.job.findMany({
+    where: {
+      companyId,
+      status: { notIn: ["CANCELLED", "ON_HOLD"] },
+    },
+    select: { id: true },
+  });
+  for (const j of jobs) {
+    await syncJobStatus(j.id, companyId);
+  }
 }
 
 async function requireInventoryManageAccess(companyId: string) {
@@ -65,6 +117,7 @@ function mapProductResponse(product: {
   minStock: number;
   trackStock: boolean;
   isService: boolean;
+  imageData?: string | null;
   variables: { name: string; options: string }[];
 }) {
   return {
@@ -80,6 +133,7 @@ function mapProductResponse(product: {
     minStock: product.minStock,
     trackStock: product.trackStock,
     isService: product.isService,
+    imageData: product.imageData ?? null,
     variables: product.variables.map((v) => ({
       name: v.name,
       options: JSON.parse(v.options || "[]") as string[],
@@ -121,16 +175,37 @@ export async function createProduct(formData: FormData) {
     where: { companyId, name: { equals: category, mode: "insensitive" } },
   });
   if (!existingCat) {
-    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+    const existingColors = await prisma.inventoryCategory.findMany({
+      where: { companyId, color: { not: null } },
+      select: { color: true },
+    });
+    await prisma.inventoryCategory
+      .create({
+        data: {
+          companyId,
+          name: category,
+          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
+        },
+      })
+      .catch(() => null);
+  }
+
+  let imageData: string | null | undefined;
+  try {
+    imageData = await productImageFromForm(formData);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
+  const manualSku = String(formData.get("sku") || "").trim();
+  const sku = manualSku || (await nextSku(companyId));
 
   const product = await prisma.product.create({
     data: {
       companyId,
       name: String(formData.get("name") || "").trim(),
-      sku: String(formData.get("sku") || "") || null,
+      sku,
       category,
       unit: String(formData.get("unit") || "each"),
       unitCost: dollarsToCents(formData.get("unitCost")),
@@ -140,6 +215,7 @@ export async function createProduct(formData: FormData) {
       stockQty: isService ? 0 : opening,
       trackStock: isService ? false : trackStock,
       isService,
+      ...(imageData !== undefined ? { imageData } : {}),
       variables: {
         create: variables.map((v, i) => ({
           name: v.name,
@@ -206,7 +282,26 @@ export async function updateProduct(formData: FormData) {
     where: { companyId, name: { equals: category, mode: "insensitive" } },
   });
   if (!existingCat) {
-    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+    const existingColors = await prisma.inventoryCategory.findMany({
+      where: { companyId, color: { not: null } },
+      select: { color: true },
+    });
+    await prisma.inventoryCategory
+      .create({
+        data: {
+          companyId,
+          name: category,
+          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
+        },
+      })
+      .catch(() => null);
+  }
+
+  let imageData: string | null | undefined;
+  try {
+    imageData = await productImageFromForm(formData);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
@@ -228,6 +323,7 @@ export async function updateProduct(formData: FormData) {
         trackStock: isService ? false : trackStock,
         isService,
         stockQty: isService ? 0 : existing.stockQty,
+        ...(imageData !== undefined ? { imageData } : {}),
         variables: {
           create: variables.map((v, i) => ({
             name: v.name,
@@ -571,7 +667,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       customerId: quote.customerId,
       quotationId: quote.id,
       title: quote.title || `Job from ${quote.number}`,
-      status: "ACTIVE",
+      status: "UPDATE_ENGAGEMENT_PERIOD",
       contractValue: quote.total,
       materials: quote.materialsCost
         ? {
@@ -586,9 +682,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
     },
   });
 
-  const due = new Date();
-  due.setDate(due.getDate() + 14);
-
+  // Due date is set when the job engagement end date is chosen
   await prisma.invoice.create({
     data: {
       companyId,
@@ -597,7 +691,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       jobId: job.id,
       quotationId: quote.id,
       status: "SENT",
-      dueDate: due,
+      dueDate: null,
       subtotal: quote.total,
       taxAmount: 0,
       total: quote.total,
@@ -643,11 +737,58 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 
   revalidatePath("/quotations");
   revalidatePath("/jobs");
+  revalidatePath(`/jobs/${job.id}`);
   revalidatePath("/invoices");
   revalidatePath("/inventory");
   revalidatePath("/");
 
-  return { jobId: job.id };
+  redirect(`/jobs/${job.id}`);
+}
+
+export async function updateJobEngagement(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "").trim();
+  if (!jobId) return { error: "Missing job" };
+
+  const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+  if (!job) return { error: "Job not found" };
+
+  const startRaw = String(formData.get("startDate") || "").trim();
+  const endRaw = String(formData.get("endDate") || "").trim();
+  if (!startRaw || !endRaw) return { error: "Select both a start and end date" };
+
+  const startDate = new Date(`${startRaw}T00:00:00`);
+  const endDate = new Date(`${endRaw}T00:00:00`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return { error: "Invalid dates" };
+  }
+  if (endDate < startDate) {
+    return { error: "End date must be on or after the start date" };
+  }
+
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { startDate, endDate },
+  });
+
+  // Keep linked invoice due dates aligned with the job engagement end date
+  await prisma.invoice.updateMany({
+    where: {
+      jobId,
+      companyId,
+      status: { notIn: ["VOID", "CANCELLED"] },
+    },
+    data: { dueDate: endDate },
+  });
+
+  await syncJobStatus(jobId, companyId);
+
+  revalidatePath("/jobs");
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/jobs/${jobId}/engagement`);
+  revalidatePath("/invoices");
+  revalidatePath("/");
+  return { ok: true as const };
 }
 
 export async function createInvoice(formData: FormData) {
@@ -657,15 +798,19 @@ export async function createInvoice(formData: FormData) {
 
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
   if (!customer) throw new Error("Customer not found");
+
+  let due: Date | null = formData.get("dueDate")
+    ? new Date(String(formData.get("dueDate")))
+    : null;
+
   if (jobId) {
     const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
     if (!job) throw new Error("Job not found");
+    // Job invoices use the engagement end date as the due date when set
+    if (job.endDate) due = job.endDate;
   }
 
   const total = dollarsToCents(formData.get("total"));
-  const due = formData.get("dueDate")
-    ? new Date(String(formData.get("dueDate")))
-    : null;
 
   await prisma.invoice.create({
     data: {
@@ -689,6 +834,12 @@ export async function createInvoice(formData: FormData) {
       },
     },
   });
+
+  if (jobId) {
+    await syncJobStatus(jobId, companyId);
+    revalidatePath(`/jobs/${jobId}`);
+    revalidatePath("/jobs");
+  }
 
   revalidatePath("/invoices");
   revalidatePath("/");
@@ -733,6 +884,12 @@ export async function recordPayment(formData: FormData) {
       where: { id: invoice.id },
       data: { amountPaid, status },
     });
+
+    if (invoice.jobId) {
+      await syncJobStatus(invoice.jobId, companyId);
+      revalidatePath(`/jobs/${invoice.jobId}`);
+      revalidatePath("/jobs");
+    }
   }
 
   revalidatePath("/payments");
@@ -753,7 +910,7 @@ export async function createJob(formData: FormData) {
       customerId,
       title: String(formData.get("title") || "").trim(),
       contractValue: dollarsToCents(formData.get("contractValue")),
-      status: "ACTIVE",
+      status: "UPDATE_ENGAGEMENT_PERIOD",
       notes: String(formData.get("notes") || "") || null,
     },
   });
@@ -1019,7 +1176,7 @@ export async function completePosSale(input: {
   let posRegisterId: string | null = input.posRegisterId || null;
   if (isFreeRetailTier(planTier)) {
     if (!posRegisterId) {
-      return { error: "Select a named POS register (Settings → POS registers)" };
+      return { error: "Select a named POS register (Settings → POS)" };
     }
     const reg = await prisma.posRegister.findFirst({
       where: { id: posRegisterId, companyId },

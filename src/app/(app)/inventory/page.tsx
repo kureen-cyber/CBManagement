@@ -3,6 +3,7 @@ import { requireCompany } from "@/lib/company";
 import { ensureDefaultInventoryCategories } from "@/lib/catalog";
 import { resolveRegisterAccess } from "@/lib/register-access";
 import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
+import { parseInventoryViewMode } from "@/lib/settings";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
 
@@ -18,7 +19,7 @@ function parseOptions(raw: string): string[] {
 }
 
 export default async function InventoryPage() {
-  const { companyId } = await requireCompany();
+  const { company, companyId } = await requireCompany();
   await ensureDefaultInventoryCategories(companyId);
 
   const registers = await prisma.posRegister.findMany({
@@ -58,6 +59,10 @@ export default async function InventoryPage() {
       />
       <InventoryClient
         canManage={access.canManageInventory}
+        viewMode={parseInventoryViewMode(company.inventoryViewMode)}
+        categoryColors={Object.fromEntries(
+          categories.map((c) => [c.name.toLowerCase(), c.color]),
+        )}
         variableNames={variableNames.map((v) => v.name)}
         categories={categories.map((c) => c.name)}
         initialProducts={products.map((p) => ({
@@ -73,6 +78,7 @@ export default async function InventoryPage() {
           minStock: p.minStock,
           trackStock: p.trackStock,
           isService: p.isService,
+          imageData: p.imageData,
           variables: p.variables.map((v) => ({
             name: v.name,
             options: parseOptions(v.options),

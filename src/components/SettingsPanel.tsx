@@ -6,13 +6,18 @@ import {
   DEFAULT_RECEIPT_FOOTER,
   HOME_LAYOUTS,
   LANGUAGES,
+  THEME_LABELS,
+  THEMES,
   type HomeLayout,
+  type InventoryViewMode,
   type LanguageCode,
   type Theme,
+  CATEGORY_COLOR_PALETTE,
 } from "@/lib/settings";
 import {
   updateGeneralSettings,
   updatePosRegisters,
+  updateInventoryViewMode,
   updatePrinterSettings,
   updateReceiptSettings,
   updateTaxSettings,
@@ -22,6 +27,7 @@ import {
   deletePaymentType,
   addInventoryCategory,
   deleteInventoryCategory,
+  updateInventoryCategoryColor,
   addDiscountPreset,
   updateDiscountPreset,
   deleteDiscountPreset,
@@ -29,7 +35,9 @@ import {
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
   FREE_TIER_MAX_TRANSACTION_DAYS,
+  maxPosRegistersForTier,
   PLAN_TIER_LABELS,
+  STANDARD_MAX_POS_REGISTERS,
   type PlanTier,
 } from "@/lib/tier";
 import { Panel } from "@/components/ui";
@@ -54,7 +62,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "payments", label: "Payment types" },
   { id: "categories", label: "Categories" },
   { id: "discounts", label: "Discounts" },
-  { id: "pos", label: "POS registers" },
+  { id: "pos", label: "POS" },
 ];
 
 export function SettingsPanel({
@@ -87,6 +95,7 @@ export function SettingsPanel({
   discountPresets = [],
   planTier,
   posRegisters,
+  inventoryViewMode = "card",
   canEditDiscounts = true,
 }: {
   businessName: string;
@@ -114,10 +123,11 @@ export function SettingsPanel({
   featureLowStockEmail: boolean;
   featureOutOfStockWarn: boolean;
   paymentTypes: { id: string; code: string; label: string; active: boolean }[];
-  inventoryCategories: { id: string; name: string }[];
+  inventoryCategories: { id: string; name: string; color: string | null }[];
   discountPresets?: { id: string; name: string; percent: number; active: boolean }[];
   planTier: PlanTier;
   posRegisters: { id: string; name: string }[];
+  inventoryViewMode?: InventoryViewMode;
   canEditDiscounts?: boolean;
 }) {
   const router = useRouter();
@@ -135,6 +145,14 @@ export function SettingsPanel({
   const [removeBusinessLogo, setRemoveBusinessLogo] = useState(false);
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(letterheadData);
   const [removeLetterhead, setRemoveLetterhead] = useState(false);
+  const initialPosSub =
+    searchParams.get("posSub") === "inventory-view" ? "inventory-view" : "registers";
+  const [posSubTab, setPosSubTab] = useState<"registers" | "inventory-view">(initialPosSub);
+  const maxRegisters = maxPosRegistersForTier(planTier);
+  const [registerCount, setRegisterCount] = useState(
+    Math.max(posRegisters.length || 1, 1),
+  );
+  const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PALETTE[0]!);
 
   useEffect(() => {
     if (!removeLogo) setLogoPreview(receiptLogoData);
@@ -147,6 +165,10 @@ export function SettingsPanel({
   useEffect(() => {
     if (!removeLetterhead) setLetterheadPreview(letterheadData);
   }, [letterheadData, removeLetterhead]);
+
+  useEffect(() => {
+    setRegisterCount(Math.max(posRegisters.length || 1, 1));
+  }, [posRegisters.length]);
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -263,7 +285,18 @@ export function SettingsPanel({
         setError(result.error);
         return;
       }
-      setSaved("POS registers saved");
+      setSaved("POS settings saved");
+      router.refresh();
+    });
+  }
+
+  function onInventoryViewMode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      await updateInventoryViewMode(fd);
+      setSaved("Inventory view saved");
       router.refresh();
     });
   }
@@ -284,10 +317,14 @@ export function SettingsPanel({
     });
   }
 
-  const reg1 = posRegisters[0]?.name ?? "";
-  const reg2 = posRegisters[1]?.name ?? "";
   const headerDefault = receiptHeader?.trim() || businessName;
   const footerDefault = receiptFooter?.trim() || DEFAULT_RECEIPT_FOOTER;
+  const registerDefaults = Array.from({ length: registerCount }, (_, i) => {
+    if (posRegisters[i]?.name) return posRegisters[i]!.name;
+    if (i === 0) return "Front counter";
+    if (i === 1) return "";
+    return "";
+  });
 
   return (
     <div className="stack">
@@ -417,16 +454,44 @@ export function SettingsPanel({
 
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
             <fieldset className="settings-fieldset">
-              <legend>Theme</legend>
-              <div className="row">
-                <label className="choice-pill">
-                  <input type="radio" name="theme" value="light" defaultChecked={theme === "light"} />
-                  Light
-                </label>
-                <label className="choice-pill">
-                  <input type="radio" name="theme" value="dark" defaultChecked={theme === "dark"} />
-                  Dark
-                </label>
+              <legend>Colour scheme</legend>
+              <div className="stack" style={{ gap: "0.65rem" }}>
+                {THEMES.map((t) => (
+                  <label key={t} className="choice-card">
+                    <input type="radio" name="theme" value={t} defaultChecked={theme === t} />
+                    <span>
+                      <strong>{THEME_LABELS[t]}</strong>
+                      <span className="row" style={{ gap: "0.35rem", marginTop: "0.35rem" }}>
+                        {t === "light" ? (
+                          <>
+                            <span className="theme-swatch" style={{ background: "#0A6B6E" }} />
+                            <span className="theme-swatch" style={{ background: "#F7F3EB" }} />
+                            <span className="theme-swatch" style={{ background: "#C45C26" }} />
+                          </>
+                        ) : null}
+                        {t === "dark" ? (
+                          <>
+                            <span className="theme-swatch" style={{ background: "#1A2426" }} />
+                            <span className="theme-swatch" style={{ background: "#3DB8BC" }} />
+                          </>
+                        ) : null}
+                        {t === "red-white-black" ? (
+                          <>
+                            <span className="theme-swatch" style={{ background: "#C41E3A" }} />
+                            <span className="theme-swatch" style={{ background: "#FFFFFF", border: "1px solid #ccc" }} />
+                            <span className="theme-swatch" style={{ background: "#1A1A1A" }} />
+                          </>
+                        ) : null}
+                        {t === "yellow-parrot" ? (
+                          <>
+                            <span className="theme-swatch" style={{ background: "#F4C430" }} />
+                            <span className="theme-swatch" style={{ background: "#00843D" }} />
+                          </>
+                        ) : null}
+                      </span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </fieldset>
 
@@ -877,23 +942,51 @@ export function SettingsPanel({
             <ul className="settings-list">
               {inventoryCategories.map((cat) => (
                 <li key={cat.id} className="settings-list-row">
-                  <strong>{cat.name}</strong>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={pending}
-                    onClick={() => {
-                      const fd = new FormData();
-                      fd.set("id", cat.id);
-                      startTransition(async () => {
-                        await deleteInventoryCategory(fd);
-                        setSaved("Category removed");
-                        router.refresh();
-                      });
-                    }}
-                  >
-                    Delete
-                  </button>
+                  <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
+                    <span
+                      className="category-dot"
+                      style={{ background: cat.color || "#5C6B6E", width: "0.75rem", height: "0.75rem" }}
+                    />
+                    <strong>{cat.name}</strong>
+                  </div>
+                  <div className="row" style={{ gap: "0.4rem", alignItems: "center" }}>
+                    <input
+                      type="color"
+                      defaultValue={cat.color || "#0A6B6E"}
+                      aria-label={`Colour for ${cat.name}`}
+                      disabled={pending}
+                      onChange={(e) => {
+                        const fd = new FormData();
+                        fd.set("id", cat.id);
+                        fd.set("color", e.target.value);
+                        startTransition(async () => {
+                          const result = await updateInventoryCategoryColor(fd);
+                          if (result && "error" in result && result.error) {
+                            setError(result.error);
+                            return;
+                          }
+                          setSaved("Category colour updated");
+                          router.refresh();
+                        });
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("id", cat.id);
+                        startTransition(async () => {
+                          await deleteInventoryCategory(fd);
+                          setSaved("Category removed");
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </li>
               ))}
               {inventoryCategories.length === 0 ? (
@@ -911,6 +1004,31 @@ export function SettingsPanel({
                   placeholder="e.g. Grocery, Gift items"
                   autoComplete="off"
                 />
+              </label>
+              <label className="field">
+                Colour code
+                <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    name="color"
+                    type="color"
+                    value={newCategoryColor}
+                    onChange={(e) => setNewCategoryColor(e.target.value)}
+                  />
+                  {CATEGORY_COLOR_PALETTE.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className="theme-swatch"
+                      style={{
+                        background: c,
+                        cursor: "pointer",
+                        border: newCategoryColor === c ? "2px solid var(--ink)" : "1px solid var(--line)",
+                      }}
+                      aria-label={`Use ${c}`}
+                      onClick={() => setNewCategoryColor(c)}
+                    />
+                  ))}
+                </div>
               </label>
               <button className="btn btn-primary" type="submit" disabled={pending}>
                 {pending ? "Saving…" : "Add category"}
@@ -1028,42 +1146,105 @@ export function SettingsPanel({
 
       {tab === "pos" ? (
         <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onPosRegisters}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS registers</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Free Retail includes up to {FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.
-              Choose which register is active when ringing sales.
-            </p>
-            <div className="info-banner">
-              <strong>Register 1</strong> — full access (inventory, settings, void tickets,
-              edit discounts). <strong>Register 2</strong> — POS + stock levels only; can save
-              and edit tickets and issue refunds, but cannot delete tickets.
+          <div className="stack">
+            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS</h2>
+            <div className="settings-subtabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={posSubTab === "registers"}
+                className={posSubTab === "registers" ? "settings-subtab active" : "settings-subtab"}
+                onClick={() => setPosSubTab("registers")}
+              >
+                Registers
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={posSubTab === "inventory-view"}
+                className={
+                  posSubTab === "inventory-view" ? "settings-subtab active" : "settings-subtab"
+                }
+                onClick={() => setPosSubTab("inventory-view")}
+              >
+                Inventory View
+              </button>
             </div>
-            <label className="field">
-              POS register 1 name (full access)
-              <input
-                name="register1"
-                type="text"
-                required
-                defaultValue={reg1 || "Front counter"}
-                placeholder="Front counter"
-                autoComplete="off"
-              />
-            </label>
-            <label className="field">
-              POS register 2 name (POS + stock only)
-              <input
-                name="register2"
-                type="text"
-                defaultValue={reg2}
-                placeholder="Side till"
-                autoComplete="off"
-              />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save POS registers"}
-            </button>
-          </form>
+
+            {posSubTab === "registers" ? (
+              <form className="stack" onSubmit={onPosRegisters}>
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                  {planTier === "FREE_RETAIL"
+                    ? `Free Retail includes up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.`
+                    : `Standard plan supports up to ${STANDARD_MAX_POS_REGISTERS} named POS sign-ins.`}{" "}
+                  Choose which register is active when ringing sales.
+                </p>
+                <div className="info-banner">
+                  <strong>Register 1</strong> — full access (inventory, settings, void tickets,
+                  edit discounts). <strong>Register 2+</strong> — POS + stock levels only; can save
+                  and edit tickets and issue refunds, but cannot delete tickets.
+                </div>
+                {registerDefaults.map((name, i) => (
+                  <label key={i} className="field">
+                    POS register {i + 1} name{i === 0 ? " (full access)" : " (POS + stock only)"}
+                    <input
+                      name={`register${i + 1}`}
+                      type="text"
+                      required={i === 0}
+                      defaultValue={name}
+                      placeholder={i === 0 ? "Front counter" : "Side till"}
+                      autoComplete="off"
+                    />
+                  </label>
+                ))}
+                {registerCount < maxRegisters ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    style={{ alignSelf: "flex-start" }}
+                    onClick={() => setRegisterCount((c) => Math.min(c + 1, maxRegisters))}
+                  >
+                    + Add register
+                  </button>
+                ) : null}
+                <button className="btn btn-primary" type="submit" disabled={pending}>
+                  {pending ? "Saving…" : "Save registers"}
+                </button>
+              </form>
+            ) : (
+              <form className="stack" onSubmit={onInventoryViewMode}>
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                  Choose how items appear on the Inventory page for all users.
+                </p>
+                <fieldset className="settings-fieldset">
+                  <legend>Default layout</legend>
+                  <div className="row">
+                    <label className="choice-pill">
+                      <input
+                        type="radio"
+                        name="inventoryViewMode"
+                        value="card"
+                        defaultChecked={inventoryViewMode === "card"}
+                      />
+                      Card view
+                    </label>
+                    <label className="choice-pill">
+                      <input
+                        type="radio"
+                        name="inventoryViewMode"
+                        value="list"
+                        defaultChecked={inventoryViewMode === "list"}
+                      />
+                      List view
+                    </label>
+                  </div>
+                </fieldset>
+                <button className="btn btn-primary" type="submit" disabled={pending}>
+                  {pending ? "Saving…" : "Save inventory view"}
+                </button>
+              </form>
+            )}
+          </div>
         </Panel>
       ) : null}
     </div>

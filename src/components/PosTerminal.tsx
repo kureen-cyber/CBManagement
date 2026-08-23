@@ -329,7 +329,11 @@ export function PosTerminal({
     setMessage(null);
     startTransition(async () => {
       const created = await createProduct(formData);
-      if (created?.id) {
+      if (created && "error" in created && created.error) {
+        setError(created.error);
+        return;
+      }
+      if (created && "id" in created && created.id) {
         setProducts((prev) => {
           if (prev.some((p) => p.id === created.id)) return prev;
           return [
@@ -395,7 +399,7 @@ export function PosTerminal({
     setError(null);
     setReceiptHref(null);
     if (requireRegister && !posRegisterId) {
-      setError("Select a POS register (or name them in Settings → POS registers)");
+      setError("Select a POS register (or name them in Settings → POS)");
       return;
     }
     startTransition(async () => {

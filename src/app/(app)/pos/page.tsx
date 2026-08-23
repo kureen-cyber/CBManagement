@@ -116,7 +116,7 @@ export default async function PosPage() {
       {isFreeRetailTier(planTier) && posRegisters.length === 0 ? (
         <div className="info-banner">
           Name your POS registers in{" "}
-          <Link href="/settings?tab=pos">Settings → POS registers</Link> before ringing sales
+          <Link href="/settings?tab=pos">Settings → POS</Link> before ringing sales
           (up to 2 sign-ins).
         </div>
       ) : null}

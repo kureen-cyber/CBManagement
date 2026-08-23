@@ -647,6 +647,9 @@ input:focus, select:focus, textarea:focus {
   gap: 1rem;
   margin-top: 1.15rem;
 }
+.customer-summary-diagrams {
+  margin-top: 0.25rem;
+}
 .diagram-card {
   padding: 1rem;
   border-radius: 14px;
@@ -713,6 +716,14 @@ input:focus, select:focus, textarea:focus {
   flex-direction: column;
   align-items: center;
   gap: 0.45rem;
+}
+.bar-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.bar-fill {
+  transition: height 0.25s ease;
 }
 .bar-pair {
   display: flex;

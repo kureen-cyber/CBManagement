@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { CustomerSummaryDiagram } from "@/components/CustomerSummaryDiagram";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -150,6 +151,14 @@ export default async function CustomerDetailPage({
           <div className="value">{customer.invoices.length}</div>
         </Panel>
       </div>
+      <CustomerSummaryDiagram
+        outstanding={outstanding}
+        visitCount={visitCount}
+        totalSpent={totalSpent}
+        quotes={customer.quotations.length}
+        jobs={customer.jobs.length}
+        invoices={customer.invoices.length}
+      />
       <Panel className="table-wrap">
         <table className="data">
           <thead>

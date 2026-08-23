@@ -11,6 +11,81 @@ function dollarsToCents(value: FormDataEntryValue | null): number {
   return toCents(Number.isFinite(n) ? n : 0);
 }
 
+async function requireInventoryManageAccess(companyId: string) {
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
+  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
+  if (!access.canManageInventory) {
+    return { error: "Only POS register 1 can manage inventory" as const };
+  }
+  return { ok: true as const };
+}
+
+function parseProductVariables(raw: string) {
+  let variables: { name: string; options: string[] }[] = [];
+  const rawVars = raw.trim();
+  if (!rawVars) return variables;
+  try {
+    const parsed = JSON.parse(rawVars) as { name?: string; options?: string[] | string }[];
+    if (Array.isArray(parsed)) {
+      variables = parsed
+        .map((v) => {
+          const name = String(v.name || "").trim();
+          const opts = Array.isArray(v.options)
+            ? v.options.map((o) => String(o).trim()).filter(Boolean)
+            : String(v.options || "")
+                .split(",")
+                .map((o) => o.trim())
+                .filter(Boolean);
+          return { name, options: opts };
+        })
+        .filter((v) => v.name && v.options.length);
+    }
+  } catch {
+    /* ignore bad JSON */
+  }
+  return variables;
+}
+
+function mapProductResponse(product: {
+  id: string;
+  name: string;
+  sku: string | null;
+  category: string;
+  unit: string;
+  unitCost: number;
+  unitPrice: number;
+  variablePrice: boolean;
+  stockQty: number;
+  minStock: number;
+  trackStock: boolean;
+  isService: boolean;
+  variables: { name: string; options: string }[];
+}) {
+  return {
+    id: product.id,
+    name: product.name,
+    sku: product.sku,
+    category: product.category,
+    unit: product.unit,
+    unitCost: product.unitCost,
+    unitPrice: product.unitPrice,
+    variablePrice: product.variablePrice,
+    stockQty: product.stockQty,
+    minStock: product.minStock,
+    trackStock: product.trackStock,
+    isService: product.isService,
+    variables: product.variables.map((v) => ({
+      name: v.name,
+      options: JSON.parse(v.options || "[]") as string[],
+    })),
+  };
+}
+
 export async function createCustomer(formData: FormData) {
   const { companyId } = await requireCompany();
   await prisma.customer.create({
@@ -30,16 +105,8 @@ export async function createCustomer(formData: FormData) {
 
 export async function createProduct(formData: FormData) {
   const { companyId } = await requireCompany();
-  const registers = await prisma.posRegister.findMany({
-    where: { companyId },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-  });
-  const { resolveRegisterAccess } = await import("@/lib/register-access");
-  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
-  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
-  if (!access.canManageInventory) {
-    throw new Error("Only POS register 1 can manage inventory");
-  }
+  const access = await requireInventoryManageAccess(companyId);
+  if ("error" in access) throw new Error(access.error);
   const trackStock = formData.get("trackStock") === "on";
   const isService = formData.get("isService") === "on";
   const opening = Number(formData.get("stockQty") || 0);
@@ -56,29 +123,7 @@ export async function createProduct(formData: FormData) {
     await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
   }
 
-  let variables: { name: string; options: string[] }[] = [];
-  const rawVars = String(formData.get("variablesJson") || "").trim();
-  if (rawVars) {
-    try {
-      const parsed = JSON.parse(rawVars) as { name?: string; options?: string[] | string }[];
-      if (Array.isArray(parsed)) {
-        variables = parsed
-          .map((v) => {
-            const name = String(v.name || "").trim();
-            const opts = Array.isArray(v.options)
-              ? v.options.map((o) => String(o).trim()).filter(Boolean)
-              : String(v.options || "")
-                  .split(",")
-                  .map((o) => o.trim())
-                  .filter(Boolean);
-            return { name, options: opts };
-          })
-          .filter((v) => v.name && v.options.length);
-      }
-    } catch {
-      /* ignore bad JSON */
-    }
-  }
+  const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
 
   const product = await prisma.product.create({
     data: {
@@ -132,38 +177,148 @@ export async function createProduct(formData: FormData) {
   revalidatePath("/reports");
   revalidatePath("/");
 
-  return {
-    id: product.id,
-    name: product.name,
-    sku: product.sku,
-    category: product.category,
-    unit: product.unit,
-    unitCost: product.unitCost,
-    unitPrice: product.unitPrice,
-    variablePrice: product.variablePrice,
-    stockQty: product.stockQty,
-    minStock: product.minStock,
-    trackStock: product.trackStock,
-    isService: product.isService,
-    variables: product.variables.map((v) => ({
-      name: v.name,
-      options: JSON.parse(v.options || "[]") as string[],
-    })),
-  };
+  return mapProductResponse(product);
+}
+
+export async function updateProduct(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const access = await requireInventoryManageAccess(companyId);
+  if ("error" in access) return { error: access.error };
+
+  const id = String(formData.get("productId") || "").trim();
+  if (!id) return { error: "Missing product" };
+
+  const existing = await prisma.product.findFirst({
+    where: { id, companyId },
+    include: { variables: true },
+  });
+  if (!existing) return { error: "Item not found" };
+
+  const trackStock = formData.get("trackStock") === "on";
+  const isService = formData.get("isService") === "on";
+  const category = String(formData.get("category") || "General").trim() || "General";
+  const unitPriceCents = dollarsToCents(formData.get("unitPrice"));
+  const variablePrice =
+    formData.get("variablePrice") === "on" || (!isService && unitPriceCents <= 0);
+
+  const existingCat = await prisma.inventoryCategory.findFirst({
+    where: { companyId, name: { equals: category, mode: "insensitive" } },
+  });
+  if (!existingCat) {
+    await prisma.inventoryCategory.create({ data: { companyId, name: category } }).catch(() => null);
+  }
+
+  const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
+
+  const product = await prisma.$transaction(async (tx) => {
+    await tx.productVariable.deleteMany({ where: { productId: id } });
+
+    const updated = await tx.product.update({
+      where: { id },
+      data: {
+        name: String(formData.get("name") || "").trim(),
+        sku: String(formData.get("sku") || "") || null,
+        category,
+        unit: String(formData.get("unit") || "each"),
+        unitCost: dollarsToCents(formData.get("unitCost")),
+        unitPrice: variablePrice ? 0 : unitPriceCents,
+        variablePrice,
+        minStock: Number(formData.get("minStock") || 0),
+        trackStock: isService ? false : trackStock,
+        isService,
+        stockQty: isService ? 0 : existing.stockQty,
+        variables: {
+          create: variables.map((v, i) => ({
+            name: v.name,
+            options: JSON.stringify(v.options),
+            sortOrder: i,
+          })),
+        },
+      },
+      include: { variables: true },
+    });
+
+    return updated;
+  });
+
+  for (const v of variables) {
+    await prisma.variableNameCatalog
+      .upsert({
+        where: { companyId_name: { companyId, name: v.name } },
+        create: { companyId, name: v.name },
+        update: {},
+      })
+      .catch(() => null);
+  }
+
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  revalidatePath("/reports");
+  revalidatePath("/");
+
+  return mapProductResponse(product);
+}
+
+export async function adjustProductStock(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const access = await requireInventoryManageAccess(companyId);
+  if ("error" in access) return { error: access.error };
+
+  const id = String(formData.get("productId") || "").trim();
+  const quantity = Number(formData.get("quantity") || 0);
+  const notes = String(formData.get("notes") || "").trim() || null;
+
+  if (!id) return { error: "Missing product" };
+  if (!Number.isFinite(quantity) || quantity === 0) {
+    return { error: "Enter a quantity to add or remove" };
+  }
+
+  const product = await prisma.product.findFirst({ where: { id, companyId } });
+  if (!product) return { error: "Item not found" };
+  if (product.isService) return { error: "Services do not track stock" };
+  if (!product.trackStock) return { error: "This item does not track stock" };
+
+  const nextQty = product.stockQty + quantity;
+  if (nextQty < 0) {
+    return { error: `Cannot reduce below zero (current: ${product.stockQty})` };
+  }
+
+  const unitCost =
+    formData.get("unitCost") != null && String(formData.get("unitCost")).trim() !== ""
+      ? dollarsToCents(formData.get("unitCost"))
+      : product.unitCost;
+
+  const movementType = quantity > 0 ? "PURCHASE" : "ADJUSTMENT";
+  const defaultNotes = quantity > 0 ? "Stock received" : "Stock adjustment";
+
+  await prisma.$transaction([
+    prisma.stockMovement.create({
+      data: {
+        productId: id,
+        type: movementType,
+        quantity,
+        unitCost,
+        notes: notes || defaultNotes,
+      },
+    }),
+    prisma.product.update({
+      where: { id },
+      data: { stockQty: nextQty, unitCost: quantity > 0 ? unitCost : product.unitCost },
+    }),
+  ]);
+
+  revalidatePath("/inventory");
+  revalidatePath("/pos");
+  revalidatePath("/reports");
+  revalidatePath("/");
+
+  return { ok: true as const, id, stockQty: nextQty };
 }
 
 export async function deleteProduct(productId: string) {
   const { companyId } = await requireCompany();
-  const registers = await prisma.posRegister.findMany({
-    where: { companyId },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-  });
-  const { resolveRegisterAccess } = await import("@/lib/register-access");
-  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
-  const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
-  if (!access.canManageInventory) {
-    return { error: "Only POS register 1 can manage inventory" };
-  }
+  const access = await requireInventoryManageAccess(companyId);
+  if ("error" in access) return { error: access.error };
   const id = String(productId || "").trim();
   if (!id) return { error: "Missing product" };
 

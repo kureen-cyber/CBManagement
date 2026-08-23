@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { CategoryInput } from "@/components/CategoryInput";
+import { EditProductModal } from "@/components/EditProductModal";
 import { ItemMenu } from "@/components/ItemMenu";
 import { Panel } from "@/components/ui";
 
@@ -45,6 +47,8 @@ export function InventoryClient({
   const [isService, setIsService] = useState(false);
   const [variablePrice, setVariablePrice] = useState(false);
   const [vars, setVars] = useState<VarDraft[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -106,6 +110,23 @@ export function InventoryClient({
     setProducts((prev) => prev.filter((p) => p.id !== id));
     router.refresh();
   }
+
+  function onSaved(updated: InventoryProduct) {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    );
+    router.refresh();
+  }
+
+  function onAdjusted(id: string, stockQty: number) {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stockQty } : p)));
+    router.refresh();
+  }
+
+  const editingProduct = editingId ? products.find((p) => p.id === editingId) : null;
+  const adjustingProduct = adjustingId ? products.find((p) => p.id === adjustingId) : null;
 
   return (
     <div className="stack">
@@ -276,7 +297,14 @@ export function InventoryClient({
           return (
             <div key={p.id} className="inventory-card panel">
               {canManage ? (
-                <ItemMenu productId={p.id} productName={p.name} onDeleted={onDeleted} />
+                <ItemMenu
+                  productId={p.id}
+                  productName={p.name}
+                  onDeleted={onDeleted}
+                  onEdit={setEditingId}
+                  onAdjustStock={setAdjustingId}
+                  canAdjustStock={!p.isService && p.trackStock}
+                />
               ) : null}
               <div className="name">{p.name}</div>
               <div className="muted" style={{ fontSize: "0.8rem" }}>
@@ -320,6 +348,24 @@ export function InventoryClient({
         })}
         {products.length === 0 ? <div className="muted">No inventory items yet.</div> : null}
       </div>
+
+      {editingProduct ? (
+        <EditProductModal
+          product={editingProduct}
+          categories={categories}
+          variableNames={variableNames}
+          allCategories={products.map((p) => p.category)}
+          onClose={() => setEditingId(null)}
+          onSaved={onSaved}
+        />
+      ) : null}
+      {adjustingProduct ? (
+        <AdjustStockModal
+          product={adjustingProduct}
+          onClose={() => setAdjustingId(null)}
+          onAdjusted={onAdjusted}
+        />
+      ) : null}
     </div>
   );
 }

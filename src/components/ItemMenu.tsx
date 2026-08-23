@@ -7,10 +7,16 @@ export function ItemMenu({
   productId,
   productName,
   onDeleted,
+  onEdit,
+  onAdjustStock,
+  canAdjustStock = true,
 }: {
   productId: string;
   productName: string;
   onDeleted?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onAdjustStock?: (id: string) => void;
+  canAdjustStock?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -53,6 +59,20 @@ export function ItemMenu({
     });
   }
 
+  function onEditClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(false);
+    onEdit?.(productId);
+  }
+
+  function onAdjustClick(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen(false);
+    onAdjustStock?.(productId);
+  }
+
   return (
     <div className="item-menu" ref={rootRef}>
       <button
@@ -72,6 +92,16 @@ export function ItemMenu({
       </button>
       {open ? (
         <div className="item-menu-dropdown" role="menu" id={menuId}>
+          {onEdit ? (
+            <button type="button" role="menuitem" onClick={onEditClick}>
+              Edit item
+            </button>
+          ) : null}
+          {onAdjustStock && canAdjustStock ? (
+            <button type="button" role="menuitem" onClick={onAdjustClick}>
+              Adjust stock
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

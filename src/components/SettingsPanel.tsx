@@ -31,15 +31,19 @@ import {
   addDiscountPreset,
   updateDiscountPreset,
   deleteDiscountPreset,
+  createStore,
 } from "@/app/actions/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
+  FREE_RETAIL_MAX_STORES,
   FREE_TIER_MAX_TRANSACTION_DAYS,
   maxPosRegistersForTier,
   PLAN_TIER_LABELS,
   STANDARD_MAX_POS_REGISTERS,
+  STANDARD_MAX_STORES,
   type PlanTier,
 } from "@/lib/tier";
+import { maxStoresForTier } from "@/lib/store";
 import { Panel } from "@/components/ui";
 
 type Tab =
@@ -96,11 +100,12 @@ export function SettingsPanel({
   featureLowStockEmail,
   featureOutOfStockWarn,
   paymentTypes,
+  stores = [],
+  activeStoreId: initialActiveStoreId = null,
   inventoryCategories,
   discountPresets = [],
   planTier,
   posRegisters,
-  inventoryViewMode = "card",
   canEditDiscounts = true,
 }: {
   businessName: string;
@@ -128,11 +133,17 @@ export function SettingsPanel({
   featureLowStockEmail: boolean;
   featureOutOfStockWarn: boolean;
   paymentTypes: { id: string; code: string; label: string; active: boolean }[];
-  inventoryCategories: { id: string; name: string; color: string | null }[];
+  stores?: { id: string; name: string; inventoryViewMode: InventoryViewMode }[];
+  activeStoreId?: string | null;
+  inventoryCategories: {
+    id: string;
+    name: string;
+    color: string | null;
+    storeId: string | null;
+  }[];
   discountPresets?: { id: string; name: string; percent: number; active: boolean }[];
   planTier: PlanTier;
-  posRegisters: { id: string; name: string }[];
-  inventoryViewMode?: InventoryViewMode;
+  posRegisters: { id: string; name: string; storeId: string | null }[];
   canEditDiscounts?: boolean;
 }) {
   const router = useRouter();
@@ -160,9 +171,19 @@ export function SettingsPanel({
       ? "categories"
       : parsePosSubTab(searchParams.get("posSub"));
   const [posSubTab, setPosSubTab] = useState<PosSubTab>(initialPosSub);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(
+    initialActiveStoreId || stores[0]?.id || "",
+  );
+  const [newStoreName, setNewStoreName] = useState("");
+  const [showAddStore, setShowAddStore] = useState(false);
   const maxRegisters = maxPosRegistersForTier(planTier);
+  const maxStores = maxStoresForTier(planTier);
+  const activeStore = stores.find((s) => s.id === selectedStoreId) || stores[0];
+  const storeRegisters = posRegisters.filter((r) => r.storeId === activeStore?.id);
+  const storeCategories = inventoryCategories.filter((c) => c.storeId === activeStore?.id);
+  const inventoryViewMode = activeStore?.inventoryViewMode ?? "card";
   const [registerCount, setRegisterCount] = useState(
-    Math.max(posRegisters.length || 1, 1),
+    Math.max(storeRegisters.length || 1, 1),
   );
   const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PALETTE[0]!);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -180,8 +201,16 @@ export function SettingsPanel({
   }, [letterheadData, removeLetterhead]);
 
   useEffect(() => {
-    setRegisterCount(Math.max(posRegisters.length || 1, 1));
-  }, [posRegisters.length]);
+    setRegisterCount(Math.max(storeRegisters.length || 1, 1));
+  }, [storeRegisters.length, selectedStoreId]);
+
+  useEffect(() => {
+    if (initialActiveStoreId && stores.some((s) => s.id === initialActiveStoreId)) {
+      setSelectedStoreId(initialActiveStoreId);
+    } else if (stores[0] && !stores.some((s) => s.id === selectedStoreId)) {
+      setSelectedStoreId(stores[0].id);
+    }
+  }, [stores, initialActiveStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -287,6 +316,7 @@ export function SettingsPanel({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    if (activeStore?.id) fd.set("storeId", activeStore.id);
     startTransition(async () => {
       const result = await addInventoryCategory(fd);
       if (result && "error" in result && result.error) {
@@ -303,6 +333,7 @@ export function SettingsPanel({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    if (activeStore?.id) fd.set("storeId", activeStore.id);
     startTransition(async () => {
       const result = await updatePosRegisters(fd);
       if (result && "error" in result && result.error) {
@@ -318,9 +349,32 @@ export function SettingsPanel({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    if (activeStore?.id) fd.set("storeId", activeStore.id);
     startTransition(async () => {
       await updateInventoryViewMode(fd);
       setSaved("Inventory view saved");
+      router.refresh();
+    });
+  }
+
+  function onAddStore(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const fd = new FormData();
+    fd.set("name", newStoreName);
+    fd.set("sourceStoreId", stores[0]?.id || activeStore?.id || "");
+    startTransition(async () => {
+      const result = await createStore(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setNewStoreName("");
+      setShowAddStore(false);
+      if (result && "storeId" in result && result.storeId) {
+        setSelectedStoreId(result.storeId);
+      }
+      setSaved("Store added (copied settings from your first store)");
       router.refresh();
     });
   }
@@ -344,7 +398,7 @@ export function SettingsPanel({
   const headerDefault = receiptHeader?.trim() || businessName;
   const footerDefault = receiptFooter?.trim() || DEFAULT_RECEIPT_FOOTER;
   const registerDefaults = Array.from({ length: registerCount }, (_, i) => {
-    if (posRegisters[i]?.name) return posRegisters[i]!.name;
+    if (storeRegisters[i]?.name) return storeRegisters[i]!.name;
     if (i === 0) return "Front counter";
     if (i === 1) return "";
     return "";
@@ -1065,6 +1119,82 @@ export function SettingsPanel({
         <Panel style={{ padding: "1.25rem" }}>
           <div className="stack">
             <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS</h2>
+
+            <div className="store-bar">
+              <label className="field" style={{ margin: 0, flex: "1 1 200px" }}>
+                Store
+                <select
+                  value={activeStore?.id || ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedStoreId(id);
+                    setSelectedCategoryId(null);
+                    const fd = new FormData();
+                    fd.set("storeId", id);
+                    startTransition(async () => {
+                      const { setActiveStore } = await import("@/app/actions/settings");
+                      await setActiveStore(fd);
+                      router.refresh();
+                    });
+                  }}
+                >
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {stores.length < maxStores ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ alignSelf: "flex-end" }}
+                  onClick={() => setShowAddStore((v) => !v)}
+                >
+                  + Add store
+                </button>
+              ) : null}
+            </div>
+            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+              Each store has its own registers, inventory view, and categories.
+              {planTier === "FREE_RETAIL"
+                ? ` Free Retail includes ${FREE_RETAIL_MAX_STORES} store.`
+                : ` Standard allows up to ${STANDARD_MAX_STORES} stores.`}{" "}
+              New stores copy settings from your first store.
+            </p>
+
+            {showAddStore ? (
+              <form className="stack" onSubmit={onAddStore} style={{ maxWidth: 420 }}>
+                <label className="field">
+                  New store name
+                  <input
+                    value={newStoreName}
+                    onChange={(e) => setNewStoreName(e.target.value)}
+                    required
+                    placeholder="e.g. Branch 2"
+                    autoComplete="off"
+                  />
+                </label>
+                <p className="muted" style={{ margin: 0, fontSize: "0.82rem" }}>
+                  Registers, categories, and inventory view will be copied from{" "}
+                  <strong>{stores[0]?.name || "your first store"}</strong>.
+                </p>
+                <div className="row" style={{ gap: "0.5rem" }}>
+                  <button className="btn btn-primary" type="submit" disabled={pending}>
+                    {pending ? "Adding…" : "Create store"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAddStore(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
             <div className="settings-subtabs" role="tablist">
               <button
                 type="button"
@@ -1098,12 +1228,17 @@ export function SettingsPanel({
             </div>
 
             {posSubTab === "registers" ? (
-              <form className="stack" onSubmit={onPosRegisters}>
+              <form
+                key={`registers-${activeStore?.id || "none"}`}
+                className="stack"
+                onSubmit={onPosRegisters}
+              >
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
                   {planTier === "FREE_RETAIL"
                     ? `Free Retail includes up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.`
                     : `Standard plan supports up to ${STANDARD_MAX_POS_REGISTERS} named POS sign-ins.`}{" "}
-                  Choose which register is active when ringing sales.
+                  Choose which register is active when ringing sales
+                  {activeStore ? ` at ${activeStore.name}` : ""}.
                 </p>
                 <div className="info-banner">
                   <strong>Register 1</strong> — full access (inventory, settings, void tickets,
@@ -1140,9 +1275,14 @@ export function SettingsPanel({
             ) : null}
 
             {posSubTab === "inventory-view" ? (
-              <form className="stack" onSubmit={onInventoryViewMode}>
+              <form
+                key={`view-${activeStore?.id || "none"}-${inventoryViewMode}`}
+                className="stack"
+                onSubmit={onInventoryViewMode}
+              >
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Choose how items appear on the Inventory page for all users.
+                  Choose how items appear on the Inventory page
+                  {activeStore ? ` for ${activeStore.name}` : ""}.
                 </p>
                 <fieldset className="settings-fieldset">
                   <legend>Default layout</legend>
@@ -1174,13 +1314,15 @@ export function SettingsPanel({
             ) : null}
 
             {posSubTab === "categories" ? (
-              <div className="stack">
+              <div key={`cats-${activeStore?.id || "none"}`} className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Click a category to assign a colour. Colours show on inventory items and POS.
+                  Click a category to assign a colour
+                  {activeStore ? ` for ${activeStore.name}` : ""}. Colours show on inventory
+                  items and POS.
                 </p>
 
                 <ul className="settings-list">
-                  {inventoryCategories.map((cat) => {
+                  {storeCategories.map((cat) => {
                     const selected = selectedCategoryId === cat.id;
                     const color = cat.color || "#5C6B6E";
                     return (
@@ -1305,7 +1447,7 @@ export function SettingsPanel({
                       </li>
                     );
                   })}
-                  {inventoryCategories.length === 0 ? (
+                  {storeCategories.length === 0 ? (
                     <li className="muted">No categories yet — add one below.</li>
                   ) : null}
                 </ul>

@@ -65,17 +65,56 @@ export async function syncCompanyJobStatuses(companyId: string) {
 }
 
 async function requireInventoryManageAccess(companyId: string) {
+  const { ensureStoresForCompany } = await import("@/lib/store");
+  const stores = await ensureStoresForCompany(companyId);
+  const { readActiveRegisterIdFromCookies, readActiveStoreIdFromCookies } =
+    await import("@/lib/register-access-server");
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const activeStore = stores.find((s) => s.id === cookieStoreId) || stores[0] || null;
+
   const registers = await prisma.posRegister.findMany({
-    where: { companyId },
+    where: {
+      companyId,
+      ...(activeStore ? { storeId: activeStore.id } : {}),
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   const { resolveRegisterAccess } = await import("@/lib/register-access");
-  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
   if (!access.canManageInventory) {
     return { error: "Only POS register 1 can manage inventory" as const };
   }
-  return { ok: true as const };
+  return { ok: true as const, storeId: activeStore?.id ?? null };
+}
+
+/** Attach a product category name to the active store's category list. */
+async function ensureCategoryOnActiveStore(companyId: string, category: string) {
+  const { ensureStoresForCompany } = await import("@/lib/store");
+  const stores = await ensureStoresForCompany(companyId);
+  const { readActiveStoreIdFromCookies } = await import("@/lib/register-access-server");
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const storeId = stores.find((s) => s.id === cookieStoreId)?.id || stores[0]?.id;
+  if (!storeId) return;
+
+  const existingCat = await prisma.inventoryCategory.findFirst({
+    where: { storeId, name: { equals: category, mode: "insensitive" } },
+  });
+  if (existingCat) return;
+
+  const existingColors = await prisma.inventoryCategory.findMany({
+    where: { storeId, color: { not: null } },
+    select: { color: true },
+  });
+  await prisma.inventoryCategory
+    .create({
+      data: {
+        companyId,
+        storeId,
+        name: category,
+        color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
+      },
+    })
+    .catch(() => null);
 }
 
 function parseProductVariables(raw: string) {
@@ -170,25 +209,8 @@ export async function createProduct(formData: FormData) {
   const variablePrice =
     formData.get("variablePrice") === "on" || (!isService && unitPriceCents <= 0);
 
-  // Keep company category list in sync with free-text / dropdown choices
-  const existingCat = await prisma.inventoryCategory.findFirst({
-    where: { companyId, name: { equals: category, mode: "insensitive" } },
-  });
-  if (!existingCat) {
-    const existingColors = await prisma.inventoryCategory.findMany({
-      where: { companyId, color: { not: null } },
-      select: { color: true },
-    });
-    await prisma.inventoryCategory
-      .create({
-        data: {
-          companyId,
-          name: category,
-          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
-        },
-      })
-      .catch(() => null);
-  }
+  // Keep active store category list in sync with free-text / dropdown choices
+  await ensureCategoryOnActiveStore(companyId, category);
 
   let imageData: string | null | undefined;
   try {
@@ -278,24 +300,7 @@ export async function updateProduct(formData: FormData) {
   const variablePrice =
     formData.get("variablePrice") === "on" || (!isService && unitPriceCents <= 0);
 
-  const existingCat = await prisma.inventoryCategory.findFirst({
-    where: { companyId, name: { equals: category, mode: "insensitive" } },
-  });
-  if (!existingCat) {
-    const existingColors = await prisma.inventoryCategory.findMany({
-      where: { companyId, color: { not: null } },
-      select: { color: true },
-    });
-    await prisma.inventoryCategory
-      .create({
-        data: {
-          companyId,
-          name: category,
-          color: nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean)),
-        },
-      })
-      .catch(() => null);
-  }
+  await ensureCategoryOnActiveStore(companyId, category);
 
   let imageData: string | null | undefined;
   try {

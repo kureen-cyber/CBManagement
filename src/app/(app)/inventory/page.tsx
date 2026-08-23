@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { ensureDefaultInventoryCategories } from "@/lib/catalog";
+import { ensureStoresForCompany } from "@/lib/store";
 import { resolveRegisterAccess } from "@/lib/register-access";
-import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
+import {
+  readActiveRegisterIdFromCookies,
+  readActiveStoreIdFromCookies,
+} from "@/lib/register-access-server";
 import { parseInventoryViewMode } from "@/lib/settings";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
@@ -19,11 +23,14 @@ function parseOptions(raw: string): string[] {
 }
 
 export default async function InventoryPage() {
-  const { company, companyId } = await requireCompany();
-  await ensureDefaultInventoryCategories(companyId);
+  const { companyId } = await requireCompany();
+  const stores = await ensureStoresForCompany(companyId);
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const activeStore = stores.find((s) => s.id === cookieStoreId) || stores[0] || null;
+  await ensureDefaultInventoryCategories(companyId, activeStore?.id);
 
   const registers = await prisma.posRegister.findMany({
-    where: { companyId },
+    where: { companyId, ...(activeStore ? { storeId: activeStore.id } : {}) },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   const activeRegisterId = await readActiveRegisterIdFromCookies();
@@ -38,7 +45,10 @@ export default async function InventoryPage() {
       },
     }),
     prisma.inventoryCategory.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(activeStore ? { storeId: activeStore.id } : {}),
+      },
       orderBy: { name: "asc" },
     }),
     prisma.variableNameCatalog.findMany({
@@ -59,7 +69,7 @@ export default async function InventoryPage() {
       />
       <InventoryClient
         canManage={access.canManageInventory}
-        viewMode={parseInventoryViewMode(company.inventoryViewMode)}
+        viewMode={parseInventoryViewMode(activeStore?.inventoryViewMode ?? "card")}
         categoryColors={Object.fromEntries(
           categories.map((c) => [c.name.toLowerCase(), c.color]),
         )}

@@ -12,8 +12,12 @@ import {
   ensureDefaultInventoryCategories,
   ensureDefaultPaymentTypes,
 } from "@/lib/catalog";
+import { ensureStoresForCompany } from "@/lib/store";
 import { resolveRegisterAccess } from "@/lib/register-access";
-import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
+import {
+  readActiveRegisterIdFromCookies,
+  readActiveStoreIdFromCookies,
+} from "@/lib/register-access-server";
 import { PageHeader } from "@/components/ui";
 import { SettingsPanel } from "@/components/SettingsPanel";
 
@@ -22,14 +26,17 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const { company, companyId } = await requireCompany();
   await ensureDefaultPaymentTypes(companyId);
-  await ensureDefaultInventoryCategories(companyId);
+  const stores = await ensureStoresForCompany(companyId);
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const activeStore =
+    stores.find((s) => s.id === cookieStoreId) || stores[0] || null;
+  await ensureDefaultInventoryCategories(companyId, activeStore?.id);
 
   const [posRegisters, paymentTypes, inventoryCategories, discountPresets] =
     await Promise.all([
       prisma.posRegister.findMany({
         where: { companyId },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        take: 4,
       }),
       prisma.paymentType.findMany({
         where: { companyId },
@@ -45,14 +52,15 @@ export default async function SettingsPage() {
       }),
     ]);
 
+  const storeRegisters = posRegisters.filter((r) => r.storeId === activeStore?.id);
   const activeRegisterId = await readActiveRegisterIdFromCookies();
-  const access = resolveRegisterAccess(posRegisters, activeRegisterId);
+  const access = resolveRegisterAccess(storeRegisters, activeRegisterId);
 
   return (
     <div className="stack">
       <PageHeader
         title="Settings"
-        description="Theme, receipts, features, payment types, categories, discounts, and printers."
+        description="Theme, receipts, features, payment types, discounts, printers, and POS stores."
       />
       <Suspense fallback={<div className="muted">Loading settings…</div>}>
         <SettingsPanel
@@ -86,10 +94,17 @@ export default async function SettingsPage() {
             label: p.label,
             active: p.active,
           }))}
+          stores={stores.map((s) => ({
+            id: s.id,
+            name: s.name,
+            inventoryViewMode: parseInventoryViewMode(s.inventoryViewMode),
+          }))}
+          activeStoreId={activeStore?.id ?? null}
           inventoryCategories={inventoryCategories.map((c) => ({
             id: c.id,
             name: c.name,
             color: c.color,
+            storeId: c.storeId,
           }))}
           discountPresets={discountPresets.map((d) => ({
             id: d.id,
@@ -99,8 +114,11 @@ export default async function SettingsPage() {
           }))}
           canEditDiscounts={access.canEditDiscounts}
           planTier={parsePlanTier(company.planTier)}
-          posRegisters={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
-          inventoryViewMode={parseInventoryViewMode(company.inventoryViewMode)}
+          posRegisters={posRegisters.map((r) => ({
+            id: r.id,
+            name: r.name,
+            storeId: r.storeId,
+          }))}
         />
       </Suspense>
     </div>

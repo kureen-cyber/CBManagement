@@ -5,6 +5,9 @@ export type PlanTier = (typeof PLAN_TIERS)[number];
 
 export const FREE_RETAIL_MAX_POS_REGISTERS = 2;
 export const STANDARD_MAX_POS_REGISTERS = 4;
+/** Free retail: one store; Standard: up to five. */
+export const FREE_RETAIL_MAX_STORES = 1;
+export const STANDARD_MAX_STORES = 5;
 /** Free tiers may only view transactions within this many past days. */
 export const FREE_TIER_MAX_TRANSACTION_DAYS = 31;
 /** @deprecated use FREE_TIER_MAX_TRANSACTION_DAYS */

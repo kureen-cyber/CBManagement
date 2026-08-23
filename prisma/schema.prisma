@@ -64,6 +64,7 @@ model Company {
   updatedAt       DateTime @updatedAt
 
   members             CompanyMember[]
+  stores              Store[]
   posRegisters        PosRegister[]
   paymentTypes        PaymentType[]
   inventoryCategories InventoryCategory[]
@@ -79,6 +80,26 @@ model Company {
   payments            Payment[]
   expenses            Expense[]
   sales               Sale[]
+}
+
+/// Physical or logical location under a company (POS settings are per store).
+model Store {
+  id                String   @id @default(cuid())
+  companyId         String
+  name              String
+  /// card | list
+  inventoryViewMode String   @default("card")
+  sortOrder         Int      @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  posRegisters        PosRegister[]
+  inventoryCategories InventoryCategory[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 /// Company-defined POS / expense payment methods
@@ -98,10 +119,11 @@ model PaymentType {
   @@index([companyId])
 }
 
-/// Company-defined inventory / product categories
+/// Store-defined inventory / product categories (colours, POS filters)
 model InventoryCategory {
   id        String   @id @default(cuid())
   companyId String
+  storeId   String?
   name      String
   /// Hex colour for category badges (e.g. #C41E3A)
   color     String?
@@ -109,15 +131,18 @@ model InventoryCategory {
   updatedAt DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@unique([companyId, name])
+  @@unique([storeId, name])
   @@index([companyId])
+  @@index([storeId])
 }
 
-/// Named POS station / till (free retail allows up to 2).
+/// Named POS station / till within a store (free retail allows up to 2 per store).
 model PosRegister {
   id        String   @id @default(cuid())
   companyId String
+  storeId   String?
   name      String
   /// 0 = POS 1 (full access), 1 = POS 2 (limited)
   sortOrder Int      @default(0)
@@ -125,9 +150,11 @@ model PosRegister {
   updatedAt DateTime @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
   sales   Sale[]
 
   @@index([companyId])
+  @@index([storeId])
 }
 
 /// Links a Supabase Auth user id to exactly one company (owner for now).

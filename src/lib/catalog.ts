@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { ensureStoresForCompany } from "@/lib/store";
 
 export const DEFAULT_PAYMENT_TYPES: { code: string; label: string; sortOrder: number }[] = [
   { code: "CASH", label: "Cash", sortOrder: 0 },
@@ -24,14 +25,26 @@ export async function ensureDefaultPaymentTypes(companyId: string) {
   });
 }
 
-/** Seed starter inventory categories from built-in list when empty. */
-export async function ensureDefaultInventoryCategories(companyId: string) {
-  const count = await prisma.inventoryCategory.count({ where: { companyId } });
+/**
+ * Seed starter inventory categories for a store when empty.
+ * Ensures a default store exists when storeId is omitted.
+ */
+export async function ensureDefaultInventoryCategories(
+  companyId: string,
+  storeId?: string | null,
+) {
+  const stores = await ensureStoresForCompany(companyId);
+  const targetStoreId = storeId || stores[0]?.id;
+  if (!targetStoreId) return;
+
+  const count = await prisma.inventoryCategory.count({
+    where: { companyId, storeId: targetStoreId },
+  });
   if (count > 0) return;
   const names = PRODUCT_CATEGORIES.filter(Boolean).slice(0, 12);
   if (!names.length) return;
   await prisma.inventoryCategory.createMany({
-    data: names.map((name) => ({ companyId, name })),
+    data: names.map((name) => ({ companyId, storeId: targetStoreId, name })),
     skipDuplicates: true,
   });
 }

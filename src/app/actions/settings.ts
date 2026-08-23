@@ -18,6 +18,7 @@ import {
   maxPosRegistersForTier,
   parsePlanTier,
 } from "@/lib/tier";
+import { duplicateStoreFromSource, ensureStoresForCompany } from "@/lib/store";
 
 const LOGO_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
 
@@ -281,21 +282,27 @@ export async function deletePaymentType(formData: FormData) {
 
 export async function addInventoryCategory(formData: FormData) {
   const { companyId } = await requireCompany();
+  const stores = await ensureStoresForCompany(companyId);
+  const storeId = String(formData.get("storeId") || "").trim() || stores[0]?.id;
+  if (!storeId) return { error: "No store selected" };
+  const store = stores.find((s) => s.id === storeId);
+  if (!store) return { error: "Store not found" };
+
   const name = String(formData.get("name") || "").trim();
   if (!name) return { error: "Enter a category name" };
   const exists = await prisma.inventoryCategory.findFirst({
-    where: { companyId, name: { equals: name, mode: "insensitive" } },
+    where: { storeId, name: { equals: name, mode: "insensitive" } },
   });
-  if (exists) return { error: "That category already exists" };
+  if (exists) return { error: "That category already exists in this store" };
   const requestedColor = parseCategoryColor(formData.get("color"));
   const existingColors = await prisma.inventoryCategory.findMany({
-    where: { companyId, color: { not: null } },
+    where: { storeId, color: { not: null } },
     select: { color: true },
   });
   const color =
     requestedColor ??
     nextCategoryColor(existingColors.map((c) => c.color!).filter(Boolean));
-  await prisma.inventoryCategory.create({ data: { companyId, name, color } });
+  await prisma.inventoryCategory.create({ data: { companyId, storeId, name, color } });
   revalidatePath("/settings");
   revalidatePath("/inventory");
   revalidatePath("/pos");
@@ -328,9 +335,15 @@ export async function deleteInventoryCategory(formData: FormData) {
   return { ok: true as const };
 }
 
-/** Save named POS registers (free retail: 2, standard: up to 4). */
+/** Save named POS registers for a store (free retail: 2, standard: up to 4). */
 export async function updatePosRegisters(formData: FormData) {
   const { companyId, company } = await requireCompany();
+  const stores = await ensureStoresForCompany(companyId);
+  const storeId = String(formData.get("storeId") || "").trim() || stores[0]?.id;
+  if (!storeId || !stores.some((s) => s.id === storeId)) {
+    return { error: "Store not found" };
+  }
+
   const tier = parsePlanTier(company.planTier);
   const max = maxPosRegistersForTier(tier);
 
@@ -349,30 +362,27 @@ export async function updatePosRegisters(formData: FormData) {
   }
 
   const existing = await prisma.posRegister.findMany({
-    where: { companyId },
+    where: { companyId, storeId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
 
-  // Update / create in order; delete extras beyond saved names
-  // sortOrder 0 = POS 1 (full), 1 = POS 2 (limited)
   for (let i = 0; i < names.length; i++) {
     const name = names[i]!;
     const row = existing[i];
     if (row) {
       await prisma.posRegister.update({
         where: { id: row.id },
-        data: { name, sortOrder: i },
+        data: { name, sortOrder: i, storeId },
       });
     } else {
       await prisma.posRegister.create({
-        data: { companyId, name, sortOrder: i },
+        data: { companyId, storeId, name, sortOrder: i },
       });
     }
   }
 
   const extras = existing.slice(names.length);
   for (const row of extras) {
-    // Detach sales then delete register
     await prisma.sale.updateMany({
       where: { posRegisterId: row.id },
       data: { posRegisterId: null },
@@ -387,12 +397,74 @@ export async function updatePosRegisters(formData: FormData) {
 
 export async function updateInventoryViewMode(formData: FormData) {
   const { companyId } = await requireCompany();
+  const stores = await ensureStoresForCompany(companyId);
+  const storeId = String(formData.get("storeId") || "").trim() || stores[0]?.id;
+  if (!storeId || !stores.some((s) => s.id === storeId)) {
+    return { error: "Store not found" };
+  }
   const inventoryViewMode = parseInventoryViewMode(formData.get("inventoryViewMode"));
-  await prisma.company.update({
-    where: { id: companyId },
+  await prisma.store.update({
+    where: { id: storeId },
     data: { inventoryViewMode },
   });
+  // Keep company default in sync with first store for legacy readers
+  if (stores[0]?.id === storeId) {
+    await prisma.company.update({
+      where: { id: companyId },
+      data: { inventoryViewMode },
+    });
+  }
   revalidatePath("/settings");
+  revalidatePath("/inventory");
+  return { ok: true as const };
+}
+
+/** Add a store, copying registers / categories / inventory view from the first (or selected) store. */
+export async function createStore(formData: FormData) {
+  const { companyId, company } = await requireCompany();
+  const stores = await ensureStoresForCompany(companyId);
+  const sourceStoreId =
+    String(formData.get("sourceStoreId") || "").trim() || stores[0]?.id || "";
+  const name = String(formData.get("name") || "").trim();
+
+  const result = await duplicateStoreFromSource({
+    companyId,
+    planTier: company.planTier,
+    name,
+    sourceStoreId,
+  });
+  if ("error" in result && result.error) return { error: result.error };
+
+  const storeId = result.store!.id;
+  const cookieStore = await cookies();
+  const { POS_STORE_COOKIE } = await import("@/lib/store");
+  cookieStore.set(POS_STORE_COOKIE, storeId, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  revalidatePath("/inventory");
+  return { ok: true as const, storeId };
+}
+
+export async function setActiveStore(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const storeId = String(formData.get("storeId") || "").trim();
+  const stores = await ensureStoresForCompany(companyId);
+  if (!stores.some((s) => s.id === storeId)) {
+    return { error: "Store not found" };
+  }
+  const { cookies } = await import("next/headers");
+  const { POS_STORE_COOKIE } = await import("@/lib/store");
+  const cookieStore = await cookies();
+  cookieStore.set(POS_STORE_COOKIE, storeId, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  revalidatePath("/settings");
+  revalidatePath("/pos");
   revalidatePath("/inventory");
   return { ok: true as const };
 }

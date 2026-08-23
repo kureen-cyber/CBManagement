@@ -7,6 +7,7 @@ import {
   ensureDefaultInventoryCategories,
   ensureDefaultPaymentTypes,
 } from "@/lib/catalog";
+import { ensureStoresForCompany } from "@/lib/store";
 import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
@@ -14,7 +15,10 @@ import {
   receiptVisibleSince,
 } from "@/lib/tier";
 import { resolveRegisterAccess } from "@/lib/register-access";
-import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
+import {
+  readActiveRegisterIdFromCookies,
+  readActiveStoreIdFromCookies,
+} from "@/lib/register-access-server";
 import { PosTerminal } from "@/components/PosTerminal";
 import { PageHeader, Panel } from "@/components/ui";
 import Link from "next/link";
@@ -33,7 +37,10 @@ function parseOptions(raw: string): string[] {
 export default async function PosPage() {
   const { companyId, company } = await requireCompany();
   await ensureDefaultPaymentTypes(companyId);
-  await ensureDefaultInventoryCategories(companyId);
+  const stores = await ensureStoresForCompany(companyId);
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const activeStore = stores.find((s) => s.id === cookieStoreId) || stores[0] || null;
+  await ensureDefaultInventoryCategories(companyId, activeStore?.id);
 
   const businessType = await getBusinessType();
   const retailMode = isRetailOnly(businessType) || businessType === "BOTH";
@@ -67,7 +74,10 @@ export default async function PosPage() {
       include: { customer: true, lines: true, posRegister: true },
     }),
     prisma.posRegister.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(activeStore ? { storeId: activeStore.id } : {}),
+      },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
     prisma.paymentType.findMany({
@@ -75,7 +85,10 @@ export default async function PosPage() {
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
     }),
     prisma.inventoryCategory.findMany({
-      where: { companyId },
+      where: {
+        companyId,
+        ...(activeStore ? { storeId: activeStore.id } : {}),
+      },
       orderBy: { name: "asc" },
     }),
     company.featureOpenTickets
@@ -100,9 +113,14 @@ export default async function PosPage() {
       <PageHeader
         title={isRetailOnly(businessType) ? "POS Terminal" : "Point of Sale"}
         description={
-          isRetailOnly(businessType)
-            ? `Ring up sales on a named register. Free Retail keeps receipts for ${FREE_TIER_MAX_TRANSACTION_DAYS} days.`
-            : "Ring up products and services. Stock updates automatically."
+          [
+            activeStore ? `Store: ${activeStore.name}.` : null,
+            isRetailOnly(businessType)
+              ? `Ring up sales on a named register. Free Retail keeps receipts for ${FREE_TIER_MAX_TRANSACTION_DAYS} days.`
+              : "Ring up products and services. Stock updates automatically.",
+          ]
+            .filter(Boolean)
+            .join(" ")
         }
         actions={
           access.canManageInventory ? (

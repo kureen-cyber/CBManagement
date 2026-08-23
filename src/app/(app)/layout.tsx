@@ -9,7 +9,11 @@ import { isLocalhostDemoHost, parsePlanTier } from "@/lib/tier";
 import { isDemoModeEnabled } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { resolveRegisterAccess } from "@/lib/register-access";
-import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
+import {
+  readActiveRegisterIdFromCookies,
+  readActiveStoreIdFromCookies,
+} from "@/lib/register-access-server";
+import { ensureStoresForCompany } from "@/lib/store";
 import { RegisterAccessGate } from "@/components/RegisterAccessGate";
 
 export default async function AppLayout({
@@ -27,8 +31,15 @@ export default async function AppLayout({
   const showDemoNav =
     isDemoModeEnabled() || isLocalhostDemoHost(hdrs.get("host"));
 
+  const stores = await ensureStoresForCompany(company.id);
+  const cookieStoreId = await readActiveStoreIdFromCookies();
+  const activeStore = stores.find((s) => s.id === cookieStoreId) || stores[0] || null;
+
   const registers = await prisma.posRegister.findMany({
-    where: { companyId: company.id },
+    where: {
+      companyId: company.id,
+      ...(activeStore ? { storeId: activeStore.id } : {}),
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   const activeRegisterId = await readActiveRegisterIdFromCookies();

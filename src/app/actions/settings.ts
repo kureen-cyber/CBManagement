@@ -416,6 +416,7 @@ export async function updateInventoryViewMode(formData: FormData) {
   }
   revalidatePath("/settings");
   revalidatePath("/inventory");
+  revalidatePath("/pos");
   return { ok: true as const };
 }
 

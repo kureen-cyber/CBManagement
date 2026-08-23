@@ -13,6 +13,7 @@ import {
 } from "@/app/actions";
 import { formatTTD, toCents } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
 import { ItemMenu } from "@/components/ItemMenu";
 
@@ -83,6 +84,7 @@ export function PosTerminal({
   discounts = [],
   canVoidTickets = true,
   canManageInventory = true,
+  viewMode = "card",
   initialRegisterId = "",
   honeyPersonsEnabled = false,
 }: {
@@ -99,6 +101,8 @@ export function PosTerminal({
   discounts?: DiscountOption[];
   canVoidTickets?: boolean;
   canManageInventory?: boolean;
+  /** Matches Settings → POS → Inventory View for this store (also used on Inventory). */
+  viewMode?: InventoryViewMode;
   initialRegisterId?: string;
   honeyPersonsEnabled?: boolean;
 }) {
@@ -666,30 +670,71 @@ export function PosTerminal({
                   ))}
                 </select>
               </div>
-              <div className="product-grid">
-                {filtered.map((p) => (
-                  <div key={p.id} className="product-tile-wrap">
-                    <button type="button" className="product-tile" onClick={() => addProduct(p)}>
-                      <strong>{p.name}</strong>
-                      <div className="muted" style={{ fontSize: "0.78rem" }}>
-                        {p.category}
-                        {p.trackStock && !p.isService
-                          ? ` · stock ${p.stockQty}`
-                          : p.isService
-                            ? " · service"
-                            : ""}
-                        {p.variablePrice ? " · price at POS" : ""}
-                        {p.variables?.length ? " · options" : ""}
+              <div className={viewMode === "list" ? "product-list" : "product-grid"}>
+                {filtered.map((p) => {
+                  const meta = [
+                    p.category,
+                    p.trackStock && !p.isService
+                      ? `stock ${p.stockQty}`
+                      : p.isService
+                        ? "service"
+                        : null,
+                    p.variablePrice ? "price at POS" : null,
+                    p.variables?.length ? "options" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
+
+                  if (viewMode === "list") {
+                    return (
+                      <div key={p.id} className="product-list-row">
+                        <button
+                          type="button"
+                          className="product-list-btn"
+                          onClick={() => addProduct(p)}
+                        >
+                          <div>
+                            <strong>{p.name}</strong>
+                            <div className="muted" style={{ fontSize: "0.78rem", marginTop: "0.15rem" }}>
+                              {meta}
+                            </div>
+                          </div>
+                          <div className="money">
+                            {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
+                          </div>
+                        </button>
+                        {canManageInventory ? (
+                          <ItemMenu
+                            productId={p.id}
+                            productName={p.name}
+                            onDeleted={onProductDeleted}
+                          />
+                        ) : null}
                       </div>
-                      <div className="money">
-                        {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
-                      </div>
-                    </button>
-                    {canManageInventory ? (
-                      <ItemMenu productId={p.id} productName={p.name} onDeleted={onProductDeleted} />
-                    ) : null}
-                  </div>
-                ))}
+                    );
+                  }
+
+                  return (
+                    <div key={p.id} className="product-tile-wrap">
+                      <button type="button" className="product-tile" onClick={() => addProduct(p)}>
+                        <strong>{p.name}</strong>
+                        <div className="muted" style={{ fontSize: "0.78rem" }}>
+                          {meta}
+                        </div>
+                        <div className="money">
+                          {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
+                        </div>
+                      </button>
+                      {canManageInventory ? (
+                        <ItemMenu
+                          productId={p.id}
+                          productName={p.name}
+                          onDeleted={onProductDeleted}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
                 {filtered.length === 0 ? <div className="muted">No products match.</div> : null}
               </div>
             </div>

@@ -14,6 +14,7 @@ import {
   parsePlanTier,
   receiptVisibleSince,
 } from "@/lib/tier";
+import { parseInventoryViewMode } from "@/lib/settings";
 import { resolveRegisterAccess } from "@/lib/register-access";
 import {
   readActiveRegisterIdFromCookies,
@@ -146,6 +147,7 @@ export default async function PosPage() {
         outOfStockWarn={company.featureOutOfStockWarn}
         canVoidTickets={access.canVoidTickets}
         canManageInventory={access.canManageInventory}
+        viewMode={parseInventoryViewMode(activeStore?.inventoryViewMode ?? "card")}
         initialRegisterId={access.registerId || ""}
         honeyPersonsEnabled={company.receiptHoneyPersons === true}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}

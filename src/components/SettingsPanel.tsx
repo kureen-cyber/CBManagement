@@ -1283,7 +1283,7 @@ export function SettingsPanel({
                 onSubmit={onInventoryViewMode}
               >
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Choose how items appear on the Inventory page
+                  Choose how items appear on both Inventory and POS
                   {activeStore ? ` for ${activeStore.name}` : ""}.
                 </p>
                 <fieldset className="settings-fieldset">

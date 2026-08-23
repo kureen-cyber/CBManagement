@@ -53,7 +53,7 @@ export default async function InventoryPage() {
         title={access.canManageInventory ? "Inventory" : "Stock levels"}
         description={
           access.canManageInventory
-            ? "Opening + purchases − usage = current stock. Manage categories in Settings → Categories."
+            ? "Opening + purchases − usage = current stock. Manage categories in Settings → POS → Categories."
             : "View-only stock levels for this register. Inventory edits require POS register 1."
         }
       />

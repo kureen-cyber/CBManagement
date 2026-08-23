@@ -49,9 +49,10 @@ type Tab =
   | "receipts"
   | "features"
   | "payments"
-  | "categories"
   | "discounts"
   | "pos";
+
+type PosSubTab = "registers" | "inventory-view" | "categories";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
@@ -60,10 +61,14 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "receipts", label: "Receipts" },
   { id: "features", label: "Features" },
   { id: "payments", label: "Payment types" },
-  { id: "categories", label: "Categories" },
   { id: "discounts", label: "Discounts" },
   { id: "pos", label: "POS" },
 ];
+
+function parsePosSubTab(value: string | null): PosSubTab {
+  if (value === "inventory-view" || value === "categories") return value;
+  return "registers";
+}
 
 export function SettingsPanel({
   businessName,
@@ -132,10 +137,15 @@ export function SettingsPanel({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) || "general";
-  const [tab, setTab] = useState<Tab>(
-    TABS.some((t) => t.id === initialTab) ? initialTab : "general",
-  );
+  const rawTab = searchParams.get("tab");
+  // Legacy ?tab=categories → POS → Categories
+  const initialTab: Tab =
+    rawTab === "categories"
+      ? "pos"
+      : TABS.some((t) => t.id === (rawTab as Tab))
+        ? (rawTab as Tab)
+        : "general";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -146,8 +156,10 @@ export function SettingsPanel({
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(letterheadData);
   const [removeLetterhead, setRemoveLetterhead] = useState(false);
   const initialPosSub =
-    searchParams.get("posSub") === "inventory-view" ? "inventory-view" : "registers";
-  const [posSubTab, setPosSubTab] = useState<"registers" | "inventory-view">(initialPosSub);
+    rawTab === "categories"
+      ? "categories"
+      : parsePosSubTab(searchParams.get("posSub"));
+  const [posSubTab, setPosSubTab] = useState<PosSubTab>(initialPosSub);
   const maxRegisters = maxPosRegistersForTier(planTier);
   const [registerCount, setRegisterCount] = useState(
     Math.max(posRegisters.length || 1, 1),
@@ -175,7 +187,18 @@ export function SettingsPanel({
     setTab(next);
     setSaved(null);
     setError(null);
-    router.replace(`/settings?tab=${next}`, { scroll: false });
+    if (next === "pos") {
+      router.replace(`/settings?tab=pos&posSub=${posSubTab}`, { scroll: false });
+    } else {
+      router.replace(`/settings?tab=${next}`, { scroll: false });
+    }
+  }
+
+  function selectPosSub(next: PosSubTab) {
+    setPosSubTab(next);
+    setSaved(null);
+    setError(null);
+    router.replace(`/settings?tab=pos&posSub=${next}`, { scroll: false });
   }
 
   function onGeneral(e: FormEvent<HTMLFormElement>) {
@@ -932,189 +955,6 @@ export function SettingsPanel({
         </Panel>
       ) : null}
 
-      {tab === "categories" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <div className="stack">
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Inventory categories</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Click a category to assign a colour. Colours show on inventory items and POS.
-            </p>
-
-            <ul className="settings-list">
-              {inventoryCategories.map((cat) => {
-                const selected = selectedCategoryId === cat.id;
-                const color = cat.color || "#5C6B6E";
-                return (
-                  <li key={cat.id} className="stack" style={{ gap: "0.55rem" }}>
-                    <div
-                      className={
-                        selected
-                          ? "settings-list-row category-row selected"
-                          : "settings-list-row category-row"
-                      }
-                      role="button"
-                      tabIndex={0}
-                      onClick={() =>
-                        setSelectedCategoryId((id) => (id === cat.id ? null : cat.id))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setSelectedCategoryId((id) => (id === cat.id ? null : cat.id));
-                        }
-                      }}
-                    >
-                      <div className="row" style={{ gap: "0.65rem", alignItems: "center" }}>
-                        <span
-                          className="category-swatch"
-                          style={{ background: color }}
-                          aria-hidden
-                        />
-                        <strong>{cat.name}</strong>
-                        <span className="muted" style={{ fontSize: "0.8rem" }}>
-                          {selected ? "Pick a colour below" : "Click to set colour"}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        disabled={pending}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const fd = new FormData();
-                          fd.set("id", cat.id);
-                          startTransition(async () => {
-                            await deleteInventoryCategory(fd);
-                            if (selectedCategoryId === cat.id) setSelectedCategoryId(null);
-                            setSaved("Category removed");
-                            router.refresh();
-                          });
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-
-                    {selected ? (
-                      <div
-                        className="category-color-picker"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="row" style={{ gap: "0.45rem", flexWrap: "wrap", alignItems: "center" }}>
-                          {CATEGORY_COLOR_PALETTE.map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              className="category-swatch pick"
-                              style={{
-                                background: c,
-                                outline:
-                                  color.toUpperCase() === c.toUpperCase()
-                                    ? "2px solid var(--ink)"
-                                    : "none",
-                                outlineOffset: 2,
-                              }}
-                              aria-label={`Set ${cat.name} to ${c}`}
-                              disabled={pending}
-                              onClick={() => {
-                                const fd = new FormData();
-                                fd.set("id", cat.id);
-                                fd.set("color", c);
-                                startTransition(async () => {
-                                  const result = await updateInventoryCategoryColor(fd);
-                                  if (result && "error" in result && result.error) {
-                                    setError(result.error);
-                                    return;
-                                  }
-                                  setSaved(`Colour updated for ${cat.name}`);
-                                  router.refresh();
-                                });
-                              }}
-                            />
-                          ))}
-                          <label className="category-custom-color">
-                            <span className="muted" style={{ fontSize: "0.8rem" }}>
-                              Custom
-                            </span>
-                            <input
-                              type="color"
-                              value={/^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#0A6B6E"}
-                              disabled={pending}
-                              aria-label={`Custom colour for ${cat.name}`}
-                              onChange={(e) => {
-                                const fd = new FormData();
-                                fd.set("id", cat.id);
-                                fd.set("color", e.target.value);
-                                startTransition(async () => {
-                                  const result = await updateInventoryCategoryColor(fd);
-                                  if (result && "error" in result && result.error) {
-                                    setError(result.error);
-                                    return;
-                                  }
-                                  setSaved(`Colour updated for ${cat.name}`);
-                                  router.refresh();
-                                });
-                              }}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-              {inventoryCategories.length === 0 ? (
-                <li className="muted">No categories yet — add one below.</li>
-              ) : null}
-            </ul>
-
-            <form className="stack" onSubmit={onAddCategory}>
-              <label className="field">
-                New category
-                <input
-                  name="name"
-                  type="text"
-                  required
-                  placeholder="e.g. Grocery, Gift items"
-                  autoComplete="off"
-                />
-              </label>
-              <label className="field">
-                Colour code
-                <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                  <input
-                    name="color"
-                    type="color"
-                    value={newCategoryColor}
-                    onChange={(e) => setNewCategoryColor(e.target.value)}
-                  />
-                  {CATEGORY_COLOR_PALETTE.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className="category-swatch pick"
-                      style={{
-                        background: c,
-                        outline:
-                          newCategoryColor.toUpperCase() === c.toUpperCase()
-                            ? "2px solid var(--ink)"
-                            : "none",
-                        outlineOffset: 2,
-                      }}
-                      aria-label={`Use ${c}`}
-                      onClick={() => setNewCategoryColor(c)}
-                    />
-                  ))}
-                </div>
-              </label>
-              <button className="btn btn-primary" type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Add category"}
-              </button>
-            </form>
-          </div>
-        </Panel>
-      ) : null}
-
       {tab === "discounts" ? (
         <Panel style={{ padding: "1.25rem" }}>
           <div className="stack">
@@ -1231,7 +1071,7 @@ export function SettingsPanel({
                 role="tab"
                 aria-selected={posSubTab === "registers"}
                 className={posSubTab === "registers" ? "settings-subtab active" : "settings-subtab"}
-                onClick={() => setPosSubTab("registers")}
+                onClick={() => selectPosSub("registers")}
               >
                 Registers
               </button>
@@ -1242,9 +1082,18 @@ export function SettingsPanel({
                 className={
                   posSubTab === "inventory-view" ? "settings-subtab active" : "settings-subtab"
                 }
-                onClick={() => setPosSubTab("inventory-view")}
+                onClick={() => selectPosSub("inventory-view")}
               >
                 Inventory View
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={posSubTab === "categories"}
+                className={posSubTab === "categories" ? "settings-subtab active" : "settings-subtab"}
+                onClick={() => selectPosSub("categories")}
+              >
+                Categories
               </button>
             </div>
 
@@ -1288,7 +1137,9 @@ export function SettingsPanel({
                   {pending ? "Saving…" : "Save registers"}
                 </button>
               </form>
-            ) : (
+            ) : null}
+
+            {posSubTab === "inventory-view" ? (
               <form className="stack" onSubmit={onInventoryViewMode}>
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
                   Choose how items appear on the Inventory page for all users.
@@ -1320,7 +1171,190 @@ export function SettingsPanel({
                   {pending ? "Saving…" : "Save inventory view"}
                 </button>
               </form>
-            )}
+            ) : null}
+
+            {posSubTab === "categories" ? (
+              <div className="stack">
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                  Click a category to assign a colour. Colours show on inventory items and POS.
+                </p>
+
+                <ul className="settings-list">
+                  {inventoryCategories.map((cat) => {
+                    const selected = selectedCategoryId === cat.id;
+                    const color = cat.color || "#5C6B6E";
+                    return (
+                      <li key={cat.id} className="stack" style={{ gap: "0.55rem" }}>
+                        <div
+                          className={
+                            selected
+                              ? "settings-list-row category-row selected"
+                              : "settings-list-row category-row"
+                          }
+                          role="button"
+                          tabIndex={0}
+                          onClick={() =>
+                            setSelectedCategoryId((id) => (id === cat.id ? null : cat.id))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedCategoryId((id) => (id === cat.id ? null : cat.id));
+                            }
+                          }}
+                        >
+                          <div className="row" style={{ gap: "0.65rem", alignItems: "center" }}>
+                            <span
+                              className="category-swatch"
+                              style={{ background: color }}
+                              aria-hidden
+                            />
+                            <strong>{cat.name}</strong>
+                            <span className="muted" style={{ fontSize: "0.8rem" }}>
+                              {selected ? "Pick a colour below" : "Click to set colour"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            disabled={pending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const fd = new FormData();
+                              fd.set("id", cat.id);
+                              startTransition(async () => {
+                                await deleteInventoryCategory(fd);
+                                if (selectedCategoryId === cat.id) setSelectedCategoryId(null);
+                                setSaved("Category removed");
+                                router.refresh();
+                              });
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+
+                        {selected ? (
+                          <div
+                            className="category-color-picker"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div
+                              className="row"
+                              style={{ gap: "0.45rem", flexWrap: "wrap", alignItems: "center" }}
+                            >
+                              {CATEGORY_COLOR_PALETTE.map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  className="category-swatch pick"
+                                  style={{
+                                    background: c,
+                                    outline:
+                                      color.toUpperCase() === c.toUpperCase()
+                                        ? "2px solid var(--ink)"
+                                        : "none",
+                                    outlineOffset: 2,
+                                  }}
+                                  aria-label={`Set ${cat.name} to ${c}`}
+                                  disabled={pending}
+                                  onClick={() => {
+                                    const fd = new FormData();
+                                    fd.set("id", cat.id);
+                                    fd.set("color", c);
+                                    startTransition(async () => {
+                                      const result = await updateInventoryCategoryColor(fd);
+                                      if (result && "error" in result && result.error) {
+                                        setError(result.error);
+                                        return;
+                                      }
+                                      setSaved(`Colour updated for ${cat.name}`);
+                                      router.refresh();
+                                    });
+                                  }}
+                                />
+                              ))}
+                              <label className="category-custom-color">
+                                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                                  Custom
+                                </span>
+                                <input
+                                  type="color"
+                                  value={/^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#0A6B6E"}
+                                  disabled={pending}
+                                  aria-label={`Custom colour for ${cat.name}`}
+                                  onChange={(e) => {
+                                    const fd = new FormData();
+                                    fd.set("id", cat.id);
+                                    fd.set("color", e.target.value);
+                                    startTransition(async () => {
+                                      const result = await updateInventoryCategoryColor(fd);
+                                      if (result && "error" in result && result.error) {
+                                        setError(result.error);
+                                        return;
+                                      }
+                                      setSaved(`Colour updated for ${cat.name}`);
+                                      router.refresh();
+                                    });
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                  {inventoryCategories.length === 0 ? (
+                    <li className="muted">No categories yet — add one below.</li>
+                  ) : null}
+                </ul>
+
+                <form className="stack" onSubmit={onAddCategory}>
+                  <label className="field">
+                    New category
+                    <input
+                      name="name"
+                      type="text"
+                      required
+                      placeholder="e.g. Grocery, Gift items"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="field">
+                    Colour code
+                    <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                      <input
+                        name="color"
+                        type="color"
+                        value={newCategoryColor}
+                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                      />
+                      {CATEGORY_COLOR_PALETTE.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className="category-swatch pick"
+                          style={{
+                            background: c,
+                            outline:
+                              newCategoryColor.toUpperCase() === c.toUpperCase()
+                                ? "2px solid var(--ink)"
+                                : "none",
+                            outlineOffset: 2,
+                          }}
+                          aria-label={`Use ${c}`}
+                          onClick={() => setNewCategoryColor(c)}
+                        />
+                      ))}
+                    </div>
+                  </label>
+                  <button className="btn btn-primary" type="submit" disabled={pending}>
+                    {pending ? "Saving…" : "Add category"}
+                  </button>
+                </form>
+              </div>
+            ) : null}
           </div>
         </Panel>
       ) : null}

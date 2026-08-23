@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Fraunces, Manrope } from "next/font/google";
+import { parseTheme, themeColorScheme } from "@/lib/settings";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -25,11 +26,12 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies();
-  const theme = cookieStore.get("cbm_theme")?.value === "dark" ? "dark" : "light";
+  const theme = parseTheme(cookieStore.get("cbm_theme")?.value);
   const lang = cookieStore.get("cbm_lang")?.value || "en";
+  const colorScheme = themeColorScheme(theme);
 
   return (
-    <html lang={lang} data-theme={theme} style={{ colorScheme: theme }}>
+    <html lang={lang} data-theme={theme} style={{ colorScheme }}>
       <body className={`${fraunces.variable} ${manrope.variable}`}>{children}</body>
     </html>
   );

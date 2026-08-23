@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import type { InventoryViewMode } from "@/lib/settings";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { CategoryInput } from "@/components/CategoryInput";
 import { EditProductModal } from "@/components/EditProductModal";
@@ -24,20 +25,65 @@ export type InventoryProduct = {
   minStock: number;
   trackStock: boolean;
   isService: boolean;
+  imageData?: string | null;
   variables?: { name: string; options: string[] }[];
 };
+
+function categoryColor(
+  colors: Record<string, string | null | undefined>,
+  name: string,
+): string {
+  return colors[name.toLowerCase()] || "#5C6B6E";
+}
+
+function CategoryBadge({
+  name,
+  colors,
+}: {
+  name: string;
+  colors: Record<string, string | null | undefined>;
+}) {
+  const color = categoryColor(colors, name);
+  return (
+    <span
+      className="category-badge"
+      style={{
+        color,
+        background: `${color}18`,
+        borderColor: `${color}40`,
+      }}
+    >
+      <span className="category-dot" style={{ background: color }} />
+      {name}
+    </span>
+  );
+}
+
+function ProductThumb({ imageData, alt }: { imageData?: string | null; alt: string }) {
+  if (imageData) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={imageData} alt={alt} className="inventory-thumb" />
+    );
+  }
+  return <div className="inventory-thumb inventory-thumb-placeholder">No photo</div>;
+}
 
 type VarDraft = { name: string; options: string };
 
 export function InventoryClient({
   initialProducts,
   categories = [],
+  categoryColors = {},
   variableNames = [],
+  viewMode = "card",
   canManage = true,
 }: {
   initialProducts: InventoryProduct[];
   categories?: string[];
+  categoryColors?: Record<string, string | null | undefined>;
   variableNames?: string[];
+  viewMode?: InventoryViewMode;
   canManage?: boolean;
 }) {
   const router = useRouter();
@@ -49,6 +95,7 @@ export function InventoryClient({
   const [vars, setVars] = useState<VarDraft[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -74,7 +121,11 @@ export function InventoryClient({
     setMessage(null);
     startTransition(async () => {
       const created = await createProduct(fd);
-      if (created?.id) {
+      if (created && "error" in created && created.error) {
+        setMessage(created.error);
+        return;
+      }
+      if (created && "id" in created && created.id) {
         setProducts((prev) => {
           if (prev.some((p) => p.id === created.id)) return prev;
           return [
@@ -92,6 +143,7 @@ export function InventoryClient({
               minStock: created.minStock,
               trackStock: created.trackStock,
               isService: created.isService,
+              imageData: created.imageData ?? null,
               variables: created.variables,
             },
           ].sort((a, b) => a.name.localeCompare(b.name));
@@ -100,6 +152,7 @@ export function InventoryClient({
         setIsService(false);
         setVariablePrice(false);
         setVars([]);
+        setImagePreview(null);
         form.reset();
       }
       router.refresh();
@@ -132,7 +185,7 @@ export function InventoryClient({
     <div className="stack">
       {canManage ? (
         <Panel style={{ padding: "1.25rem" }}>
-          <form onSubmit={onCreate} className="form-grid">
+          <form onSubmit={onCreate} className="form-grid" encType="multipart/form-data">
             <label className="field">
               Name
               <input name="name" required placeholder="Item or fixed-price service" />
@@ -153,7 +206,38 @@ export function InventoryClient({
                 }
                 listId="inventory-category-suggestions"
               />
+              {categories.length ? (
+                <span className="muted" style={{ fontSize: "0.78rem" }}>
+                  Category colours are set in Settings → Categories
+                </span>
+              ) : null}
             </label>
+            <label className="field full">
+              Item photo (optional)
+              <input
+                name="image"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setImagePreview(file ? URL.createObjectURL(file) : null);
+                }}
+              />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                PNG, JPEG, WebP, or GIF · max 500KB
+              </span>
+            </label>
+            {imagePreview ? (
+              <div className="full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="inventory-thumb"
+                  style={{ width: 120, height: 120 }}
+                />
+              </div>
+            ) : null}
             <label className="field">
               Unit
               <input name="unit" defaultValue="each" />
@@ -291,9 +375,61 @@ export function InventoryClient({
         <div className="info-banner">Stock levels only — inventory changes require POS register 1.</div>
       )}
 
-      <div className="inventory-grid">
+      <div className={viewMode === "list" ? "inventory-list" : "inventory-grid"}>
         {products.map((p) => {
           const low = p.trackStock && !p.isService && p.stockQty <= p.minStock;
+          if (viewMode === "list") {
+            return (
+              <div key={p.id} className="inventory-list-row panel inventory-card">
+                {canManage ? (
+                  <ItemMenu
+                    productId={p.id}
+                    productName={p.name}
+                    onDeleted={onDeleted}
+                    onEdit={setEditingId}
+                    onAdjustStock={setAdjustingId}
+                    canAdjustStock={!p.isService && p.trackStock}
+                  />
+                ) : null}
+                <ProductThumb imageData={p.imageData} alt={p.name} />
+                <div>
+                  <div className="name">{p.name}</div>
+                  <div className="muted" style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                    {p.sku ? `${p.sku} · ` : ""}
+                    {p.isService ? "Service · " : ""}
+                    {p.variablePrice ? "Variable price" : ""}
+                  </div>
+                  <div style={{ marginTop: "0.35rem" }}>
+                    <CategoryBadge name={p.category} colors={categoryColors} />
+                  </div>
+                </div>
+                <div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>Stock</div>
+                  <strong>{p.isService || !p.trackStock ? "—" : p.stockQty}</strong>
+                </div>
+                <div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>Price</div>
+                  <strong className="money">
+                    {p.variablePrice ? "At POS" : formatTTD(p.unitPrice)}
+                  </strong>
+                </div>
+                <div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>Cost</div>
+                  <strong className="money">{formatTTD(p.unitCost)}</strong>
+                </div>
+                <div>
+                  {p.isService ? (
+                    <span className="badge badge-info">Service</span>
+                  ) : low ? (
+                    <span className="badge badge-warn">Low stock</span>
+                  ) : (
+                    <span className="badge badge-ok">OK</span>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={p.id} className="inventory-card panel">
               {canManage ? (
@@ -306,12 +442,15 @@ export function InventoryClient({
                   canAdjustStock={!p.isService && p.trackStock}
                 />
               ) : null}
+              <ProductThumb imageData={p.imageData} alt={p.name} />
               <div className="name">{p.name}</div>
-              <div className="muted" style={{ fontSize: "0.8rem" }}>
-                {p.category}
-                {p.sku ? ` · ${p.sku}` : ""}
-                {p.isService ? " · Service" : ""}
-                {p.variablePrice ? " · Variable price" : ""}
+              <div style={{ marginTop: "0.35rem" }}>
+                <CategoryBadge name={p.category} colors={categoryColors} />
+              </div>
+              <div className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
+                {p.sku ? `${p.sku} · ` : ""}
+                {p.isService ? "Service · " : ""}
+                {p.variablePrice ? "Variable price" : ""}
               </div>
               {p.variables?.length ? (
                 <div className="muted" style={{ fontSize: "0.78rem", marginTop: "0.35rem" }}>

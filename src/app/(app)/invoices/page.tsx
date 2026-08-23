@@ -78,6 +78,7 @@ export default async function InvoicesPage() {
           <thead>
             <tr>
               <th>Invoice</th>
+              <th>Date</th>
               <th>Customer</th>
               <th>Job</th>
               <th>Total</th>
@@ -92,6 +93,7 @@ export default async function InvoicesPage() {
                 <td>
                   <strong>{inv.number}</strong>
                 </td>
+                <td>{inv.issueDate.toLocaleDateString("en-TT")}</td>
                 <td>{inv.customer.name}</td>
                 <td className="muted">{inv.job?.number ?? "—"}</td>
                 <td className="money">{formatTTD(inv.total)}</td>

@@ -1,5 +1,15 @@
-export const THEMES = ["light", "dark"] as const;
+export const THEMES = ["light", "dark", "red-white-black", "yellow-parrot"] as const;
 export type Theme = (typeof THEMES)[number];
+
+export const THEME_LABELS: Record<Theme, string> = {
+  light: "Light",
+  dark: "Dark",
+  "red-white-black": "Red, white & black",
+  "yellow-parrot": "Yellow & parrot green",
+};
+
+export const INVENTORY_VIEW_MODES = ["card", "list"] as const;
+export type InventoryViewMode = (typeof INVENTORY_VIEW_MODES)[number];
 
 export const LANGUAGES = [
   { code: "en", label: "English" },
@@ -24,6 +34,20 @@ export const DEFAULT_RECEIPT_FOOTER = "Thank you for your business";
 export const RECEIPT_LOGO_MAX_BYTES = 300_000;
 /** Max letterhead payload size (~800KB raw). */
 export const LETTERHEAD_MAX_BYTES = 800_000;
+/** Max product photo payload size (~500KB raw). */
+export const PRODUCT_IMAGE_MAX_BYTES = 500_000;
+
+/** Default palette when assigning category colours. */
+export const CATEGORY_COLOR_PALETTE = [
+  "#C41E3A",
+  "#0A6B6E",
+  "#C45C26",
+  "#1F7A4D",
+  "#5B4FCF",
+  "#B45309",
+  "#00843D",
+  "#2563EB",
+] as const;
 
 export type CompanyBranding = {
   name: string;
@@ -38,7 +62,18 @@ export function resolveBusinessLogo(company: CompanyBranding): string | null {
 }
 
 export function parseTheme(value: unknown): Theme {
-  return value === "dark" ? "dark" : "light";
+  const v = String(value || "light").toLowerCase();
+  if (THEMES.includes(v as Theme)) return v as Theme;
+  return "light";
+}
+
+/** Browser color-scheme hint for non light/dark themes. */
+export function themeColorScheme(theme: Theme): "light" | "dark" {
+  return theme === "dark" ? "dark" : "light";
+}
+
+export function parseInventoryViewMode(value: unknown): InventoryViewMode {
+  return value === "list" ? "list" : "card";
 }
 
 export function parseLanguage(value: unknown): LanguageCode {
@@ -49,6 +84,20 @@ export function parseLanguage(value: unknown): LanguageCode {
 
 export function parseHomeLayout(value: unknown): HomeLayout {
   return value === "RETAIL_SERVICE" ? "RETAIL_SERVICE" : "RETAIL";
+}
+
+export function parseCategoryColor(value: unknown): string | null {
+  const v = String(value || "").trim();
+  if (!/^#[0-9A-Fa-f]{6}$/.test(v)) return null;
+  return v.toUpperCase();
+}
+
+export function nextCategoryColor(existing: string[]): string {
+  const used = new Set(existing.map((c) => c.toUpperCase()));
+  for (const color of CATEGORY_COLOR_PALETTE) {
+    if (!used.has(color)) return color;
+  }
+  return CATEGORY_COLOR_PALETTE[existing.length % CATEGORY_COLOR_PALETTE.length]!;
 }
 
 export function receiptHeaderText(company: {
@@ -141,4 +190,3 @@ const RECEIPT_LABELS: Record<LanguageCode, ReceiptLabels> = {
 export function receiptLabels(language: unknown): ReceiptLabels {
   return RECEIPT_LABELS[parseLanguage(language)];
 }
-

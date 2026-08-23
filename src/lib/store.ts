@@ -14,6 +14,20 @@ export function maxStoresForTier(tier: PlanTier): number {
   return isFreeRetailTier(tier) ? FREE_RETAIL_MAX_STORES : STANDARD_MAX_STORES;
 }
 
+/** Seed the shared default category names onto a store (idempotent if already populated). */
+export async function seedDefaultCategoriesForStore(companyId: string, storeId: string) {
+  const count = await prisma.inventoryCategory.count({
+    where: { companyId, storeId },
+  });
+  if (count > 0) return;
+  const names = PRODUCT_CATEGORIES.filter(Boolean).slice(0, 12);
+  if (!names.length) return;
+  await prisma.inventoryCategory.createMany({
+    data: names.map((name) => ({ companyId, storeId, name })),
+    skipDuplicates: true,
+  });
+}
+
 /**
  * Ensure the company has at least one store and attach legacy
  * registers/categories that have no storeId yet.
@@ -53,18 +67,9 @@ export async function ensureStoresForCompany(companyId: string) {
     data: { storeId: mainId },
   });
 
-  // Seed categories on main store if still empty
-  const catCount = await prisma.inventoryCategory.count({
-    where: { companyId, storeId: mainId },
-  });
-  if (catCount === 0) {
-    const names = PRODUCT_CATEGORIES.filter(Boolean).slice(0, 12);
-    if (names.length) {
-      await prisma.inventoryCategory.createMany({
-        data: names.map((name) => ({ companyId, storeId: mainId, name })),
-        skipDuplicates: true,
-      });
-    }
+  // Every store gets the same default category list when empty
+  for (const store of stores) {
+    await seedDefaultCategoriesForStore(companyId, store.id);
   }
 
   return prisma.store.findMany({
@@ -98,7 +103,6 @@ export async function duplicateStoreFromSource(opts: {
     where: { id: opts.sourceStoreId, companyId: opts.companyId },
     include: {
       posRegisters: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-      inventoryCategories: { orderBy: { name: "asc" } },
     },
   });
   if (!source) return { error: "Source store not found" };
@@ -107,6 +111,10 @@ export async function duplicateStoreFromSource(opts: {
     where: { companyId: opts.companyId },
     _max: { sortOrder: true },
   });
+
+  // Category list defaults across stores (system defaults), not a copy of
+  // the first store's customized categories. Registers + inventory view still copy.
+  const defaultCategoryNames = PRODUCT_CATEGORIES.filter(Boolean).slice(0, 12);
 
   const created = await prisma.$transaction(async (tx) => {
     const store = await tx.store.create({
@@ -138,13 +146,12 @@ export async function duplicateStoreFromSource(opts: {
       });
     }
 
-    if (source.inventoryCategories.length) {
+    if (defaultCategoryNames.length) {
       await tx.inventoryCategory.createMany({
-        data: source.inventoryCategories.map((c) => ({
+        data: defaultCategoryNames.map((name) => ({
           companyId: opts.companyId,
           storeId: store.id,
-          name: c.name,
-          color: c.color,
+          name,
         })),
         skipDuplicates: true,
       });

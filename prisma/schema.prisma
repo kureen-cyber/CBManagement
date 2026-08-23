@@ -119,7 +119,8 @@ model PaymentType {
   @@index([companyId])
 }
 
-/// Store-defined inventory / product categories (colours, POS filters)
+/// Per-store inventory / product categories (colours, POS filters).
+/// Every store starts with the same default list; edits apply only to that store.
 model InventoryCategory {
   id        String   @id @default(cuid())
   companyId String

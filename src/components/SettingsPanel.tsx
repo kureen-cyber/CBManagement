@@ -374,7 +374,7 @@ export function SettingsPanel({
       if (result && "storeId" in result && result.storeId) {
         setSelectedStoreId(result.storeId);
       }
-      setSaved("Store added (copied settings from your first store)");
+      setSaved("Store added (registers & view copied; categories use shared defaults)");
       router.refresh();
     });
   }
@@ -1157,11 +1157,12 @@ export function SettingsPanel({
               ) : null}
             </div>
             <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-              Each store has its own registers, inventory view, and categories.
+              Each store has its own registers and inventory view. Category lists start from
+              the same defaults on every store — edit them per store without affecting others.
               {planTier === "FREE_RETAIL"
                 ? ` Free Retail includes ${FREE_RETAIL_MAX_STORES} store.`
                 : ` Standard allows up to ${STANDARD_MAX_STORES} stores.`}{" "}
-              New stores copy settings from your first store.
+              New stores copy registers and inventory view from your first store.
             </p>
 
             {showAddStore ? (
@@ -1177,8 +1178,9 @@ export function SettingsPanel({
                   />
                 </label>
                 <p className="muted" style={{ margin: 0, fontSize: "0.82rem" }}>
-                  Registers, categories, and inventory view will be copied from{" "}
-                  <strong>{stores[0]?.name || "your first store"}</strong>.
+                  Registers and inventory view will be copied from{" "}
+                  <strong>{stores[0]?.name || "your first store"}</strong>. Categories start
+                  from the shared default list (editable for this store only).
                 </p>
                 <div className="row" style={{ gap: "0.5rem" }}>
                   <button className="btn btn-primary" type="submit" disabled={pending}>
@@ -1316,9 +1318,9 @@ export function SettingsPanel({
             {posSubTab === "categories" ? (
               <div key={`cats-${activeStore?.id || "none"}`} className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Click a category to assign a colour
-                  {activeStore ? ` for ${activeStore.name}` : ""}. Colours show on inventory
-                  items and POS.
+                  Default categories are the same across stores. Edits here apply only to{" "}
+                  {activeStore ? <strong>{activeStore.name}</strong> : "this store"}. Click a
+                  category to assign a colour.
                 </p>
 
                 <ul className="settings-list">

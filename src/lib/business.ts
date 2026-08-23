@@ -19,6 +19,21 @@ export async function nextNumber(
   return `${prefix}-${year}-${seq}`;
 }
 
+/** Next inventory SKU for a company, e.g. SKU-0001. */
+export async function nextSku(companyId: string): Promise<string> {
+  const products = await prisma.product.findMany({
+    where: { companyId },
+    select: { sku: true },
+  });
+  let maxSeq = 0;
+  for (const p of products) {
+    const match = /^SKU-(\d+)$/i.exec(String(p.sku || "").trim());
+    if (match) maxSeq = Math.max(maxSeq, Number(match[1]));
+  }
+  if (maxSeq === 0) maxSeq = products.length;
+  return `SKU-${String(maxSeq + 1).padStart(4, "0")}`;
+}
+
 export type JobProfitability = {
   contractValue: number;
   labourCost: number;

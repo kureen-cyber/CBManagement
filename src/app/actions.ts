@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { nextNumber } from "@/lib/business";
+import { nextNumber, nextSku } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";

@@ -139,7 +139,10 @@ export function InventoryClient({
             </label>
             <label className="field">
               SKU
-              <input name="sku" />
+              <input name="sku" placeholder="Auto-generated if blank" />
+              <span className="muted" style={{ fontSize: "0.8rem" }}>
+                Leave blank to auto-generate (e.g. SKU-0001)
+              </span>
             </label>
             <label className="field">
               Category

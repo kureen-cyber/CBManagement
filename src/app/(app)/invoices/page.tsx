@@ -65,6 +65,9 @@ export default async function InvoicesPage() {
               type="date"
               defaultValue={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}
             />
+            <span className="muted" style={{ fontSize: "0.8rem" }}>
+              For job invoices, due date follows the job engagement end date when set.
+            </span>
           </label>
           <div className="full">
             <button className="btn btn-primary" type="submit">

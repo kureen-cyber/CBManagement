@@ -22,6 +22,20 @@ export const DEFAULT_RECEIPT_FOOTER = "Thank you for your business";
 
 /** Max logo payload size (~300KB raw ≈ ~400KB base64). */
 export const RECEIPT_LOGO_MAX_BYTES = 300_000;
+/** Max letterhead payload size (~800KB raw). */
+export const LETTERHEAD_MAX_BYTES = 800_000;
+
+export type CompanyBranding = {
+  name: string;
+  receiptHeader?: string | null;
+  businessLogoData?: string | null;
+  receiptLogoData?: string | null;
+  letterheadData?: string | null;
+};
+
+export function resolveBusinessLogo(company: CompanyBranding): string | null {
+  return company.businessLogoData ?? company.receiptLogoData ?? null;
+}
 
 export function parseTheme(value: unknown): Theme {
   return value === "dark" ? "dark" : "light";

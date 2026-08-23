@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
-import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
+import { receiptFooterText } from "@/lib/settings";
+import { DocumentBranding } from "@/components/DocumentBranding";
 import { quotationClientLines } from "@/lib/quotation-pricing";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
@@ -27,7 +28,6 @@ export default async function QuotationViewPage({
   if (!quote) notFound();
 
   const clientLines = quotationClientLines(quote);
-  const header = receiptHeaderText(company);
   const footer = receiptFooterText(company);
   const canPrint = company.receiptPrinting !== false;
 
@@ -58,18 +58,7 @@ export default async function QuotationViewPage({
       />
 
       <Panel className="receipt-sheet" style={{ padding: "1.5rem", maxWidth: 480 }}>
-        <div style={{ textAlign: "center" }}>
-          {company.receiptLogoData ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.receiptLogoData} alt="" className="receipt-logo" />
-          ) : null}
-          <div className="brand-mark" style={{ fontSize: "1.35rem" }}>
-            {header}
-          </div>
-          <div className="muted" style={{ fontSize: "0.85rem" }}>
-            Quotation
-          </div>
-        </div>
+        <DocumentBranding company={company} documentTitle="Quotation" />
 
         <div className="stack" style={{ marginTop: "1rem", fontSize: "0.92rem" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>

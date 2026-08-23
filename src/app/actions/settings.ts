@@ -9,6 +9,7 @@ import {
   parseLanguage,
   parseTheme,
   RECEIPT_LOGO_MAX_BYTES,
+  LETTERHEAD_MAX_BYTES,
 } from "@/lib/settings";
 import {
   FREE_RETAIL_MAX_POS_REGISTERS,
@@ -18,13 +19,18 @@ import {
 
 const LOGO_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
 
-async function fileToDataUrl(file: File): Promise<string | null> {
+async function fileToDataUrl(
+  file: File,
+  opts: { label?: string; maxBytes?: number } = {},
+): Promise<string | null> {
+  const label = opts.label ?? "Image";
+  const maxBytes = opts.maxBytes ?? RECEIPT_LOGO_MAX_BYTES;
   if (!file || file.size === 0) return null;
   if (!LOGO_MIME.has(file.type)) {
-    throw new Error("Logo must be a PNG, JPEG, WebP, or GIF image");
+    throw new Error(`${label} must be a PNG, JPEG, WebP, or GIF image`);
   }
-  if (file.size > RECEIPT_LOGO_MAX_BYTES) {
-    throw new Error("Logo must be 300KB or smaller");
+  if (file.size > maxBytes) {
+    throw new Error(`${label} must be ${Math.round(maxBytes / 1000)}KB or smaller`);
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   return `data:${file.type};base64,${buffer.toString("base64")}`;
@@ -36,15 +42,56 @@ export async function updateGeneralSettings(formData: FormData) {
   const language = parseLanguage(formData.get("language"));
   const homeLayout = parseHomeLayout(formData.get("homeLayout"));
   const businessName = String(formData.get("businessName") || "").trim();
+  const removeBusinessLogo = formData.get("removeBusinessLogo") === "on";
+  const removeLetterhead = formData.get("removeLetterhead") === "on";
+
+  const data: {
+    theme: string;
+    language: string;
+    homeLayout: string;
+    name?: string;
+    businessLogoData?: string | null;
+    letterheadData?: string | null;
+    receiptLogoData?: string | null;
+  } = { theme, language, homeLayout };
+  if (businessName) data.name = businessName;
+
+  if (removeBusinessLogo) {
+    data.businessLogoData = null;
+  } else {
+    const logo = formData.get("businessLogo");
+    if (logo instanceof File && logo.size > 0) {
+      try {
+        const uploaded = await fileToDataUrl(logo, { label: "Logo" });
+        if (uploaded) {
+          data.businessLogoData = uploaded;
+          data.receiptLogoData = uploaded;
+        }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "Could not upload logo" };
+      }
+    }
+  }
+
+  if (removeLetterhead) {
+    data.letterheadData = null;
+  } else {
+    const letterhead = formData.get("letterhead");
+    if (letterhead instanceof File && letterhead.size > 0) {
+      try {
+        data.letterheadData = await fileToDataUrl(letterhead, {
+          label: "Letterhead",
+          maxBytes: LETTERHEAD_MAX_BYTES,
+        });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "Could not upload letterhead" };
+      }
+    }
+  }
 
   await prisma.company.update({
     where: { id: companyId },
-    data: {
-      theme,
-      language,
-      homeLayout,
-      ...(businessName ? { name: businessName } : {}),
-    },
+    data,
   });
 
   const cookieStore = await cookies();
@@ -55,6 +102,11 @@ export async function updateGeneralSettings(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/");
   revalidatePath("/pos");
+  revalidatePath("/invoices");
+  revalidatePath("/quotations");
+  revalidatePath("/reports");
+  revalidatePath("/payments");
+  return { ok: true as const };
 }
 
 export async function updateTaxSettings(formData: FormData) {
@@ -133,7 +185,7 @@ export async function updateReceiptSettings(formData: FormData) {
     const logo = formData.get("receiptLogo");
     if (logo instanceof File && logo.size > 0) {
       try {
-        data.receiptLogoData = await fileToDataUrl(logo);
+        data.receiptLogoData = await fileToDataUrl(logo, { label: "Logo" });
       } catch (err) {
         return {
           error: err instanceof Error ? err.message : "Could not upload logo",

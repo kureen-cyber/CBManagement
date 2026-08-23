@@ -64,6 +64,8 @@ export default async function SettingsPage() {
           receiptPrinting={company.receiptPrinting}
           printerName={company.printerName}
           receiptLogoData={company.receiptLogoData}
+          businessLogoData={company.businessLogoData}
+          letterheadData={company.letterheadData}
           receiptHeader={company.receiptHeader}
           receiptFooter={company.receiptFooter}
           receiptShowCustomer={company.receiptShowCustomer}

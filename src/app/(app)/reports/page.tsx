@@ -256,6 +256,13 @@ export default async function ReportsPage({
         periodClamped={clamped}
         freeMaxDays={FREE_TIER_MAX_TRANSACTION_DAYS}
         isFree={isFreeTier(planTier)}
+        branding={{
+          name: company.name,
+          receiptHeader: company.receiptHeader,
+          businessLogoData: company.businessLogoData,
+          receiptLogoData: company.receiptLogoData,
+          letterheadData: company.letterheadData,
+        }}
         data={{
           income,
           expenses: expenseTotal,

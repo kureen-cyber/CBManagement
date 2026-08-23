@@ -67,6 +67,8 @@ export function SettingsPanel({
   receiptPrinting,
   printerName,
   receiptLogoData,
+  businessLogoData,
+  letterheadData,
   receiptHeader,
   receiptFooter,
   receiptShowCustomer,
@@ -96,6 +98,8 @@ export function SettingsPanel({
   receiptPrinting: boolean;
   printerName: string | null;
   receiptLogoData: string | null;
+  businessLogoData: string | null;
+  letterheadData: string | null;
   receiptHeader: string | null;
   receiptFooter: string | null;
   receiptShowCustomer: boolean;
@@ -127,10 +131,22 @@ export function SettingsPanel({
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(receiptLogoData);
   const [removeLogo, setRemoveLogo] = useState(false);
+  const [businessLogoPreview, setBusinessLogoPreview] = useState<string | null>(businessLogoData);
+  const [removeBusinessLogo, setRemoveBusinessLogo] = useState(false);
+  const [letterheadPreview, setLetterheadPreview] = useState<string | null>(letterheadData);
+  const [removeLetterhead, setRemoveLetterhead] = useState(false);
 
   useEffect(() => {
     if (!removeLogo) setLogoPreview(receiptLogoData);
   }, [receiptLogoData, removeLogo]);
+
+  useEffect(() => {
+    if (!removeBusinessLogo) setBusinessLogoPreview(businessLogoData);
+  }, [businessLogoData, removeBusinessLogo]);
+
+  useEffect(() => {
+    if (!removeLetterhead) setLetterheadPreview(letterheadData);
+  }, [letterheadData, removeLetterhead]);
 
   function selectTab(next: Tab) {
     setTab(next);
@@ -142,9 +158,18 @@ export function SettingsPanel({
   function onGeneral(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    if (removeBusinessLogo) fd.set("removeBusinessLogo", "on");
+    if (removeLetterhead) fd.set("removeLetterhead", "on");
     startTransition(async () => {
-      await updateGeneralSettings(fd);
+      setError(null);
+      const result = await updateGeneralSettings(fd);
+      if (result && "error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
       setSaved("General settings saved");
+      setRemoveBusinessLogo(false);
+      setRemoveLetterhead(false);
       router.refresh();
     });
   }
@@ -286,7 +311,7 @@ export function SettingsPanel({
 
       {tab === "general" ? (
         <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onGeneral}>
+          <form className="stack" encType="multipart/form-data" onSubmit={onGeneral}>
             <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Business</h2>
             <label className="field">
               Business name
@@ -303,6 +328,91 @@ export function SettingsPanel({
               {planTier === "FREE_RETAIL"
                 ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
                 : null}
+            </div>
+
+            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Branding</h2>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              Logo and letterhead appear on invoices, quotations, and reports automatically.
+            </p>
+
+            <div className="panel" style={{ padding: "1rem" }}>
+              <strong>Business logo</strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
+                Shown on invoices, quotations, reports, and POS receipts.
+              </p>
+              <label className="field">
+                Upload logo
+                <input
+                  name="businessLogo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveBusinessLogo(false);
+                    setBusinessLogoPreview(URL.createObjectURL(file));
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 300KB
+                </span>
+              </label>
+              {businessLogoPreview && !removeBusinessLogo ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={businessLogoPreview} alt="Business logo preview" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveBusinessLogo(true);
+                      setBusinessLogoPreview(null);
+                    }}
+                  >
+                    Remove logo
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="panel" style={{ padding: "1rem" }}>
+              <strong>Letterhead</strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
+                Wide header image for branded documents and report printouts.
+              </p>
+              <label className="field">
+                Upload letterhead
+                <input
+                  name="letterhead"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveLetterhead(false);
+                    setLetterheadPreview(URL.createObjectURL(file));
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 800KB
+                </span>
+              </label>
+              {letterheadPreview && !removeLetterhead ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={letterheadPreview} alt="Letterhead preview" className="document-letterhead" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveLetterhead(true);
+                      setLetterheadPreview(null);
+                    }}
+                  >
+                    Remove letterhead
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>

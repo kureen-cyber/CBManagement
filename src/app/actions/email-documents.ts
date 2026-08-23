@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { sendEmail } from "@/lib/email";
-import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
+import { receiptFooterText, receiptHeaderText, resolveBusinessLogo } from "@/lib/settings";
 import {
   buildInvoiceEmail,
   buildPaymentEmail,
@@ -100,6 +100,8 @@ export async function emailQuotation(input: {
     lines: quotationClientLines(quote),
     total: quote.total,
     notes: input.includeNotesInCustomerView ? quote.notes : null,
+    logoData: resolveBusinessLogo(company),
+    letterheadData: company.letterheadData,
   });
 
   const result = await sendEmail({ to, ...payload });
@@ -143,6 +145,8 @@ export async function emailInvoice(input: { invoiceId: string; toEmail: string }
     total: invoice.total,
     amountPaid: invoice.amountPaid,
     notes: invoice.notes,
+    logoData: resolveBusinessLogo(company),
+    letterheadData: company.letterheadData,
   });
 
   const result = await sendEmail({ to, ...payload });

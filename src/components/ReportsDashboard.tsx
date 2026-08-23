@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { formatTTD } from "@/lib/money";
 import { REPORT_PERIODS } from "@/lib/tier";
 import { Panel } from "@/components/ui";
+import { DocumentBranding } from "@/components/DocumentBranding";
+import type { CompanyBranding } from "@/lib/settings";
 
 export type SaleLineReport = {
   id: string;
@@ -331,6 +333,7 @@ export function ReportsDashboard({
   periodClamped,
   freeMaxDays,
   isFree,
+  branding,
 }: {
   data: ReportsData;
   planTier: string;
@@ -339,6 +342,7 @@ export function ReportsDashboard({
   periodClamped: boolean;
   freeMaxDays: number;
   isFree: boolean;
+  branding?: CompanyBranding;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("overview");
@@ -408,6 +412,11 @@ export function ReportsDashboard({
   return (
     <div className="stack reports-dashboard">
       <Panel className="reports-hero">
+        {branding ? (
+          <div style={{ marginBottom: "1rem" }}>
+            <DocumentBranding company={branding} documentTitle="Reports" />
+          </div>
+        ) : null}
         <div className="reports-hero-copy">
           <h2>{periodLabel} at a glance</h2>
           <p className="muted">

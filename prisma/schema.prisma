@@ -28,6 +28,10 @@ model Company {
   printerName     String?
   /// Optional logo as data URL (small PNG/JPEG/WebP)
   receiptLogoData String?
+  /// Business logo for invoices, quotations, and reports
+  businessLogoData String?
+  /// Letterhead image for branded documents and reports
+  letterheadData String?
   /// Receipt header text; blank falls back to business name
   receiptHeader   String?
   /// Receipt footer text; blank falls back to thank-you default

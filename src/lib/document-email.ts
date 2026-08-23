@@ -32,6 +32,8 @@ function wrapDocument(opts: {
   metaRows: { label: string; value: string }[];
   bodyHtml: string;
   footer: string;
+  logoData?: string | null;
+  letterheadData?: string | null;
 }) {
   const meta = opts.metaRows
     .map(
@@ -40,10 +42,19 @@ function wrapDocument(opts: {
     )
     .join("");
 
+  const letterhead = opts.letterheadData
+    ? `<img src="${opts.letterheadData}" alt="" style="display:block;width:100%;max-height:120px;object-fit:contain;margin:0 auto 12px" />`
+    : "";
+  const logo = opts.logoData
+    ? `<img src="${opts.logoData}" alt="" style="display:block;max-width:160px;max-height:80px;margin:0 auto 10px" />`
+    : "";
+
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:24px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb">
     <div style="text-align:center;margin-bottom:16px">
+      ${letterhead}
+      ${logo}
       <div style="font-size:22px;font-weight:700;color:#0a6b6e">${esc(opts.header)}</div>
       <div style="color:#6b7280;font-size:13px;margin-top:4px">${esc(opts.title)}</div>
     </div>
@@ -160,6 +171,8 @@ export function buildQuotationEmail(opts: {
   lines: { label: string; amount: number }[];
   total: number;
   notes?: string | null;
+  logoData?: string | null;
+  letterheadData?: string | null;
 }) {
   const rows = opts.lines;
 
@@ -191,6 +204,8 @@ export function buildQuotationEmail(opts: {
     metaRows,
     bodyHtml,
     footer: opts.footer,
+    logoData: opts.logoData,
+    letterheadData: opts.letterheadData,
   });
 
   const text = [
@@ -228,6 +243,8 @@ export function buildInvoiceEmail(opts: {
   total: number;
   amountPaid: number;
   notes?: string | null;
+  logoData?: string | null;
+  letterheadData?: string | null;
 }) {
   const balance = opts.total - opts.amountPaid;
   const metaRows = [
@@ -267,6 +284,8 @@ export function buildInvoiceEmail(opts: {
     metaRows,
     bodyHtml,
     footer: opts.footer,
+    logoData: opts.logoData,
+    letterheadData: opts.letterheadData,
   });
 
   const text = [

@@ -211,7 +211,7 @@ export function InventoryClient({
               />
               {categories.length ? (
                 <span className="muted" style={{ fontSize: "0.78rem" }}>
-                  Category colours are set in Settings → Categories
+                  Category colours are set in Settings → POS → Categories
                 </span>
               ) : null}
             </label>

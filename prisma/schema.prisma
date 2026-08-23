@@ -17,8 +17,8 @@ model Company {
   taxEnabled      Boolean  @default(true)
   /// RETAIL | SERVICE | BOTH
   businessType    String   @default("BOTH")
-  /// light | dark | red-white-black | yellow-parrot
-  theme           String   @default("light")
+  /// red-white-black | yellow-parrot | light | dark
+  theme           String   @default("red-white-black")
   /// card | list — default inventory browsing layout
   inventoryViewMode String @default("card")
   /// en | es | fr

@@ -32,7 +32,13 @@ export function EditProductModal({
   const [error, setError] = useState<string | null>(null);
   const [isService, setIsService] = useState(product.isService);
   const [variablePrice, setVariablePrice] = useState(Boolean(product.variablePrice));
-  const [vars, setVars] = useState<VarDraft[]>(() => varDraftFromStored(product.variables || []));
+  const [vars, setVars] = useState<VarDraft[]>(() =>
+    varDraftFromStored(product.variables || [], {
+      unitCost: product.unitCost,
+      unitPrice: product.variablePrice ? 0 : product.unitPrice,
+      minStock: product.minStock,
+    }),
+  );
   const [imagePreview, setImagePreview] = useState<string | null>(product.imageData ?? null);
   const [removeImage, setRemoveImage] = useState(false);
 
@@ -245,6 +251,11 @@ export function EditProductModal({
             variableNames={variableNames}
             listId="edit-variable-name-catalog"
             showQty={!isService}
+            optionDefaults={{
+              unitCost: product.unitCost,
+              unitPrice: product.variablePrice ? 0 : product.unitPrice,
+              minStock: product.minStock,
+            }}
           />
 
           {error ? <div className="full badge badge-danger">{error}</div> : null}

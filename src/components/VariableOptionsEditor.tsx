@@ -1,21 +1,24 @@
 "use client";
 
-import type { VariableOption } from "@/lib/product-variables";
+import { fromCents } from "@/lib/money";
+import type { VariableOption, VariableOptionDefaults } from "@/lib/product-variables";
+import { newVariableOption } from "@/lib/product-variables";
 
 export type VarDraft = {
   name: string;
   options: VariableOption[];
-  /** Temporary text while typing comma-separated labels before qty rows expand. */
+  /** Temporary text while typing comma-separated labels before table rows expand. */
   optionsText?: string;
 };
 
 export function varDraftFromStored(
   variables: { name: string; options: VariableOption[] | string[] }[],
+  defaults: VariableOptionDefaults = {},
 ): VarDraft[] {
   return variables.map((v) => ({
     name: v.name,
     options: (v.options || []).map((o) =>
-      typeof o === "string" ? { label: o, qty: 0 } : { label: o.label, qty: Number(o.qty) || 0 },
+      typeof o === "string" ? newVariableOption(o, defaults) : { ...newVariableOption(o.label, defaults), ...o },
     ),
   }));
 }
@@ -27,18 +30,36 @@ export function sumDraftStock(vars: VarDraft[]): number {
   );
 }
 
+function updateOption(
+  vars: VarDraft[],
+  varIdx: number,
+  optIdx: number,
+  patch: Partial<VariableOption>,
+): VarDraft[] {
+  return vars.map((row, i) =>
+    i !== varIdx
+      ? row
+      : {
+          ...row,
+          options: row.options.map((opt, j) => (j === optIdx ? { ...opt, ...patch } : opt)),
+        },
+  );
+}
+
 export function VariableOptionsEditor({
   vars,
   setVars,
   variableNames,
   listId,
   showQty,
+  optionDefaults = {},
 }: {
   vars: VarDraft[];
   setVars: (next: VarDraft[] | ((prev: VarDraft[]) => VarDraft[])) => void;
   variableNames: string[];
   listId: string;
   showQty: boolean;
+  optionDefaults?: VariableOptionDefaults;
 }) {
   function syncOptionsFromText(idx: number, text: string) {
     const labels = text
@@ -48,14 +69,14 @@ export function VariableOptionsEditor({
     setVars((prev) =>
       prev.map((row, i) => {
         if (i !== idx) return row;
-        const byLabel = new Map(row.options.map((o) => [o.label.toLowerCase(), o.qty]));
+        const byLabel = new Map(row.options.map((o) => [o.label.toLowerCase(), o]));
         return {
           ...row,
           optionsText: text,
-          options: labels.map((label) => ({
-            label,
-            qty: byLabel.get(label.toLowerCase()) ?? 0,
-          })),
+          options: labels.map((label) => {
+            const existing = byLabel.get(label.toLowerCase());
+            return existing ?? newVariableOption(label, optionDefaults);
+          }),
         };
       }),
     );
@@ -75,8 +96,10 @@ export function VariableOptionsEditor({
       </div>
       <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
         Example: name <em>Colour</em>, options <em>Red, Blue, Black</em>
-        {showQty ? ", then enter how many of each. Opening stock totals automatically." : "."} Names
-        you save appear in the dropdown next time.
+        {showQty
+          ? ", then set cost, price, stock, and SKU for each option in the table below."
+          : "."}{" "}
+        Names you save appear in the dropdown next time.
       </p>
       {vars.map((v, idx) => (
         <div key={idx} className="stack" style={{ gap: "0.5rem" }}>
@@ -111,37 +134,128 @@ export function VariableOptionsEditor({
             </button>
           </div>
           {showQty && v.options.length > 0 ? (
-            <div className="stack" style={{ gap: "0.4rem", paddingLeft: "0.25rem" }}>
+            <div className="stack" style={{ gap: "0.35rem" }}>
               <span className="muted" style={{ fontSize: "0.82rem" }}>
-                Stock per {v.name || "option"}
+                {v.name || "Option"} details — opening stock totals automatically
               </span>
-              <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-                {v.options.map((o, oi) => (
-                  <label key={`${o.label}-${oi}`} className="field" style={{ flex: "1 1 110px" }}>
-                    {o.label}
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={o.qty}
-                      onChange={(e) => {
-                        const qty = Math.max(0, Number(e.target.value) || 0);
-                        setVars((prev) =>
-                          prev.map((row, i) =>
-                            i !== idx
-                              ? row
-                              : {
-                                  ...row,
-                                  options: row.options.map((opt, j) =>
-                                    j === oi ? { ...opt, qty } : opt,
-                                  ),
-                                },
-                          ),
-                        );
-                      }}
-                    />
-                  </label>
-                ))}
+              <div className="table-wrap">
+                <table className="data" style={{ fontSize: "0.82rem" }}>
+                  <thead>
+                    <tr>
+                      <th>Option</th>
+                      <th>Cost</th>
+                      <th>Price</th>
+                      <th>In stock</th>
+                      <th>Low stock</th>
+                      <th>Optimal</th>
+                      <th>SKU</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {v.options.map((o, oi) => (
+                      <tr key={`${o.label}-${oi}`}>
+                        <td>
+                          <strong>{o.label}</strong>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={fromCents(o.unitCost ?? 0) || ""}
+                            placeholder="0.00"
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, {
+                                  unitCost: Math.round(Math.max(0, Number(e.target.value) || 0) * 100),
+                                }),
+                              )
+                            }
+                            style={{ width: "5.5rem" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={fromCents(o.unitPrice ?? 0) || ""}
+                            placeholder="0.00"
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, {
+                                  unitPrice: Math.round(Math.max(0, Number(e.target.value) || 0) * 100),
+                                }),
+                              )
+                            }
+                            style={{ width: "5.5rem" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={o.qty}
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, {
+                                  qty: Math.max(0, Number(e.target.value) || 0),
+                                }),
+                              )
+                            }
+                            style={{ width: "4.5rem" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={o.minStock ?? 0}
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, {
+                                  minStock: Math.max(0, Number(e.target.value) || 0),
+                                }),
+                              )
+                            }
+                            style={{ width: "4.5rem" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={o.optimalStock ?? 0}
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, {
+                                  optimalStock: Math.max(0, Number(e.target.value) || 0),
+                                }),
+                              )
+                            }
+                            style={{ width: "4.5rem" }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={o.sku ?? ""}
+                            placeholder="SKU"
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, { sku: e.target.value }),
+                              )
+                            }
+                            style={{ width: "6.5rem" }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           ) : null}

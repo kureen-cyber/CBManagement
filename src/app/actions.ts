@@ -11,9 +11,11 @@ import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/sup
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 import {
   applyOptionQtyDelta,
+  coerceVariableOption,
   findOptionForVariantLabel,
   hasOptionStock,
   parseVariableOptions,
+  resolveOptionUnitPrice,
   serializeVariableOptions,
   sumOptionStock,
   type ProductVariableDef,
@@ -146,47 +148,36 @@ async function ensureCategoryOnActiveStore(companyId: string, category: string) 
 }
 
 function parseProductVariables(raw: string): ProductVariableDef[] {
-  let variables: ProductVariableDef[] = [];
   const rawVars = raw.trim();
-  if (!rawVars) return variables;
+  if (!rawVars) return [];
   try {
     const parsed = JSON.parse(rawVars) as {
       name?: string;
-      options?: Array<string | { label?: string; qty?: number }> | string;
+      options?: Array<string | Record<string, unknown>> | string;
     }[];
-    if (Array.isArray(parsed)) {
-      variables = parsed
-        .map((v) => {
-          const name = String(v.name || "").trim();
-          let options: VariableOption[] = [];
-          if (Array.isArray(v.options)) {
-            options = v.options
-              .map((o) => {
-                if (typeof o === "string") {
-                  const label = o.trim();
-                  return label ? { label, qty: 0 } : null;
-                }
-                const label = String(o?.label || "").trim();
-                if (!label) return null;
-                const qtyRaw = Number(o?.qty ?? 0);
-                return { label, qty: Number.isFinite(qtyRaw) ? Math.max(0, qtyRaw) : 0 };
-              })
-              .filter((o): o is VariableOption => Boolean(o));
-          } else {
-            options = String(v.options || "")
-              .split(",")
-              .map((o) => o.trim())
-              .filter(Boolean)
-              .map((label) => ({ label, qty: 0 }));
-          }
-          return { name, options };
-        })
-        .filter((v) => v.name && v.options.length);
-    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((v) => {
+        const name = String(v.name || "").trim();
+        let options: VariableOption[] = [];
+        if (Array.isArray(v.options)) {
+          options = v.options
+            .map((o) => coerceVariableOption(o))
+            .filter((o): o is VariableOption => Boolean(o));
+        } else {
+          options = String(v.options || "")
+            .split(",")
+            .map((o) => o.trim())
+            .filter(Boolean)
+            .map((label) => coerceVariableOption(label))
+            .filter((o): o is VariableOption => Boolean(o));
+        }
+        return { name, options };
+      })
+      .filter((v) => v.name && v.options.length);
   } catch {
-    /* ignore bad JSON */
+    return [];
   }
-  return variables;
 }
 
 function mapProductResponse(product: {
@@ -1563,14 +1554,22 @@ async function buildPosLines(
     }
 
     let unitPrice = product.unitPrice;
-    if (product.variablePrice) {
+    const optionHit = variant ? findOptionForVariantLabel(variables, variant) : null;
+    const resolvedOptionPrice =
+      optionHit != null
+        ? resolveOptionUnitPrice(optionHit.option, product.unitPrice, product.variablePrice)
+        : null;
+
+    if (resolvedOptionPrice != null) {
+      unitPrice = resolvedOptionPrice;
+    } else if (product.variablePrice) {
       const override = Number(line.unitPrice);
       if (!Number.isFinite(override) || override < 0) {
         throw new Error(`Enter a price for ${product.name}`);
       }
       unitPrice = Math.round(override);
     } else if (line.unitPrice != null && Number.isFinite(line.unitPrice)) {
-      // Ignore client overrides for fixed-price items
+      // Ignore client overrides for fixed-price items without per-option pricing
       unitPrice = product.unitPrice;
     }
 

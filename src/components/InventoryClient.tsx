@@ -6,7 +6,7 @@ import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { InventoryViewMode } from "@/lib/settings";
-import type { VariableOption } from "@/lib/product-variables";
+import { isOptionLowStock, type VariableOption } from "@/lib/product-variables";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { CategoryInput } from "@/components/CategoryInput";
 import { EditProductModal } from "@/components/EditProductModal";
@@ -78,25 +78,52 @@ function ProductThumb({ imageData, alt }: { imageData?: string | null; alt: stri
 function OptionStockSelect({
   variables,
   unit,
+  unitPrice,
+  variablePrice,
 }: {
   variables: { name: string; options: VariableOption[] }[];
   unit: string;
+  unitPrice: number;
+  variablePrice?: boolean;
 }) {
   const first = variables[0];
   if (!first?.options.length) return null;
   return (
-    <label className="field" style={{ marginTop: "0.5rem" }}>
-      <span className="muted" style={{ fontSize: "0.72rem" }}>
-        {first.name} stock
-      </span>
-      <select defaultValue={first.options[0]?.label} style={{ fontSize: "0.85rem" }}>
-        {first.options.map((o) => (
-          <option key={o.label} value={o.label}>
-            {o.label} — {o.qty} {unit}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="table-wrap" style={{ marginTop: "0.5rem" }}>
+      <table className="data" style={{ fontSize: "0.75rem" }}>
+        <thead>
+          <tr>
+            <th>{first.name}</th>
+            <th>Cost</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>SKU</th>
+          </tr>
+        </thead>
+        <tbody>
+          {first.options.map((o) => {
+            const cost = (o.unitCost ?? 0) > 0 ? o.unitCost! : null;
+            const price =
+              (o.unitPrice ?? 0) > 0
+                ? o.unitPrice!
+                : variablePrice
+                  ? null
+                  : unitPrice;
+            return (
+              <tr key={o.label}>
+                <td>{o.label}</td>
+                <td>{cost != null ? formatTTD(cost) : "—"}</td>
+                <td>{price != null ? formatTTD(price) : "At POS"}</td>
+                <td>
+                  {o.qty} {unit}
+                </td>
+                <td>{o.sku || "—"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -367,6 +394,7 @@ export function InventoryClient({
               variableNames={variableNames}
               listId="variable-name-catalog"
               showQty={!isService}
+              optionDefaults={{ minStock: 10 }}
             />
 
             <div className="full">
@@ -387,8 +415,15 @@ export function InventoryClient({
 
       <div className={viewMode === "list" ? "inventory-list" : "inventory-grid"}>
         {products.map((p) => {
-          const low = p.trackStock && !p.isService && p.stockQty <= p.minStock;
           const hasOptions = Boolean(p.variables?.some((v) => v.options.length));
+          const low =
+            p.trackStock &&
+            !p.isService &&
+            (hasOptions && p.variables
+              ? p.variables.some((v) =>
+                  v.options.some((o) => isOptionLowStock(o, p.minStock)),
+                )
+              : p.stockQty <= p.minStock);
           if (viewMode === "list") {
             return (
               <div key={p.id} className="inventory-list-row panel inventory-card">
@@ -414,7 +449,12 @@ export function InventoryClient({
                     <CategoryBadge name={p.category} colors={categoryColors} />
                   </div>
                   {hasOptions && p.variables ? (
-                    <OptionStockSelect variables={p.variables} unit={p.unit} />
+                    <OptionStockSelect
+                      variables={p.variables}
+                      unit={p.unit}
+                      unitPrice={p.unitPrice}
+                      variablePrice={p.variablePrice}
+                    />
                   ) : null}
                 </div>
                 <div>
@@ -473,7 +513,12 @@ export function InventoryClient({
                 {p.variablePrice ? "Variable price" : ""}
               </div>
               {hasOptions && p.variables ? (
-                <OptionStockSelect variables={p.variables} unit={p.unit} />
+                <OptionStockSelect
+                  variables={p.variables}
+                  unit={p.unit}
+                  unitPrice={p.unitPrice}
+                  variablePrice={p.variablePrice}
+                />
               ) : null}
               <div className="row" style={{ marginTop: "0.75rem", justifyContent: "space-between" }}>
                 <div>

@@ -18,7 +18,7 @@ export default async function SuppliersPage() {
     <div className="stack">
       <PageHeader
         title="Suppliers"
-        description="Register vendors and track what you buy from each — cost and unit (each, kg, case, etc.)."
+        description="Register vendors, keep a supply cost database for quotations, and track purchases."
       />
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Register supplier</h2>
@@ -59,7 +59,7 @@ export default async function SuppliersPage() {
               <th>Supplier</th>
               <th>Contact</th>
               <th>Sales rep</th>
-              <th>Supply items</th>
+              <th>Supply DB</th>
             </tr>
           </thead>
           <tbody>

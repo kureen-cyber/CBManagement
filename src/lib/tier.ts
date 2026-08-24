@@ -3,6 +3,12 @@
 export const PLAN_TIERS = ["FREE_RETAIL", "STANDARD"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
+/**
+ * When false, every module and limit behaves as Standard / unrestricted.
+ * Re-enable after testing and development are complete.
+ */
+export const TIER_GATING_ENABLED = false;
+
 export const FREE_RETAIL_MAX_POS_REGISTERS = 2;
 export const STANDARD_MAX_POS_REGISTERS = 4;
 /** Free retail: one store; Standard: up to five. */
@@ -63,23 +69,29 @@ export function parsePlanTier(value: unknown): PlanTier {
 }
 
 export function tierFromBusinessType(businessType: string): PlanTier {
+  // During open testing, always Standard so new accounts are unrestricted.
+  if (!TIER_GATING_ENABLED) return "STANDARD";
   return String(businessType).toUpperCase() === "RETAIL" ? "FREE_RETAIL" : "STANDARD";
 }
 
 export function maxPosRegistersForTier(tier: PlanTier): number {
+  if (!TIER_GATING_ENABLED) return STANDARD_MAX_POS_REGISTERS;
   return isFreeRetailTier(tier) ? FREE_RETAIL_MAX_POS_REGISTERS : STANDARD_MAX_POS_REGISTERS;
 }
 
 export function isFreeRetailTier(tier: PlanTier): boolean {
+  if (!TIER_GATING_ENABLED) return false;
   return tier === "FREE_RETAIL";
 }
 
 /** Free retail and future free tiers share the 31-day transaction window. */
 export function isFreeTier(tier: PlanTier): boolean {
+  if (!TIER_GATING_ENABLED) return false;
   return tier === "FREE_RETAIL";
 }
 
 export function isPathAllowedForTier(tier: PlanTier, pathname: string): boolean {
+  if (!TIER_GATING_ENABLED) return true;
   if (!isFreeRetailTier(tier)) return true;
   if (FREE_RETAIL_BLOCKED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return false;

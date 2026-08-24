@@ -73,6 +73,7 @@ model Company {
   customers           Customer[]
   suppliers           Supplier[]
   supplierItems       SupplierItem[]
+  supplierPurchases   SupplierPurchase[]
   products            Product[]
   employees           Employee[]
   quotations          Quotation[]
@@ -209,15 +210,16 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  products Product[]
-  expenses Expense[]
-  items    SupplierItem[]
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  products   Product[]
+  expenses   Expense[]
+  items      SupplierItem[]
+  purchases  SupplierPurchase[]
 
   @@index([companyId])
 }
 
-/// Supply / procurement line catalog for a supplier (cost + unit of measure).
+/// In-house supply cost database per supplier — reference costs for quotations.
 model SupplierItem {
   id         String   @id @default(cuid())
   companyId  String
@@ -225,17 +227,46 @@ model SupplierItem {
   name       String
   /// each | kg | lb | case | dozen | m | L | pack · …
   unit       String   @default("each")
-  /// Procurement cost in cents
+  /// Reference procurement cost in cents (for quotations)
   unitCost   Int      @default(0)
   notes      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier  Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchases SupplierPurchase[]
 
   @@index([companyId])
   @@index([supplierId])
+}
+
+/// Record of what was actually bought from a supplier (purchase log).
+model SupplierPurchase {
+  id             String   @id @default(cuid())
+  companyId      String
+  supplierId     String
+  supplierItemId String?
+  /// Snapshot name (kept if catalog item is later renamed/removed)
+  name           String
+  unit           String   @default("each")
+  quantity       Float    @default(1)
+  /// Cost per unit in cents at time of purchase
+  unitCost       Int      @default(0)
+  /// Total paid in cents (quantity × unitCost unless overridden)
+  totalCost      Int      @default(0)
+  purchasedAt    DateTime @default(now())
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierItem SupplierItem? @relation(fields: [supplierItemId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([supplierId])
+  @@index([supplierItemId])
 }
 
 model Product {

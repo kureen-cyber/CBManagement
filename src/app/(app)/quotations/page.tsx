@@ -12,12 +12,17 @@ export const dynamic = "force-dynamic";
 export default async function QuotationsPage() {
   await enforceTierPath("/quotations");
   const { companyId } = await requireCompany();
-  const [customers, quotations] = await Promise.all([
+  const [customers, quotations, supplyItems] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.quotation.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
       include: { customer: true },
+    }),
+    prisma.supplierItem.findMany({
+      where: { companyId },
+      orderBy: [{ supplier: { name: "asc" } }, { name: "asc" }],
+      include: { supplier: { select: { name: true } } },
     }),
   ]);
 
@@ -28,7 +33,16 @@ export default async function QuotationsPage() {
         description="Enter your costs, then set markup % at the end. Customers see one marked-up figure per item — markup is not listed separately."
       />
       <Panel style={{ padding: "1.25rem" }}>
-        <QuotationForm customers={customers.map((c) => ({ id: c.id, name: c.name }))} />
+        <QuotationForm
+          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          supplyCatalog={supplyItems.map((i) => ({
+            id: i.id,
+            name: i.name,
+            unit: i.unit,
+            unitCost: i.unitCost,
+            supplierName: i.supplier.name,
+          }))}
+        />
       </Panel>
       <Panel className="table-wrap">
         <table className="data">

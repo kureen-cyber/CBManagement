@@ -8,6 +8,14 @@ import { quotationClientLines } from "@/lib/quotation-pricing";
 type ExtraDraft = { name: string; amount: string };
 type FormTab = "details" | "notes";
 
+export type SupplyCatalogItem = {
+  id: string;
+  name: string;
+  unit: string;
+  unitCost: number;
+  supplierName: string;
+};
+
 export type QuotationFormInitial = {
   id: string;
   customerId: string;
@@ -29,9 +37,12 @@ function centsToInput(cents: number) {
 
 export function QuotationForm({
   customers,
+  supplyCatalog = [],
   initial,
 }: {
   customers: { id: string; name: string }[];
+  /** In-house supply database across suppliers — for materials costing. */
+  supplyCatalog?: SupplyCatalogItem[];
   initial?: QuotationFormInitial;
 }) {
   const isEdit = Boolean(initial?.id);
@@ -51,6 +62,44 @@ export function QuotationForm({
       ? initial.extras.map((e) => ({ name: e.name, amount: centsToInput(e.amount) }))
       : [{ name: "", amount: "" }],
   );
+  const [pickId, setPickId] = useState("");
+  const [pickQty, setPickQty] = useState("1");
+  const [pickedLines, setPickedLines] = useState<
+    { key: string; label: string; qty: number; unit: string; unitCost: number; lineCost: number }[]
+  >([]);
+
+  const selectedSupply = useMemo(
+    () => supplyCatalog.find((s) => s.id === pickId) || null,
+    [supplyCatalog, pickId],
+  );
+
+  function addFromSupply() {
+    if (!selectedSupply) return;
+    const qty = Math.max(0.001, Number(pickQty) || 1);
+    const lineCost = Math.round(selectedSupply.unitCost * qty);
+    setPickedLines((prev) => [
+      ...prev,
+      {
+        key: `${selectedSupply.id}-${Date.now()}`,
+        label: `${selectedSupply.name} (${selectedSupply.supplierName})`,
+        qty,
+        unit: selectedSupply.unit,
+        unitCost: selectedSupply.unitCost,
+        lineCost,
+      },
+    ]);
+    const current = toCents(Number(materials) || 0);
+    setMaterials(centsToInput(current + lineCost));
+    setPickQty("1");
+  }
+
+  function removePicked(key: string) {
+    const row = pickedLines.find((l) => l.key === key);
+    if (!row) return;
+    setPickedLines((prev) => prev.filter((l) => l.key !== key));
+    const current = toCents(Number(materials) || 0);
+    setMaterials(centsToInput(Math.max(0, current - row.lineCost)));
+  }
 
   const preview = useMemo(() => {
     const labourC = toCents(Number(labour) || 0);
@@ -185,6 +234,72 @@ export function QuotationForm({
               onChange={(e) => setTransport(e.target.value)}
             />
           </label>
+
+          {supplyCatalog.length > 0 ? (
+            <div className="full panel" style={{ padding: "1rem" }}>
+              <strong>Add from supply database</strong>
+              <div className="muted" style={{ fontSize: "0.82rem", marginTop: "0.2rem" }}>
+                Pick a supplier catalog item and quantity — cost is added to Materials.
+              </div>
+              <div
+                className="row"
+                style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-end", marginTop: "0.85rem" }}
+              >
+                <label className="field" style={{ flex: "2 1 220px" }}>
+                  Supply item
+                  <select value={pickId} onChange={(e) => setPickId(e.target.value)}>
+                    <option value="">Select…</option>
+                    {supplyCatalog.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.supplierName} — {s.name} ({formatTTD(s.unitCost)}/{s.unit})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ flex: "0 1 100px" }}>
+                  Qty
+                  <input
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    value={pickQty}
+                    onChange={(e) => setPickQty(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={!selectedSupply}
+                  onClick={addFromSupply}
+                >
+                  Add to materials
+                </button>
+              </div>
+              {pickedLines.length > 0 ? (
+                <ul style={{ margin: "0.85rem 0 0", paddingLeft: "1.1rem" }}>
+                  {pickedLines.map((l) => (
+                    <li key={l.key} className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
+                      <span>
+                        {l.qty} {l.unit} × {l.label} ={" "}
+                        <strong className="money">{formatTTD(l.lineCost)}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => removePicked(l.key)}
+                      >
+                        Undo
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : (
+            <div className="full muted" style={{ fontSize: "0.85rem" }}>
+              Tip: add items under Suppliers → Supply database to pull material costs into quotes.
+            </div>
+          )}
 
           <div className="full panel" style={{ padding: "1rem" }}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>

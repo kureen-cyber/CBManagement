@@ -238,6 +238,30 @@ export async function createSupplierItem(formData: FormData) {
   });
   revalidatePath("/suppliers");
   revalidatePath(`/suppliers/${supplierId}`);
+  revalidatePath("/quotations");
+}
+
+export async function updateSupplierItem(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  const row = await prisma.supplierItem.findFirst({ where: { id, companyId } });
+  if (!row) throw new Error("Supply item not found");
+
+  const name = String(formData.get("name") || "").trim() || row.name;
+  const unit = String(formData.get("unit") || "").trim() || row.unit;
+
+  await prisma.supplierItem.update({
+    where: { id },
+    data: {
+      name,
+      unit,
+      unitCost: dollarsToCents(formData.get("unitCost")),
+      notes: String(formData.get("notes") || "").trim() || null,
+    },
+  });
+  revalidatePath("/suppliers");
+  revalidatePath(`/suppliers/${row.supplierId}`);
+  revalidatePath("/quotations");
 }
 
 export async function deleteSupplierItem(formData: FormData) {
@@ -249,6 +273,67 @@ export async function deleteSupplierItem(formData: FormData) {
   await prisma.supplierItem.delete({ where: { id } });
   revalidatePath("/suppliers");
   if (supplierId) revalidatePath(`/suppliers/${supplierId}`);
+  revalidatePath(`/suppliers/${row.supplierId}`);
+  revalidatePath("/quotations");
+}
+
+export async function createSupplierPurchase(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const supplierId = String(formData.get("supplierId") || "").trim();
+  if (!supplierId) throw new Error("Missing supplier");
+  const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, companyId } });
+  if (!supplier) throw new Error("Supplier not found");
+
+  const supplierItemId = String(formData.get("supplierItemId") || "").trim() || null;
+  let name = String(formData.get("name") || "").trim();
+  let unit = String(formData.get("unit") || "each").trim() || "each";
+  let unitCost = dollarsToCents(formData.get("unitCost"));
+
+  if (supplierItemId) {
+    const catalog = await prisma.supplierItem.findFirst({
+      where: { id: supplierItemId, companyId, supplierId },
+    });
+    if (!catalog) throw new Error("Supply item not found");
+    if (!name) name = catalog.name;
+    if (!String(formData.get("unit") || "").trim()) unit = catalog.unit;
+    if (!String(formData.get("unitCost") || "").trim()) unitCost = catalog.unitCost;
+  }
+  if (!name) throw new Error("Enter what you bought");
+
+  const quantity = Math.max(0.001, Number(formData.get("quantity") || 1) || 1);
+  const totalOverride = String(formData.get("totalCost") || "").trim();
+  const totalCost = totalOverride
+    ? dollarsToCents(formData.get("totalCost"))
+    : Math.round(unitCost * quantity);
+
+  const purchasedAtRaw = String(formData.get("purchasedAt") || "").trim();
+  const purchasedAt = purchasedAtRaw ? new Date(purchasedAtRaw) : new Date();
+
+  await prisma.supplierPurchase.create({
+    data: {
+      companyId,
+      supplierId,
+      supplierItemId,
+      name,
+      unit,
+      quantity,
+      unitCost,
+      totalCost,
+      purchasedAt: Number.isNaN(purchasedAt.getTime()) ? new Date() : purchasedAt,
+      notes: String(formData.get("notes") || "").trim() || null,
+    },
+  });
+  revalidatePath("/suppliers");
+  revalidatePath(`/suppliers/${supplierId}`);
+}
+
+export async function deleteSupplierPurchase(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  const row = await prisma.supplierPurchase.findFirst({ where: { id, companyId } });
+  if (!row) throw new Error("Purchase not found");
+  await prisma.supplierPurchase.delete({ where: { id } });
+  revalidatePath("/suppliers");
   revalidatePath(`/suppliers/${row.supplierId}`);
 }
 

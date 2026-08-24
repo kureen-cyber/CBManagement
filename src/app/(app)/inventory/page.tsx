@@ -8,19 +8,11 @@ import {
   readActiveStoreIdFromCookies,
 } from "@/lib/register-access-server";
 import { parseInventoryViewMode } from "@/lib/settings";
+import { parseVariableOptions } from "@/lib/product-variables";
 import { PageHeader } from "@/components/ui";
 import { InventoryClient } from "@/components/InventoryClient";
 
 export const dynamic = "force-dynamic";
-
-function parseOptions(raw: string): string[] {
-  try {
-    const v = JSON.parse(raw || "[]");
-    return Array.isArray(v) ? v.map((o) => String(o)) : [];
-  } catch {
-    return [];
-  }
-}
 
 export default async function InventoryPage() {
   const { companyId } = await requireCompany();
@@ -91,7 +83,7 @@ export default async function InventoryPage() {
           imageData: p.imageData,
           variables: p.variables.map((v) => ({
             name: v.name,
-            options: parseOptions(v.options),
+            options: parseVariableOptions(v.options),
           })),
         }))}
       />

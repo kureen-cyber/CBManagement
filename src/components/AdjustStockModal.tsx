@@ -3,6 +3,7 @@
 import { FormEvent, useState, useTransition } from "react";
 import { adjustProductStock } from "@/app/actions";
 import { fromCents, formatTTD } from "@/lib/money";
+import type { VariableOption } from "@/lib/product-variables";
 
 type AdjustStockProduct = {
   id: string;
@@ -10,6 +11,7 @@ type AdjustStockProduct = {
   unit: string;
   unitCost: number;
   stockQty: number;
+  variables?: { name: string; options: VariableOption[] }[];
 };
 
 export function AdjustStockModal({
@@ -19,15 +21,22 @@ export function AdjustStockModal({
 }: {
   product: AdjustStockProduct;
   onClose: () => void;
-  onAdjusted: (id: string, stockQty: number) => void;
+  onAdjusted: (
+    id: string,
+    stockQty: number,
+    variables?: { name: string; options: VariableOption[] }[],
+  ) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const optionVar = product.variables?.find((v) => v.options.length);
+  const [optionLabel, setOptionLabel] = useState(optionVar?.options[0]?.label || "");
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("productId", product.id);
+    if (optionVar) fd.set("optionLabel", optionLabel);
 
     setError(null);
     startTransition(async () => {
@@ -37,11 +46,18 @@ export function AdjustStockModal({
         return;
       }
       if (result && "stockQty" in result && typeof result.stockQty === "number") {
-        onAdjusted(product.id, result.stockQty);
+        onAdjusted(
+          product.id,
+          result.stockQty,
+          "variables" in result ? result.variables : undefined,
+        );
       }
       onClose();
     });
   }
+
+  const selectedQty =
+    optionVar?.options.find((o) => o.label === optionLabel)?.qty ?? product.stockQty;
 
   return (
     <div
@@ -69,9 +85,31 @@ export function AdjustStockModal({
           Adjust stock
         </h3>
         <p className="muted" style={{ marginTop: 0, fontSize: "0.9rem" }}>
-          {product.name} — current: <strong>{product.stockQty}</strong> {product.unit}
+          {product.name} — total: <strong>{product.stockQty}</strong> {product.unit}
+          {optionVar ? (
+            <>
+              {" "}
+              · {optionLabel}: <strong>{selectedQty}</strong>
+            </>
+          ) : null}
         </p>
         <form onSubmit={onSubmit} className="stack" style={{ gap: "0.75rem" }}>
+          {optionVar ? (
+            <label className="field">
+              {optionVar.name}
+              <select
+                value={optionLabel}
+                onChange={(e) => setOptionLabel(e.target.value)}
+                required
+              >
+                {optionVar.options.map((o) => (
+                  <option key={o.label} value={o.label}>
+                    {o.label} ({o.qty} on hand)
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="field">
             Quantity to add or remove
             <input

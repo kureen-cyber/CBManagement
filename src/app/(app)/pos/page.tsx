@@ -15,6 +15,7 @@ import {
   receiptVisibleSince,
 } from "@/lib/tier";
 import { parseInventoryViewMode } from "@/lib/settings";
+import { parseVariableOptions } from "@/lib/product-variables";
 import { resolveRegisterAccess } from "@/lib/register-access";
 import {
   readActiveRegisterIdFromCookies,
@@ -25,15 +26,6 @@ import { PageHeader, Panel } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-
-function parseOptions(raw: string): string[] {
-  try {
-    const v = JSON.parse(raw || "[]");
-    return Array.isArray(v) ? v.map((o) => String(o)) : [];
-  } catch {
-    return [];
-  }
-}
 
 export default async function PosPage() {
   const { companyId, company } = await requireCompany();
@@ -187,7 +179,7 @@ export default async function PosPage() {
           isService: p.isService,
           variables: p.variables.map((v) => ({
             name: v.name,
-            options: parseOptions(v.options),
+            options: parseVariableOptions(v.options),
           })),
         }))}
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}

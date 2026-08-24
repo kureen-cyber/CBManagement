@@ -9,6 +9,16 @@ import { toCents } from "@/lib/money";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
+import {
+  applyOptionQtyDelta,
+  findOptionForVariantLabel,
+  hasOptionStock,
+  parseVariableOptions,
+  serializeVariableOptions,
+  sumOptionStock,
+  type ProductVariableDef,
+  type VariableOption,
+} from "@/lib/product-variables";
 
 const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
 const RECEIPT_MIME = new Set([...IMAGE_MIME, "application/pdf"]);
@@ -135,23 +145,41 @@ async function ensureCategoryOnActiveStore(companyId: string, category: string) 
     .catch(() => null);
 }
 
-function parseProductVariables(raw: string) {
-  let variables: { name: string; options: string[] }[] = [];
+function parseProductVariables(raw: string): ProductVariableDef[] {
+  let variables: ProductVariableDef[] = [];
   const rawVars = raw.trim();
   if (!rawVars) return variables;
   try {
-    const parsed = JSON.parse(rawVars) as { name?: string; options?: string[] | string }[];
+    const parsed = JSON.parse(rawVars) as {
+      name?: string;
+      options?: Array<string | { label?: string; qty?: number }> | string;
+    }[];
     if (Array.isArray(parsed)) {
       variables = parsed
         .map((v) => {
           const name = String(v.name || "").trim();
-          const opts = Array.isArray(v.options)
-            ? v.options.map((o) => String(o).trim()).filter(Boolean)
-            : String(v.options || "")
-                .split(",")
-                .map((o) => o.trim())
-                .filter(Boolean);
-          return { name, options: opts };
+          let options: VariableOption[] = [];
+          if (Array.isArray(v.options)) {
+            options = v.options
+              .map((o) => {
+                if (typeof o === "string") {
+                  const label = o.trim();
+                  return label ? { label, qty: 0 } : null;
+                }
+                const label = String(o?.label || "").trim();
+                if (!label) return null;
+                const qtyRaw = Number(o?.qty ?? 0);
+                return { label, qty: Number.isFinite(qtyRaw) ? Math.max(0, qtyRaw) : 0 };
+              })
+              .filter((o): o is VariableOption => Boolean(o));
+          } else {
+            options = String(v.options || "")
+              .split(",")
+              .map((o) => o.trim())
+              .filter(Boolean)
+              .map((label) => ({ label, qty: 0 }));
+          }
+          return { name, options };
         })
         .filter((v) => v.name && v.options.length);
     }
@@ -177,6 +205,10 @@ function mapProductResponse(product: {
   imageData?: string | null;
   variables: { name: string; options: string }[];
 }) {
+  const variables = product.variables.map((v) => ({
+    name: v.name,
+    options: parseVariableOptions(v.options),
+  }));
   return {
     id: product.id,
     name: product.name,
@@ -191,10 +223,7 @@ function mapProductResponse(product: {
     trackStock: product.trackStock,
     isService: product.isService,
     imageData: product.imageData ?? null,
-    variables: product.variables.map((v) => ({
-      name: v.name,
-      options: JSON.parse(v.options || "[]") as string[],
-    })),
+    variables,
   };
 }
 
@@ -384,6 +413,9 @@ export async function createProduct(formData: FormData) {
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
   const manualSku = String(formData.get("sku") || "").trim();
   const sku = manualSku || (await nextSku(companyId));
+  const optionStockTotal = hasOptionStock(variables) ? sumOptionStock(variables) : null;
+  const resolvedOpening =
+    isService ? 0 : optionStockTotal != null ? optionStockTotal : opening;
 
   const product = await prisma.product.create({
     data: {
@@ -396,14 +428,14 @@ export async function createProduct(formData: FormData) {
       unitPrice: variablePrice ? 0 : unitPriceCents,
       variablePrice,
       minStock: Number(formData.get("minStock") || 0),
-      stockQty: isService ? 0 : opening,
+      stockQty: resolvedOpening,
       trackStock: isService ? false : trackStock,
       isService,
       ...(imageData !== undefined ? { imageData } : {}),
       variables: {
         create: variables.map((v, i) => ({
           name: v.name,
-          options: JSON.stringify(v.options),
+          options: serializeVariableOptions(v.options),
           sortOrder: i,
         })),
       },
@@ -421,14 +453,17 @@ export async function createProduct(formData: FormData) {
       .catch(() => null);
   }
 
-  if (!isService && opening !== 0) {
+  if (!isService && resolvedOpening !== 0) {
     await prisma.stockMovement.create({
       data: {
         productId: product.id,
         type: "OPENING",
-        quantity: opening,
+        quantity: resolvedOpening,
         unitCost: product.unitCost,
-        notes: "Opening stock",
+        notes:
+          optionStockTotal != null
+            ? "Opening stock (sum of variable options)"
+            : "Opening stock",
       },
     });
   }
@@ -472,6 +507,12 @@ export async function updateProduct(formData: FormData) {
   }
 
   const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
+  const optionStockTotal = hasOptionStock(variables) ? sumOptionStock(variables) : null;
+  const nextStockQty = isService
+    ? 0
+    : optionStockTotal != null
+      ? optionStockTotal
+      : existing.stockQty;
 
   const product = await prisma.$transaction(async (tx) => {
     await tx.productVariable.deleteMany({ where: { productId: id } });
@@ -489,12 +530,12 @@ export async function updateProduct(formData: FormData) {
         minStock: Number(formData.get("minStock") || 0),
         trackStock: isService ? false : trackStock,
         isService,
-        stockQty: isService ? 0 : existing.stockQty,
+        stockQty: nextStockQty,
         ...(imageData !== undefined ? { imageData } : {}),
         variables: {
           create: variables.map((v, i) => ({
             name: v.name,
-            options: JSON.stringify(v.options),
+            options: serializeVariableOptions(v.options),
             sortOrder: i,
           })),
         },
@@ -504,6 +545,25 @@ export async function updateProduct(formData: FormData) {
 
     return updated;
   });
+
+  if (
+    !isService &&
+    optionStockTotal != null &&
+    optionStockTotal !== existing.stockQty
+  ) {
+    const delta = optionStockTotal - existing.stockQty;
+    if (delta !== 0) {
+      await prisma.stockMovement.create({
+        data: {
+          productId: id,
+          type: "ADJUSTMENT",
+          quantity: delta,
+          unitCost: existing.unitCost,
+          notes: "Stock synced from variable option quantities",
+        },
+      });
+    }
+  }
 
   for (const v of variables) {
     await prisma.variableNameCatalog
@@ -531,19 +591,53 @@ export async function adjustProductStock(formData: FormData) {
   const id = String(formData.get("productId") || "").trim();
   const quantity = Number(formData.get("quantity") || 0);
   const notes = String(formData.get("notes") || "").trim() || null;
+  const optionLabel = String(formData.get("optionLabel") || "").trim();
 
   if (!id) return { error: "Missing product" };
   if (!Number.isFinite(quantity) || quantity === 0) {
     return { error: "Enter a quantity to add or remove" };
   }
 
-  const product = await prisma.product.findFirst({ where: { id, companyId } });
+  const product = await prisma.product.findFirst({
+    where: { id, companyId },
+    include: { variables: { orderBy: { sortOrder: "asc" } } },
+  });
   if (!product) return { error: "Item not found" };
   if (product.isService) return { error: "Services do not track stock" };
   if (!product.trackStock) return { error: "This item does not track stock" };
 
-  const nextQty = product.stockQty + quantity;
-  if (nextQty < 0) {
+  const variables: ProductVariableDef[] = product.variables.map((v) => ({
+    name: v.name,
+    options: parseVariableOptions(v.options),
+  }));
+  const tracksOptions = hasOptionStock(variables);
+
+  if (tracksOptions && !optionLabel) {
+    return { error: "Choose which option (e.g. colour) to adjust" };
+  }
+
+  let nextVariables = variables;
+  let nextQty = product.stockQty + quantity;
+
+  if (tracksOptions) {
+    const variantLabel =
+      variables.length === 1
+        ? `${variables[0]!.name}: ${optionLabel}`
+        : optionLabel.includes(":")
+          ? optionLabel
+          : `${variables[0]!.name}: ${optionLabel}`;
+    const hit = findOptionForVariantLabel(variables, variantLabel);
+    if (!hit) return { error: "Selected option was not found on this item" };
+    if (hit.option.qty + quantity < 0) {
+      return {
+        error: `Cannot reduce ${hit.option.label} below zero (current: ${hit.option.qty})`,
+      };
+    }
+    const applied = applyOptionQtyDelta(variables, variantLabel, quantity);
+    if (!applied) return { error: "Could not update option stock" };
+    nextVariables = applied;
+    nextQty = sumOptionStock(applied);
+  } else if (nextQty < 0) {
     return { error: `Cannot reduce below zero (current: ${product.stockQty})` };
   }
 
@@ -554,29 +648,49 @@ export async function adjustProductStock(formData: FormData) {
 
   const movementType = quantity > 0 ? "PURCHASE" : "ADJUSTMENT";
   const defaultNotes = quantity > 0 ? "Stock received" : "Stock adjustment";
+  const optionNote = optionLabel ? ` (${optionLabel})` : "";
 
-  await prisma.$transaction([
-    prisma.stockMovement.create({
+  await prisma.$transaction(async (tx) => {
+    await tx.stockMovement.create({
       data: {
         productId: id,
         type: movementType,
         quantity,
         unitCost,
-        notes: notes || defaultNotes,
+        notes: (notes || defaultNotes) + optionNote,
       },
-    }),
-    prisma.product.update({
+    });
+    await tx.product.update({
       where: { id },
-      data: { stockQty: nextQty, unitCost: quantity > 0 ? unitCost : product.unitCost },
-    }),
-  ]);
+      data: {
+        stockQty: nextQty,
+        unitCost: quantity > 0 ? unitCost : product.unitCost,
+      },
+    });
+    if (tracksOptions) {
+      await tx.productVariable.deleteMany({ where: { productId: id } });
+      await tx.productVariable.createMany({
+        data: nextVariables.map((v, i) => ({
+          productId: id,
+          name: v.name,
+          options: serializeVariableOptions(v.options),
+          sortOrder: i,
+        })),
+      });
+    }
+  });
 
   revalidatePath("/inventory");
   revalidatePath("/pos");
   revalidatePath("/reports");
   revalidatePath("/");
 
-  return { ok: true as const, id, stockQty: nextQty };
+  return {
+    ok: true as const,
+    id,
+    stockQty: nextQty,
+    variables: nextVariables,
+  };
 }
 
 export async function deleteProduct(productId: string) {
@@ -1403,6 +1517,7 @@ async function buildPosLines(
 ) {
   const products = await prisma.product.findMany({
     where: { companyId, id: { in: lines.map((l) => l.productId) } },
+    include: { variables: { orderBy: { sortOrder: "asc" } } },
   });
   const byId = Object.fromEntries(products.map((p) => [p.id, p]));
 
@@ -1412,12 +1527,39 @@ async function buildPosLines(
     const product = byId[line.productId];
     if (!product) throw new Error("Product missing");
     const trackStock = product.trackStock && !product.isService;
-    if (trackStock && product.stockQty < line.quantity) {
-      outOfStock.push({
-        name: product.name,
-        requested: line.quantity,
-        available: product.stockQty,
-      });
+    const variables: ProductVariableDef[] = product.variables.map((v) => ({
+      name: v.name,
+      options: parseVariableOptions(v.options),
+    }));
+    const tracksOptions = hasOptionStock(variables);
+    const variant = String(line.variantLabel || "").trim();
+
+    if (trackStock) {
+      if (tracksOptions) {
+        if (!variant) {
+          outOfStock.push({
+            name: product.name,
+            requested: line.quantity,
+            available: 0,
+          });
+        } else {
+          const hit = findOptionForVariantLabel(variables, variant);
+          const available = hit?.option.qty ?? 0;
+          if (!hit || available < line.quantity) {
+            outOfStock.push({
+              name: hit ? `${product.name} (${hit.option.label})` : product.name,
+              requested: line.quantity,
+              available,
+            });
+          }
+        }
+      } else if (product.stockQty < line.quantity) {
+        outOfStock.push({
+          name: product.name,
+          requested: line.quantity,
+          available: product.stockQty,
+        });
+      }
     }
 
     let unitPrice = product.unitPrice;
@@ -1432,7 +1574,6 @@ async function buildPosLines(
       unitPrice = product.unitPrice;
     }
 
-    const variant = String(line.variantLabel || "").trim();
     const description = variant ? `${product.name} (${variant})` : product.name;
     const lineTotal = Math.round(unitPrice * line.quantity);
     return {
@@ -1442,6 +1583,9 @@ async function buildPosLines(
       unitPrice,
       lineTotal,
       trackStock,
+      variantLabel: variant || undefined,
+      variables,
+      tracksOptions,
     };
   });
 
@@ -1756,13 +1900,49 @@ export async function completePosSale(input: {
         quantity: -line.quantity,
         unitCost: byId[line.productId!]?.unitCost ?? 0,
         reference: sale.number,
-        notes: "POS sale",
+        notes: line.variantLabel ? `POS sale (${line.variantLabel})` : "POS sale",
       },
     });
-    await prisma.product.update({
-      where: { id: line.productId! },
-      data: { stockQty: { decrement: line.quantity } },
-    });
+
+    if (line.tracksOptions) {
+      const current = await prisma.product.findFirst({
+        where: { id: line.productId! },
+        include: { variables: { orderBy: { sortOrder: "asc" } } },
+      });
+      const currentVars: ProductVariableDef[] = (current?.variables || []).map((v) => ({
+        name: v.name,
+        options: parseVariableOptions(v.options),
+      }));
+      const applied = applyOptionQtyDelta(currentVars, line.variantLabel, -line.quantity);
+      if (applied) {
+        const nextQty = sumOptionStock(applied);
+        await prisma.$transaction(async (tx) => {
+          await tx.product.update({
+            where: { id: line.productId! },
+            data: { stockQty: nextQty },
+          });
+          await tx.productVariable.deleteMany({ where: { productId: line.productId! } });
+          await tx.productVariable.createMany({
+            data: applied.map((v, i) => ({
+              productId: line.productId!,
+              name: v.name,
+              options: serializeVariableOptions(v.options),
+              sortOrder: i,
+            })),
+          });
+        });
+      } else {
+        await prisma.product.update({
+          where: { id: line.productId! },
+          data: { stockQty: { decrement: line.quantity } },
+        });
+      }
+    } else {
+      await prisma.product.update({
+        where: { id: line.productId! },
+        data: { stockQty: { decrement: line.quantity } },
+      });
+    }
 
     // Low-stock email when feature enabled and item crosses min threshold
     if (company.featureLowStockEmail) {

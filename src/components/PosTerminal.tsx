@@ -17,8 +17,9 @@ import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { ItemMenu } from "@/components/ItemMenu";
+import type { VariableOption } from "@/lib/product-variables";
 
-type ProductVariable = { name: string; options: string[] };
+type ProductVariable = { name: string; options: VariableOption[] };
 
 type Product = {
   id: string;
@@ -186,7 +187,7 @@ export function PosTerminal({
   function openAddModal(p: Product) {
     const selections: Record<string, string> = {};
     for (const v of p.variables || []) {
-      selections[v.name] = v.options[0] || "";
+      selections[v.name] = v.options[0]?.label || "";
     }
     setAddModal({
       product: p,
@@ -342,8 +343,16 @@ export function PosTerminal({
     router.refresh();
   }
 
-  function onStockAdjusted(id: string, stockQty: number) {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stockQty } : p)));
+  function onStockAdjusted(
+    id: string,
+    stockQty: number,
+    variables?: { name: string; options: VariableOption[] }[],
+  ) {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, stockQty, ...(variables ? { variables } : {}) } : p,
+      ),
+    );
     router.refresh();
   }
 
@@ -986,8 +995,11 @@ export function PosTerminal({
                     }
                   >
                     {v.options.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
+                      <option key={o.label} value={o.label}>
+                        {o.label}
+                        {addModal.product.trackStock && !addModal.product.isService
+                          ? ` (${o.qty} in stock)`
+                          : ""}
                       </option>
                     ))}
                   </select>

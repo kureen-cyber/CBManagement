@@ -1,15 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { InventoryViewMode } from "@/lib/settings";
+import type { VariableOption } from "@/lib/product-variables";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { CategoryInput } from "@/components/CategoryInput";
 import { EditProductModal } from "@/components/EditProductModal";
 import { ItemMenu } from "@/components/ItemMenu";
+import {
+  sumDraftStock,
+  VariableOptionsEditor,
+  type VarDraft,
+} from "@/components/VariableOptionsEditor";
 import { Panel } from "@/components/ui";
 
 export type InventoryProduct = {
@@ -26,7 +32,7 @@ export type InventoryProduct = {
   trackStock: boolean;
   isService: boolean;
   imageData?: string | null;
-  variables?: { name: string; options: string[] }[];
+  variables?: { name: string; options: VariableOption[] }[];
 };
 
 function categoryColor(
@@ -69,7 +75,30 @@ function ProductThumb({ imageData, alt }: { imageData?: string | null; alt: stri
   return <div className="inventory-thumb inventory-thumb-placeholder">No photo</div>;
 }
 
-type VarDraft = { name: string; options: string };
+function OptionStockSelect({
+  variables,
+  unit,
+}: {
+  variables: { name: string; options: VariableOption[] }[];
+  unit: string;
+}) {
+  const first = variables[0];
+  if (!first?.options.length) return null;
+  return (
+    <label className="field" style={{ marginTop: "0.5rem" }}>
+      <span className="muted" style={{ fontSize: "0.72rem" }}>
+        {first.name} stock
+      </span>
+      <select defaultValue={first.options[0]?.label} style={{ fontSize: "0.85rem" }}>
+        {first.options.map((o) => (
+          <option key={o.label} value={o.label}>
+            {o.label} — {o.qty} {unit}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export function InventoryClient({
   initialProducts,
@@ -101,6 +130,9 @@ export function InventoryClient({
     setProducts(initialProducts);
   }, [initialProducts]);
 
+  const autoOpeningStock = useMemo(() => sumDraftStock(vars), [vars]);
+  const hasOptionQtys = vars.some((v) => v.options.length > 0);
+
   function onCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canManage) return;
@@ -109,14 +141,14 @@ export function InventoryClient({
     const payload = vars
       .map((v) => ({
         name: v.name.trim(),
-        options: v.options
-          .split(",")
-          .map((o) => o.trim())
-          .filter(Boolean),
+        options: v.options.filter((o) => o.label.trim()),
       }))
       .filter((v) => v.name && v.options.length);
     fd.set("variablesJson", JSON.stringify(payload));
     if (variablePrice) fd.set("variablePrice", "on");
+    if (hasOptionQtys) {
+      fd.set("stockQty", String(autoOpeningStock));
+    }
 
     setMessage(null);
     startTransition(async () => {
@@ -166,15 +198,23 @@ export function InventoryClient({
 
   function onSaved(updated: InventoryProduct) {
     setProducts((prev) =>
-      prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)).sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
+      prev
+        .map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     );
     router.refresh();
   }
 
-  function onAdjusted(id: string, stockQty: number) {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stockQty } : p)));
+  function onAdjusted(
+    id: string,
+    stockQty: number,
+    variables?: { name: string; options: VariableOption[] }[],
+  ) {
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, stockQty, ...(variables ? { variables } : {}) } : p,
+      ),
+    );
     router.refresh();
   }
 
@@ -264,7 +304,20 @@ export function InventoryClient({
               <>
                 <label className="field">
                   Opening stock
-                  <input name="stockQty" type="number" step="0.01" defaultValue="0" />
+                  <input
+                    name="stockQty"
+                    type="number"
+                    step="0.01"
+                    value={hasOptionQtys ? autoOpeningStock : undefined}
+                    defaultValue={hasOptionQtys ? undefined : 0}
+                    readOnly={hasOptionQtys}
+                    key={hasOptionQtys ? `auto-${autoOpeningStock}` : "manual"}
+                  />
+                  {hasOptionQtys ? (
+                    <span className="muted" style={{ fontSize: "0.78rem" }}>
+                      Auto-calculated from option quantities
+                    </span>
+                  ) : null}
                 </label>
                 <label className="field">
                   Min stock
@@ -287,7 +340,10 @@ export function InventoryClient({
               </span>
             </label>
 
-            <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+            <label
+              className="field"
+              style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
+            >
               <input
                 name="isService"
                 type="checkbox"
@@ -297,70 +353,21 @@ export function InventoryClient({
               Service (fixed price — also shows on POS)
             </label>
             {!isService ? (
-              <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+              <label
+                className="field"
+                style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
+              >
                 <input name="trackStock" type="checkbox" defaultChecked /> Track stock
               </label>
             ) : null}
 
-            <div className="full stack" style={{ gap: "0.65rem" }}>
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                <strong>Variables</strong>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setVars((prev) => [...prev, { name: "", options: "" }])}
-                >
-                  Add variable
-                </button>
-              </div>
-              <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-                Example: name <em>Colour</em>, options <em>Red, Blue, Black</em>. Names you save
-                appear in the dropdown next time.
-              </p>
-              {vars.map((v, idx) => (
-                <div key={idx} className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-                  <label className="field" style={{ flex: "1 1 140px" }}>
-                    Variable name
-                    <input
-                      list="variable-name-catalog"
-                      value={v.name}
-                      onChange={(e) =>
-                        setVars((prev) =>
-                          prev.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row)),
-                        )
-                      }
-                      placeholder="Colour"
-                    />
-                  </label>
-                  <label className="field" style={{ flex: "2 1 220px" }}>
-                    Options (comma-separated)
-                    <input
-                      value={v.options}
-                      onChange={(e) =>
-                        setVars((prev) =>
-                          prev.map((row, i) =>
-                            i === idx ? { ...row, options: e.target.value } : row,
-                          ),
-                        )
-                      }
-                      placeholder="Red, Blue, Black"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setVars((prev) => prev.filter((_, i) => i !== idx))}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <datalist id="variable-name-catalog">
-                {variableNames.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
-            </div>
+            <VariableOptionsEditor
+              vars={vars}
+              setVars={setVars}
+              variableNames={variableNames}
+              listId="variable-name-catalog"
+              showQty={!isService}
+            />
 
             <div className="full">
               <button className="btn btn-primary" type="submit" disabled={pending}>
@@ -381,6 +388,7 @@ export function InventoryClient({
       <div className={viewMode === "list" ? "inventory-list" : "inventory-grid"}>
         {products.map((p) => {
           const low = p.trackStock && !p.isService && p.stockQty <= p.minStock;
+          const hasOptions = Boolean(p.variables?.some((v) => v.options.length));
           if (viewMode === "list") {
             return (
               <div key={p.id} className="inventory-list-row panel inventory-card">
@@ -405,19 +413,28 @@ export function InventoryClient({
                   <div style={{ marginTop: "0.35rem" }}>
                     <CategoryBadge name={p.category} colors={categoryColors} />
                   </div>
+                  {hasOptions && p.variables ? (
+                    <OptionStockSelect variables={p.variables} unit={p.unit} />
+                  ) : null}
                 </div>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Stock</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Stock
+                  </div>
                   <strong>{p.isService || !p.trackStock ? "—" : p.stockQty}</strong>
                 </div>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Price</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Price
+                  </div>
                   <strong className="money">
                     {p.variablePrice ? "At POS" : formatTTD(p.unitPrice)}
                   </strong>
                 </div>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Cost</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Cost
+                  </div>
                   <strong className="money">{formatTTD(p.unitCost)}</strong>
                 </div>
                 <div>
@@ -455,24 +472,28 @@ export function InventoryClient({
                 {p.isService ? "Service · " : ""}
                 {p.variablePrice ? "Variable price" : ""}
               </div>
-              {p.variables?.length ? (
-                <div className="muted" style={{ fontSize: "0.78rem", marginTop: "0.35rem" }}>
-                  {p.variables.map((v) => `${v.name}: ${v.options.join(", ")}`).join(" · ")}
-                </div>
+              {hasOptions && p.variables ? (
+                <OptionStockSelect variables={p.variables} unit={p.unit} />
               ) : null}
               <div className="row" style={{ marginTop: "0.75rem", justifyContent: "space-between" }}>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Stock</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Stock
+                  </div>
                   <strong>{p.isService || !p.trackStock ? "—" : p.stockQty}</strong>
                 </div>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Price</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Price
+                  </div>
                   <strong className="money">
                     {p.variablePrice ? "At POS" : formatTTD(p.unitPrice)}
                   </strong>
                 </div>
                 <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>Cost</div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Cost
+                  </div>
                   <strong className="money">{formatTTD(p.unitCost)}</strong>
                 </div>
               </div>
@@ -482,13 +503,12 @@ export function InventoryClient({
                 ) : low ? (
                   <span className="badge badge-warn">Low stock</span>
                 ) : (
-                  <span className="badge badge-ok">OK</span>
+                  <span className="badge badge-ok">In stock</span>
                 )}
               </div>
             </div>
           );
         })}
-        {products.length === 0 ? <div className="muted">No inventory items yet.</div> : null}
       </div>
 
       {editingProduct ? (

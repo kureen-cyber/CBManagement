@@ -1,13 +1,17 @@
 "use client";
 
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useMemo, useState, useTransition } from "react";
 import { updateProduct } from "@/app/actions";
 import { fromCents } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { CategoryInput } from "@/components/CategoryInput";
 import type { InventoryProduct } from "@/components/InventoryClient";
-
-type VarDraft = { name: string; options: string };
+import {
+  sumDraftStock,
+  varDraftFromStored,
+  VariableOptionsEditor,
+  type VarDraft,
+} from "@/components/VariableOptionsEditor";
 
 export function EditProductModal({
   product,
@@ -28,14 +32,12 @@ export function EditProductModal({
   const [error, setError] = useState<string | null>(null);
   const [isService, setIsService] = useState(product.isService);
   const [variablePrice, setVariablePrice] = useState(Boolean(product.variablePrice));
-  const [vars, setVars] = useState<VarDraft[]>(
-    (product.variables || []).map((v) => ({
-      name: v.name,
-      options: v.options.join(", "),
-    })),
-  );
+  const [vars, setVars] = useState<VarDraft[]>(() => varDraftFromStored(product.variables || []));
   const [imagePreview, setImagePreview] = useState<string | null>(product.imageData ?? null);
   const [removeImage, setRemoveImage] = useState(false);
+
+  const autoStock = useMemo(() => sumDraftStock(vars), [vars]);
+  const hasOptionQtys = vars.some((v) => v.options.length > 0);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,10 +47,7 @@ export function EditProductModal({
     const payload = vars
       .map((v) => ({
         name: v.name.trim(),
-        options: v.options
-          .split(",")
-          .map((o) => o.trim())
-          .filter(Boolean),
+        options: v.options.filter((o) => o.label.trim()),
       }))
       .filter((v) => v.name && v.options.length);
     fd.set("variablesJson", JSON.stringify(payload));
@@ -114,9 +113,7 @@ export function EditProductModal({
               name="category"
               defaultValue={product.category}
               suggestions={
-                categories.length
-                  ? categories
-                  : [...PRODUCT_CATEGORIES, ...allCategories]
+                categories.length ? categories : [...PRODUCT_CATEGORIES, ...allCategories]
               }
               listId="edit-inventory-category-suggestions"
             />
@@ -183,15 +180,30 @@ export function EditProductModal({
             />
           </label>
           {!isService ? (
-            <label className="field">
-              Min stock
-              <input
-                name="minStock"
-                type="number"
-                step="0.01"
-                defaultValue={product.minStock}
-              />
-            </label>
+            <>
+              <label className="field">
+                Total stock
+                <input
+                  type="number"
+                  step="0.01"
+                  value={hasOptionQtys ? autoStock : product.stockQty}
+                  readOnly
+                />
+                {hasOptionQtys ? (
+                  <span className="muted" style={{ fontSize: "0.78rem" }}>
+                    Auto-calculated from option quantities
+                  </span>
+                ) : (
+                  <span className="muted" style={{ fontSize: "0.78rem" }}>
+                    Use Adjust stock to change quantity
+                  </span>
+                )}
+              </label>
+              <label className="field">
+                Min stock
+                <input name="minStock" type="number" step="0.01" defaultValue={product.minStock} />
+              </label>
+            </>
           ) : null}
 
           <label className="choice-card full">
@@ -222,72 +234,20 @@ export function EditProductModal({
               className="field"
               style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
             >
-              <input
-                name="trackStock"
-                type="checkbox"
-                defaultChecked={product.trackStock}
-              />{" "}
-              Track stock
+              <input name="trackStock" type="checkbox" defaultChecked={product.trackStock} /> Track
+              stock
             </label>
           ) : null}
 
-          <div className="full stack" style={{ gap: "0.65rem" }}>
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <strong>Variables</strong>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setVars((prev) => [...prev, { name: "", options: "" }])}
-              >
-                Add variable
-              </button>
-            </div>
-            {vars.map((v, idx) => (
-              <div key={idx} className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-                <label className="field" style={{ flex: "1 1 140px" }}>
-                  Variable name
-                  <input
-                    list="edit-variable-name-catalog"
-                    value={v.name}
-                    onChange={(e) =>
-                      setVars((prev) =>
-                        prev.map((row, i) => (i === idx ? { ...row, name: e.target.value } : row)),
-                      )
-                    }
-                  />
-                </label>
-                <label className="field" style={{ flex: "2 1 220px" }}>
-                  Options (comma-separated)
-                  <input
-                    value={v.options}
-                    onChange={(e) =>
-                      setVars((prev) =>
-                        prev.map((row, i) =>
-                          i === idx ? { ...row, options: e.target.value } : row,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setVars((prev) => prev.filter((_, i) => i !== idx))}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <datalist id="edit-variable-name-catalog">
-              {variableNames.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-          </div>
+          <VariableOptionsEditor
+            vars={vars}
+            setVars={setVars}
+            variableNames={variableNames}
+            listId="edit-variable-name-catalog"
+            showQty={!isService}
+          />
 
-          {error ? (
-            <div className="full badge badge-danger">{error}</div>
-          ) : null}
+          {error ? <div className="full badge badge-danger">{error}</div> : null}
           <div className="full row" style={{ gap: "0.5rem", justifyContent: "flex-end" }}>
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel

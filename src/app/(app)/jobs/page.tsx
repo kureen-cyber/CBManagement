@@ -24,7 +24,7 @@ export default async function JobsPage() {
     prisma.job.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
-      include: { customer: true },
+      include: { customer: true, quotation: { select: { id: true, number: true } } },
     }),
   ]);
   const profits = await Promise.all(
@@ -74,6 +74,7 @@ export default async function JobsPage() {
           <thead>
             <tr>
               <th>Job</th>
+              <th>Quotation number</th>
               <th>Date</th>
               <th>Customer</th>
               <th>Engagement</th>
@@ -97,6 +98,13 @@ export default async function JobsPage() {
                     <div className="muted" style={{ fontSize: "0.8rem" }}>
                       {j.title}
                     </div>
+                  </td>
+                  <td>
+                    {j.quotation ? (
+                      <Link href={`/quotations/${j.quotation.id}`}>{j.quotation.number}</Link>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
                   </td>
                   <td>{j.createdAt.toLocaleDateString("en-TT")}</td>
                   <td>{j.customer.name}</td>

@@ -17,7 +17,17 @@ export default async function InvoicesPage() {
     prisma.invoice.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
-      include: { customer: true, job: true },
+      include: {
+        customer: true,
+        job: {
+          select: {
+            id: true,
+            number: true,
+            quotation: { select: { id: true, number: true } },
+          },
+        },
+        quotation: { select: { id: true, number: true } },
+      },
     }),
   ]);
 
@@ -84,7 +94,8 @@ export default async function InvoicesPage() {
               <th>Date</th>
               <th>Due</th>
               <th>Customer</th>
-              <th>Job</th>
+              <th>Quote number</th>
+              <th>Job number</th>
               <th>Total</th>
               <th>Paid</th>
               <th>Status</th>
@@ -92,27 +103,43 @@ export default async function InvoicesPage() {
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv) => (
-              <tr key={inv.id}>
-                <td>
-                  <strong>{inv.number}</strong>
-                </td>
-                <td>{inv.issueDate.toLocaleDateString("en-TT")}</td>
-                <td>{inv.dueDate ? inv.dueDate.toLocaleDateString("en-TT") : "—"}</td>
-                <td>{inv.customer.name}</td>
-                <td className="muted">{inv.job?.number ?? "—"}</td>
-                <td className="money">{formatTTD(inv.total)}</td>
-                <td className="money">{formatTTD(inv.amountPaid)}</td>
-                <td>
-                  <StatusBadge status={inv.status} />
-                </td>
-                <td>
-                  <Link className="btn btn-secondary btn-sm" href={`/invoices/${inv.id}`}>
-                    View
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {invoices.map((inv) => {
+              const quote = inv.quotation ?? inv.job?.quotation ?? null;
+              return (
+                <tr key={inv.id}>
+                  <td>
+                    <strong>{inv.number}</strong>
+                  </td>
+                  <td>{inv.issueDate.toLocaleDateString("en-TT")}</td>
+                  <td>{inv.dueDate ? inv.dueDate.toLocaleDateString("en-TT") : "—"}</td>
+                  <td>{inv.customer.name}</td>
+                  <td>
+                    {quote ? (
+                      <Link href={`/quotations/${quote.id}`}>{quote.number}</Link>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {inv.job ? (
+                      <Link href={`/jobs/${inv.job.id}`}>{inv.job.number}</Link>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td className="money">{formatTTD(inv.total)}</td>
+                  <td className="money">{formatTTD(inv.amountPaid)}</td>
+                  <td>
+                    <StatusBadge status={inv.status} />
+                  </td>
+                  <td>
+                    <Link className="btn btn-secondary btn-sm" href={`/invoices/${inv.id}`}>
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </Panel>

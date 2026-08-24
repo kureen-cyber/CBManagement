@@ -1275,6 +1275,48 @@ export async function addTimeEntry(formData: FormData) {
   revalidatePath("/employees");
 }
 
+export async function assignEmployeeToInvoice(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const invoiceId = String(formData.get("invoiceId") || "").trim();
+  const employeeId = String(formData.get("employeeId") || "").trim();
+  if (!invoiceId || !employeeId) throw new Error("Missing invoice or employee");
+
+  const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId } });
+  if (!invoice) throw new Error("Invoice not found");
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, companyId, active: true },
+  });
+  if (!employee) throw new Error("Employee not found");
+
+  const existing = await prisma.invoiceEmployee.findUnique({
+    where: { invoiceId_employeeId: { invoiceId, employeeId } },
+  });
+  if (existing) throw new Error("Employee is already assigned to this invoice");
+
+  await prisma.invoiceEmployee.create({
+    data: { invoiceId, employeeId },
+  });
+  revalidatePath(`/invoices/${invoiceId}`);
+  if (invoice.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
+}
+
+export async function removeInvoiceEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing assignment");
+
+  const row = await prisma.invoiceEmployee.findFirst({
+    where: { id, invoice: { companyId } },
+    include: { invoice: { select: { id: true, jobId: true } } },
+  });
+  if (!row) throw new Error("Assignment not found");
+
+  await prisma.invoiceEmployee.delete({ where: { id } });
+  revalidatePath(`/invoices/${row.invoice.id}`);
+  if (row.invoice.jobId) revalidatePath(`/jobs/${row.invoice.jobId}`);
+}
+
 export type PosLineInput = {
   productId: string;
   quantity: number;

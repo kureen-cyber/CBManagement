@@ -370,6 +370,7 @@ model Employee {
 
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   timeEntries TimeEntry[]
+  invoiceAssignments InvoiceEmployee[]
 
   @@index([companyId])
 }
@@ -517,9 +518,25 @@ model Invoice {
   quotation Quotation?    @relation(fields: [quotationId], references: [id])
   lines     InvoiceLine[]
   payments  Payment[]
+  employeeAssignments InvoiceEmployee[]
 
   @@unique([companyId, number])
   @@index([companyId])
+}
+
+/// Employees assigned to work on a job invoice.
+model InvoiceEmployee {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, employeeId])
+  @@index([invoiceId])
+  @@index([employeeId])
 }
 
 model InvoiceLine {

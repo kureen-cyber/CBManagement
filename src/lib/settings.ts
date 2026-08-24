@@ -38,6 +38,8 @@ export const RECEIPT_LOGO_MAX_BYTES = 300_000;
 export const LETTERHEAD_MAX_BYTES = 800_000;
 /** Max product photo payload size (~500KB raw). */
 export const PRODUCT_IMAGE_MAX_BYTES = 500_000;
+/** Max expense / job receipt upload (~800KB raw). */
+export const RECEIPT_UPLOAD_MAX_BYTES = 800_000;
 
 /** Default palette when assigning category colours. */
 export const CATEGORY_COLOR_PALETTE = [

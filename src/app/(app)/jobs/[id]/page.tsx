@@ -7,6 +7,7 @@ import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
 import { syncJobStatus } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
+import { JobDetailTabs } from "@/components/JobDetailTabs";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       customer: true,
       timeEntries: { include: { employee: true }, orderBy: { date: "desc" } },
       quotation: true,
+      receipts: { orderBy: { createdAt: "desc" } },
       invoices: {
         select: { id: true, number: true, total: true, amountPaid: true, status: true },
         orderBy: { createdAt: "asc" },
@@ -38,23 +40,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     0,
   );
 
-  return (
-    <div className="stack">
-      <PageHeader
-        title={`${job.number} — ${job.title}`}
-        description={`Customer ${job.customer.name}`}
-        actions={
-          <div className="row" style={{ gap: "0.5rem" }}>
-            <Link className="btn btn-primary" href={`/jobs/${job.id}/engagement`}>
-              {needsDates ? "Edit period of engagement" : "Edit dates"}
-            </Link>
-            <Link className="btn btn-secondary" href="/jobs">
-              Back
-            </Link>
-          </div>
-        }
-      />
-
+  const overview = (
+    <>
       <div className="row" style={{ gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         <StatusBadge status={job.status} />
         {needsDates ? (
@@ -162,6 +149,36 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           </tbody>
         </table>
       </Panel>
+    </>
+  );
+
+  return (
+    <div className="stack">
+      <PageHeader
+        title={`${job.number} — ${job.title}`}
+        description={`Customer ${job.customer.name}`}
+        actions={
+          <div className="row" style={{ gap: "0.5rem" }}>
+            <Link className="btn btn-primary" href={`/jobs/${job.id}/engagement`}>
+              {needsDates ? "Edit period of engagement" : "Edit dates"}
+            </Link>
+            <Link className="btn btn-secondary" href="/jobs">
+              Back
+            </Link>
+          </div>
+        }
+      />
+
+      <JobDetailTabs
+        overview={overview}
+        jobId={job.id}
+        receipts={job.receipts.map((r) => ({
+          id: r.id,
+          label: r.label,
+          receiptData: r.receiptData,
+          createdAt: r.createdAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }

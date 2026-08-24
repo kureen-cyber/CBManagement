@@ -225,6 +225,8 @@ model SupplierItem {
   companyId  String
   supplierId String
   name       String
+  /// MATERIAL | EQUIPMENT | EQUIPMENT_RENTAL
+  supplyType String   @default("MATERIAL")
   /// each | kg | lb | case | dozen | m | L | pack · …
   unit       String   @default("each")
   /// Reference procurement cost in cents (for quotations)
@@ -388,6 +390,8 @@ model Quotation {
   markupPct     Float     @default(25)
   /// When true, quote uses a fixed selling price (no markup %)
   fixedPrice    Boolean   @default(false)
+  /// JSON array of supply-database picks (type, qty, cost) for conversion expenses
+  supplyLinesJson String?
   subtotal      Int       @default(0)
   total         Int       @default(0)
   validUntil    DateTime?
@@ -440,10 +444,25 @@ model Job {
   materials   JobMaterial[]
   timeEntries TimeEntry[]
   expenses    Expense[]
+  receipts    JobReceipt[]
   invoices    Invoice[]
 
   @@unique([companyId, number])
   @@index([companyId])
+}
+
+model JobReceipt {
+  id          String   @id @default(cuid())
+  jobId       String
+  /// Sales receipt / proof of purchase as data URL (PNG/JPEG/WebP/PDF image)
+  receiptData String
+  label       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
 }
 
 model JobMaterial {
@@ -546,6 +565,12 @@ model Expense {
   jobId         String?
   supplierId    String?
   customerId    String?
+  /// Optional sales receipt as data URL
+  receiptData   String?
+  /// Set when auto-created from quotation conversion
+  sourceQuotationId String?
+  /// Distinguishes auto expenses from the same quote (EQUIPMENT | EQUIPMENT_RENTAL)
+  autoExpenseKind   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -554,6 +579,7 @@ model Expense {
   supplier Supplier? @relation(fields: [supplierId], references: [id])
   customer Customer? @relation(fields: [customerId], references: [id])
 
+  @@unique([sourceQuotationId, autoExpenseKind])
   @@index([companyId])
 }
 

@@ -5,6 +5,7 @@ import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
 import { PageHeader, Panel } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
+import { parseSupplyLinesJson } from "@/lib/supply-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export default async function QuotationEditPage({
             name: i.name,
             unit: i.unit,
             unitCost: i.unitCost,
+            supplyType: i.supplyType,
             supplierName: i.supplier.name,
           }))}
           initial={{
@@ -76,6 +78,7 @@ export default async function QuotationEditPage({
             total: quote.total,
             extras,
             notes: quote.notes,
+            supplyLines: parseSupplyLinesJson(quote.supplyLinesJson),
           }}
         />
       </Panel>

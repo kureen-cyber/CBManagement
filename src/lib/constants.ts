@@ -29,11 +29,25 @@ export const SUPPLY_UNITS = [
   "bag",
 ] as const;
 
+/** Supply database item classification for quotations and expenses. */
+export const SUPPLY_TYPES = [
+  { value: "MATERIAL", label: "Material" },
+  { value: "EQUIPMENT", label: "Equipment" },
+  { value: "EQUIPMENT_RENTAL", label: "Equipment rental" },
+] as const;
+
+export type SupplyType = (typeof SUPPLY_TYPES)[number]["value"];
+
+export function supplyTypeLabel(type: string): string {
+  return SUPPLY_TYPES.find((t) => t.value === type)?.label ?? type;
+}
+
 /** Suggestion chips only — users can type any expense category. */
 export const EXPENSE_CATEGORIES = [
   "Materials",
   "Transport",
   "Equipment",
+  "Equipment rental",
   "Utilities",
   "Rent",
   "Fuel",

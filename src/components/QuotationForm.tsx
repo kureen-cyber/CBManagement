@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { createQuotation, updateQuotation } from "@/app/actions";
 import { formatTTD, fromCents, toCents } from "@/lib/money";
 import { quotationClientLines } from "@/lib/quotation-pricing";
+import { supplyTypeLabel } from "@/lib/constants";
+import type { PersistedSupplyLine } from "@/lib/supply-lines";
 
 type ExtraDraft = { name: string; amount: string };
 type FormTab = "details" | "notes";
@@ -13,6 +15,7 @@ export type SupplyCatalogItem = {
   name: string;
   unit: string;
   unitCost: number;
+  supplyType: string;
   supplierName: string;
 };
 
@@ -29,6 +32,7 @@ export type QuotationFormInitial = {
   fixedPrice: boolean;
   total: number;
   extras: { name: string; amount: number }[];
+  supplyLines?: PersistedSupplyLine[];
 };
 
 function centsToInput(cents: number) {
@@ -65,8 +69,15 @@ export function QuotationForm({
   const [pickId, setPickId] = useState("");
   const [pickQty, setPickQty] = useState("1");
   const [pickedLines, setPickedLines] = useState<
-    { key: string; label: string; qty: number; unit: string; unitCost: number; lineCost: number }[]
-  >([]);
+    (PersistedSupplyLine & { key: string; label: string })[]
+  >(
+    () =>
+      initial?.supplyLines?.map((l, idx) => ({
+        ...l,
+        key: `${l.supplierItemId || "line"}-${idx}`,
+        label: l.supplierName ? `${l.name} (${l.supplierName})` : l.name,
+      })) ?? [],
+  );
 
   const selectedSupply = useMemo(
     () => supplyCatalog.find((s) => s.id === pickId) || null,
@@ -77,19 +88,29 @@ export function QuotationForm({
     if (!selectedSupply) return;
     const qty = Math.max(0.001, Number(pickQty) || 1);
     const lineCost = Math.round(selectedSupply.unitCost * qty);
+    const supplyType = selectedSupply.supplyType || "MATERIAL";
     setPickedLines((prev) => [
       ...prev,
       {
         key: `${selectedSupply.id}-${Date.now()}`,
         label: `${selectedSupply.name} (${selectedSupply.supplierName})`,
+        supplierItemId: selectedSupply.id,
+        name: selectedSupply.name,
+        supplierName: selectedSupply.supplierName,
         qty,
         unit: selectedSupply.unit,
         unitCost: selectedSupply.unitCost,
         lineCost,
+        supplyType,
       },
     ]);
-    const current = toCents(Number(materials) || 0);
-    setMaterials(centsToInput(current + lineCost));
+    if (supplyType === "MATERIAL") {
+      const current = toCents(Number(materials) || 0);
+      setMaterials(centsToInput(current + lineCost));
+    } else {
+      const current = toCents(Number(equipment) || 0);
+      setEquipment(centsToInput(current + lineCost));
+    }
     setPickQty("1");
   }
 
@@ -97,9 +118,29 @@ export function QuotationForm({
     const row = pickedLines.find((l) => l.key === key);
     if (!row) return;
     setPickedLines((prev) => prev.filter((l) => l.key !== key));
-    const current = toCents(Number(materials) || 0);
-    setMaterials(centsToInput(Math.max(0, current - row.lineCost)));
+    if (row.supplyType === "MATERIAL") {
+      const current = toCents(Number(materials) || 0);
+      setMaterials(centsToInput(Math.max(0, current - row.lineCost)));
+    } else {
+      const current = toCents(Number(equipment) || 0);
+      setEquipment(centsToInput(Math.max(0, current - row.lineCost)));
+    }
   }
+
+  const supplyLinesPayload = useMemo(
+    () =>
+      pickedLines.map((l) => ({
+        supplierItemId: l.supplierItemId,
+        name: l.name,
+        supplierName: l.supplierName,
+        qty: l.qty,
+        unit: l.unit,
+        unitCost: l.unitCost,
+        lineCost: l.lineCost,
+        supplyType: l.supplyType,
+      })),
+    [pickedLines],
+  );
 
   const preview = useMemo(() => {
     const labourC = toCents(Number(labour) || 0);
@@ -152,6 +193,7 @@ export function QuotationForm({
             .filter((e) => e.name && Number(e.amount) > 0),
         )}
       />
+      <input type="hidden" name="supplyLinesJson" value={JSON.stringify(supplyLinesPayload)} />
       <input type="hidden" name="notes" value={notes} />
 
       <div className="settings-tabs" role="tablist">
@@ -239,7 +281,8 @@ export function QuotationForm({
             <div className="full panel" style={{ padding: "1rem" }}>
               <strong>Add from supply database</strong>
               <div className="muted" style={{ fontSize: "0.82rem", marginTop: "0.2rem" }}>
-                Pick a supplier catalog item and quantity — cost is added to Materials.
+                Pick a supplier catalog item — materials go to Materials cost; equipment and rentals
+                go to Equipment cost.
               </div>
               <div
                 className="row"
@@ -251,7 +294,8 @@ export function QuotationForm({
                     <option value="">Select…</option>
                     {supplyCatalog.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.supplierName} — {s.name} ({formatTTD(s.unitCost)}/{s.unit})
+                        {s.supplierName} — {s.name} ({supplyTypeLabel(s.supplyType)},{" "}
+                        {formatTTD(s.unitCost)}/{s.unit})
                       </option>
                     ))}
                   </select>
@@ -272,7 +316,11 @@ export function QuotationForm({
                   disabled={!selectedSupply}
                   onClick={addFromSupply}
                 >
-                  Add to materials
+                  {selectedSupply?.supplyType === "MATERIAL"
+                    ? "Add to materials"
+                    : selectedSupply?.supplyType === "EQUIPMENT_RENTAL"
+                      ? "Add to equipment (rental)"
+                      : "Add to equipment"}
                 </button>
               </div>
               {pickedLines.length > 0 ? (
@@ -280,7 +328,8 @@ export function QuotationForm({
                   {pickedLines.map((l) => (
                     <li key={l.key} className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
                       <span>
-                        {l.qty} {l.unit} × {l.label} ={" "}
+                        {l.qty} {l.unit} × {l.label}{" "}
+                        <span className="muted">({supplyTypeLabel(l.supplyType)})</span> ={" "}
                         <strong className="money">{formatTTD(l.lineCost)}</strong>
                       </span>
                       <button

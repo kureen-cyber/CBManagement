@@ -40,6 +40,7 @@ export default async function QuotationsPage() {
             name: i.name,
             unit: i.unit,
             unitCost: i.unitCost,
+            supplyType: i.supplyType,
             supplierName: i.supplier.name,
           }))}
         />

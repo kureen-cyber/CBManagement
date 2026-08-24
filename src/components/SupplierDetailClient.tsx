@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatTTD, fromCents } from "@/lib/money";
-import { SUPPLY_UNITS } from "@/lib/constants";
+import { SUPPLY_UNITS, SUPPLY_TYPES, supplyTypeLabel } from "@/lib/constants";
 import {
   createSupplierItem,
   createSupplierPurchase,
@@ -16,6 +16,7 @@ import { Panel } from "@/components/ui";
 type SupplyItem = {
   id: string;
   name: string;
+  supplyType: string;
   unit: string;
   unitCost: number;
   notes: string | null;
@@ -140,14 +141,24 @@ export function SupplierDetailClient({
           <Panel style={{ padding: "1.25rem" }}>
             <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Add to supply database</h2>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
-              In-house cost reference for this supplier — used when building quotations (materials
-              costing). Unit can be each, kg, case, etc.
+              In-house cost reference for this supplier — used when building quotations. Classify
+              each item as material, equipment, or equipment rental.
             </p>
             <form className="form-grid" onSubmit={onAddSupply} autoComplete="off">
               <input type="hidden" name="supplierId" value={supplierId} />
               <label className="field">
                 Item name
                 <input name="name" required placeholder="e.g. Electrical cable 2.5mm" />
+              </label>
+              <label className="field">
+                Type
+                <select name="supplyType" defaultValue="MATERIAL">
+                  {SUPPLY_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 Cost per unit (TT$)
@@ -184,6 +195,7 @@ export function SupplierDetailClient({
               <thead>
                 <tr>
                   <th>Item</th>
+                  <th>Type</th>
                   <th>Unit</th>
                   <th>Cost</th>
                   <th>Notes</th>
@@ -194,12 +206,22 @@ export function SupplierDetailClient({
                 {items.map((item) =>
                   editingId === item.id ? (
                     <tr key={item.id}>
-                      <td colSpan={5}>
+                      <td colSpan={6}>
                         <form className="form-grid" onSubmit={onUpdateSupply} autoComplete="off">
                           <input type="hidden" name="id" value={item.id} />
                           <label className="field">
                             Name
                             <input name="name" required defaultValue={item.name} />
+                          </label>
+                          <label className="field">
+                            Type
+                            <select name="supplyType" defaultValue={item.supplyType}>
+                              {SUPPLY_TYPES.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
                           </label>
                           <label className="field">
                             Cost (TT$)
@@ -240,6 +262,7 @@ export function SupplierDetailClient({
                       <td>
                         <strong>{item.name}</strong>
                       </td>
+                      <td className="muted">{supplyTypeLabel(item.supplyType)}</td>
                       <td className="muted">{item.unit}</td>
                       <td className="money">{formatTTD(item.unitCost)}</td>
                       <td className="muted" style={{ fontSize: "0.85rem" }}>
@@ -277,7 +300,7 @@ export function SupplierDetailClient({
                 )}
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="muted">
+                    <td colSpan={6} className="muted">
                       No supply items yet — add costs here for quotations.
                     </td>
                   </tr>

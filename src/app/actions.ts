@@ -6,10 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { nextNumber, nextSku } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
-import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES } from "@/lib/settings";
+import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
+import { equipmentExpenseBreakdown, parseSupplyLinesJson } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 
 const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
+const RECEIPT_MIME = new Set([...IMAGE_MIME, "application/pdf"]);
 
 async function productImageFromForm(formData: FormData): Promise<string | null | undefined> {
   if (formData.get("removeImage") === "on") return null;
@@ -20,6 +22,22 @@ async function productImageFromForm(formData: FormData): Promise<string | null |
   }
   if (file.size > PRODUCT_IMAGE_MAX_BYTES) {
     throw new Error(`Product photo must be ${Math.round(PRODUCT_IMAGE_MAX_BYTES / 1000)}KB or smaller`);
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type};base64,${buffer.toString("base64")}`;
+}
+
+async function receiptFromForm(formData: FormData): Promise<string | null | undefined> {
+  if (formData.get("removeReceipt") === "on") return null;
+  const file = formData.get("receipt");
+  if (!(file instanceof File) || file.size === 0) return undefined;
+  if (!RECEIPT_MIME.has(file.type)) {
+    throw new Error("Receipt must be a PNG, JPEG, WebP, GIF, or PDF file");
+  }
+  if (file.size > RECEIPT_UPLOAD_MAX_BYTES) {
+    throw new Error(
+      `Receipt must be ${Math.round(RECEIPT_UPLOAD_MAX_BYTES / 1000)}KB or smaller`,
+    );
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   return `data:${file.type};base64,${buffer.toString("base64")}`;
@@ -225,12 +243,14 @@ export async function createSupplierItem(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   if (!name) throw new Error("Enter an item name");
   const unit = String(formData.get("unit") || "each").trim() || "each";
+  const supplyType = String(formData.get("supplyType") || "MATERIAL").trim() || "MATERIAL";
 
   await prisma.supplierItem.create({
     data: {
       companyId,
       supplierId,
       name,
+      supplyType,
       unit,
       unitCost: dollarsToCents(formData.get("unitCost")),
       notes: String(formData.get("notes") || "").trim() || null,
@@ -249,11 +269,13 @@ export async function updateSupplierItem(formData: FormData) {
 
   const name = String(formData.get("name") || "").trim() || row.name;
   const unit = String(formData.get("unit") || "").trim() || row.unit;
+  const supplyType = String(formData.get("supplyType") || "").trim() || row.supplyType;
 
   await prisma.supplierItem.update({
     where: { id },
     data: {
       name,
+      supplyType,
       unit,
       unitCost: dollarsToCents(formData.get("unitCost")),
       notes: String(formData.get("notes") || "").trim() || null,
@@ -608,6 +630,13 @@ export async function createExpense(formData: FormData) {
     if (!job) throw new Error("Job not found");
   }
 
+  let receiptData: string | null | undefined;
+  try {
+    receiptData = await receiptFromForm(formData);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : "Could not upload receipt");
+  }
+
   await prisma.expense.create({
     data: {
       companyId,
@@ -617,11 +646,82 @@ export async function createExpense(formData: FormData) {
       date: new Date(String(formData.get("date") || new Date().toISOString())),
       paymentMethod: String(formData.get("paymentMethod") || "CASH"),
       jobId,
+      ...(receiptData !== undefined ? { receiptData } : {}),
     },
   });
   revalidatePath("/expenses");
   revalidatePath("/jobs");
   revalidatePath("/");
+}
+
+export async function updateExpense(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing expense");
+
+  const existing = await prisma.expense.findFirst({ where: { id, companyId } });
+  if (!existing) throw new Error("Expense not found");
+
+  const dateRaw = String(formData.get("date") || "").trim();
+  const date = dateRaw ? new Date(`${dateRaw}T12:00:00`) : existing.date;
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+
+  let receiptData: string | null | undefined;
+  try {
+    receiptData = await receiptFromForm(formData);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : "Could not upload receipt");
+  }
+
+  await prisma.expense.update({
+    where: { id },
+    data: {
+      date,
+      ...(receiptData !== undefined ? { receiptData } : {}),
+    },
+  });
+  revalidatePath("/expenses");
+  if (existing.jobId) revalidatePath(`/jobs/${existing.jobId}`);
+  revalidatePath("/jobs");
+  revalidatePath("/");
+}
+
+export async function addJobReceipt(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "").trim();
+  if (!jobId) throw new Error("Missing job");
+
+  const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+  if (!job) throw new Error("Job not found");
+
+  let receiptData: string | null | undefined;
+  try {
+    receiptData = await receiptFromForm(formData);
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : "Could not upload receipt");
+  }
+  if (!receiptData) throw new Error("Choose a receipt file to upload");
+
+  await prisma.jobReceipt.create({
+    data: {
+      jobId,
+      receiptData,
+      label: String(formData.get("label") || "").trim() || null,
+    },
+  });
+  revalidatePath(`/jobs/${jobId}`);
+}
+
+export async function deleteJobReceipt(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  const row = await prisma.jobReceipt.findFirst({
+    where: { id, job: { companyId } },
+    include: { job: { select: { id: true } } },
+  });
+  if (!row) throw new Error("Receipt not found");
+  await prisma.jobReceipt.delete({ where: { id } });
+  revalidatePath(`/jobs/${row.job.id}`);
 }
 
 function parseQuotationExtraCosts(formData: FormData) {
@@ -643,6 +743,18 @@ function parseQuotationExtraCosts(formData: FormData) {
     }
   }
   return extraCosts;
+}
+
+function parseSupplyLinesFromForm(formData: FormData): string | null {
+  const raw = String(formData.get("supplyLinesJson") || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 async function buildQuotationPayload(formData: FormData, companyId: string) {
@@ -694,6 +806,7 @@ async function buildQuotationPayload(formData: FormData, companyId: string) {
     subtotal: total,
     total,
     extraCosts,
+    supplyLinesJson: parseSupplyLinesFromForm(formData),
   };
 }
 
@@ -717,6 +830,7 @@ export async function createQuotation(formData: FormData) {
       fixedPrice: payload.fixedPrice,
       subtotal: payload.subtotal,
       total: payload.total,
+      supplyLinesJson: payload.supplyLinesJson,
       status: "DRAFT",
       lines: {
         create: payload.extraCosts.map((e) => ({
@@ -772,6 +886,7 @@ export async function updateQuotation(formData: FormData) {
         fixedPrice: payload.fixedPrice,
         subtotal: payload.subtotal,
         total: payload.total,
+        supplyLinesJson: payload.supplyLinesJson,
         lines: {
           create: payload.extraCosts.map((e) => ({
             description: e.label,
@@ -823,6 +938,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
 
   const jobNumber = await nextNumber("JOB", "job", companyId);
   const invoiceNumber = await nextNumber("INV", "invoice", companyId);
+  const conversionDate = new Date();
 
   const job = await prisma.job.create({
     data: {
@@ -894,6 +1010,64 @@ export async function acceptAndConvertQuotation(quotationId: string) {
     }
   }
 
+  const supplyLines = parseSupplyLinesJson(quote.supplyLinesJson);
+  const { equipment: equipmentPurchase, rental: equipmentRental } = equipmentExpenseBreakdown(
+    quote.equipmentCost,
+    supplyLines,
+  );
+
+  const autoExpenses: {
+    category: string;
+    amount: number;
+    autoExpenseKind: string;
+    description: string;
+  }[] = [];
+
+  if (equipmentPurchase > 0) {
+    autoExpenses.push({
+      category: "Equipment",
+      amount: equipmentPurchase,
+      autoExpenseKind: "EQUIPMENT",
+      description: `Equipment for ${job.number} (from ${quote.number})`,
+    });
+  }
+  if (equipmentRental > 0) {
+    autoExpenses.push({
+      category: "Equipment rental",
+      amount: equipmentRental,
+      autoExpenseKind: "EQUIPMENT_RENTAL",
+      description: `Equipment rental for ${job.number} (from ${quote.number})`,
+    });
+  }
+
+  for (const exp of autoExpenses) {
+    await prisma.expense.upsert({
+      where: {
+        sourceQuotationId_autoExpenseKind: {
+          sourceQuotationId: quote.id,
+          autoExpenseKind: exp.autoExpenseKind,
+        },
+      },
+      create: {
+        companyId,
+        category: exp.category,
+        description: exp.description,
+        amount: exp.amount,
+        date: conversionDate,
+        paymentMethod: "CASH",
+        jobId: job.id,
+        sourceQuotationId: quote.id,
+        autoExpenseKind: exp.autoExpenseKind,
+      },
+      update: {
+        amount: exp.amount,
+        description: exp.description,
+        jobId: job.id,
+        date: conversionDate,
+      },
+    });
+  }
+
   await prisma.quotation.update({
     where: { id: quote.id },
     data: { status: "CONVERTED" },
@@ -904,6 +1078,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
   revalidatePath(`/jobs/${job.id}`);
   revalidatePath("/invoices");
   revalidatePath("/inventory");
+  revalidatePath("/expenses");
   revalidatePath("/");
 
   redirect(`/jobs/${job.id}`);

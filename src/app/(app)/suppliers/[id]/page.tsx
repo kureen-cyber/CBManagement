@@ -74,6 +74,7 @@ export default async function SupplierDetailPage({
         items={supplier.items.map((i) => ({
           id: i.id,
           name: i.name,
+          supplyType: i.supplyType,
           unit: i.unit,
           unitCost: i.unitCost,
           notes: i.notes,

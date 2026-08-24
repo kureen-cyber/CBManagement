@@ -1,17 +1,20 @@
 export const NAV_ITEMS = [
   { href: "/home", label: "Dashboard" },
   { href: "/pos", label: "POS" },
+  { href: "/inventory", label: "Inventory" },
   { href: "/customers", label: "Customers" },
+  { href: "/suppliers", label: "Suppliers" },
   { href: "/quotations", label: "Quotations" },
   { href: "/jobs", label: "Jobs" },
   { href: "/invoices", label: "Invoices" },
   { href: "/payments", label: "Payments" },
-  { href: "/expenses", label: "Expenses" },
-  { href: "/inventory", label: "Inventory" },
-  { href: "/suppliers", label: "Suppliers" },
   { href: "/employees", label: "Employees" },
+  { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
+  { href: "/analytics", label: "Analytics" },
+  { href: "/financial-reports", label: "Financial Reports" },
   { href: "/settings", label: "Settings" },
+  { href: "/ai-assistant", label: "AI Assistant" },
 ] as const;
 
 /** Common units for supplier procurement lines and inventory. */

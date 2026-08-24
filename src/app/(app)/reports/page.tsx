@@ -5,10 +5,8 @@ import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeTier,
   parsePlanTier,
-  parseReportPeriod,
-  resolveReportRange,
-  type ReportPeriodId,
 } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 
@@ -30,13 +28,11 @@ function itemDisplayName(description: string, productName?: string | null) {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
 }) {
   const { companyId, company } = await requireCompany();
   const planTier = parsePlanTier(company.planTier);
-  const params = await searchParams;
-  const periodId = parseReportPeriod(params.period);
-  const range = resolveReportRange(planTier, periodId);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
   const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange] =
@@ -251,9 +247,9 @@ export default async function ReportsPage({
       />
       <ReportsDashboard
         planTier={planTier}
-        periodId={periodId as ReportPeriodId}
         periodLabel={periodLabel}
         periodClamped={clamped}
+        periodRange={range}
         freeMaxDays={FREE_TIER_MAX_TRANSACTION_DAYS}
         isFree={isFreeTier(planTier)}
         branding={{

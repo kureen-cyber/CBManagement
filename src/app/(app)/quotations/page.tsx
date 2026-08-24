@@ -3,19 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
+import { isFreeTier, parsePlanTier } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { acceptAndConvertQuotation } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
+import { PeriodSelector } from "@/components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
-export default async function QuotationsPage() {
+export default async function QuotationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
+}) {
   await enforceTierPath("/quotations");
-  const { companyId } = await requireCompany();
+  const { companyId, company } = await requireCompany();
+  const planTier = parsePlanTier(company.planTier);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
+
   const [customers, quotations, supplyItems] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.quotation.findMany({
-      where: { companyId },
+      where: { companyId, createdAt: { gte: range.start, lte: range.end } },
       orderBy: { createdAt: "desc" },
       include: { customer: true },
     }),
@@ -30,8 +40,15 @@ export default async function QuotationsPage() {
     <div className="stack">
       <PageHeader
         title="Quotations"
-        description="Enter your costs, then set markup % at the end. Customers see one marked-up figure per item — markup is not listed separately."
+        description={`${range.label} · enter your costs, then set markup % at the end.`}
       />
+      <Panel style={{ padding: "1.25rem" }}>
+        <PeriodSelector
+          basePath="/quotations"
+          range={range}
+          isFree={isFreeTier(planTier)}
+        />
+      </Panel>
       <Panel style={{ padding: "1.25rem" }}>
         <QuotationForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
@@ -50,6 +67,7 @@ export default async function QuotationsPage() {
           <thead>
             <tr>
               <th>Quote</th>
+              <th>Date</th>
               <th>Customer</th>
               <th>Cost</th>
               <th>Price</th>
@@ -74,6 +92,7 @@ export default async function QuotationsPage() {
                       {q.fixedPrice ? " · Fixed price" : ""}
                     </div>
                   </td>
+                  <td>{q.createdAt.toLocaleDateString("en-TT")}</td>
                   <td>{q.customer.name}</td>
                   <td className="money">{formatTTD(cost)}</td>
                   <td className="money">{formatTTD(q.total)}</td>
@@ -107,6 +126,13 @@ export default async function QuotationsPage() {
                 </tr>
               );
             })}
+            {quotations.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="muted">
+                  No quotations in this period.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

@@ -2,15 +2,23 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
-import { parsePlanTier, receiptVisibleSince } from "@/lib/tier";
+import { isFreeTier, parsePlanTier } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader, Panel } from "@/components/ui";
 import { PaymentForm } from "@/components/PaymentForm";
+import { PeriodSelector } from "@/components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
+}) {
   const { companyId, company } = await requireCompany();
-  const since = receiptVisibleSince(parsePlanTier(company.planTier));
+  const planTier = parsePlanTier(company.planTier);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
+
   const [customers, invoices, payments] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.invoice.findMany({
@@ -19,19 +27,25 @@ export default async function PaymentsPage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.payment.findMany({
-      where: {
-        companyId,
-        ...(since ? { paidAt: { gte: since } } : {}),
-      },
+      where: { companyId, paidAt: { gte: range.start, lte: range.end } },
       orderBy: { paidAt: "desc" },
       include: { customer: true, invoice: true },
-      take: 50,
     }),
   ]);
 
   return (
     <div className="stack">
-      <PageHeader title="Payments" description="Record money received against invoices." />
+      <PageHeader
+        title="Payments"
+        description={`${range.label} · record money received against invoices.`}
+      />
+      <Panel style={{ padding: "1.25rem" }}>
+        <PeriodSelector
+          basePath="/payments"
+          range={range}
+          isFree={isFreeTier(planTier)}
+        />
+      </Panel>
       <Panel style={{ padding: "1.25rem" }}>
         <PaymentForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
@@ -71,6 +85,13 @@ export default async function PaymentsPage() {
                 </td>
               </tr>
             ))}
+            {payments.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  No payments in this period.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

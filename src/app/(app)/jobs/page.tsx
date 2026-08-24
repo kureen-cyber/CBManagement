@@ -4,19 +4,28 @@ import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
+import { isFreeTier, parsePlanTier } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { syncCompanyJobStatuses } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
+import { PeriodSelector } from "@/components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
+}) {
   await enforceTierPath("/jobs");
-  const { companyId } = await requireCompany();
+  const { companyId, company } = await requireCompany();
+  const planTier = parsePlanTier(company.planTier);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
   await syncCompanyJobStatuses(companyId);
 
   const jobs = await prisma.job.findMany({
-    where: { companyId },
+    where: { companyId, createdAt: { gte: range.start, lte: range.end } },
     orderBy: { createdAt: "desc" },
     include: { customer: true, quotation: { select: { id: true, number: true } } },
   });
@@ -29,11 +38,14 @@ export default async function JobsPage() {
     <div className="stack">
       <PageHeader
         title="Jobs / Projects"
-        description="Jobs are created when you accept a quotation. Track profitability and assign your team on each job."
+        description={`${range.label} · jobs created when you accept a quotation.`}
       />
+      <Panel style={{ padding: "1.25rem" }}>
+        <PeriodSelector basePath="/jobs" range={range} isFree={isFreeTier(planTier)} />
+      </Panel>
       <p className="muted" style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.45 }}>
-        Profit on each job = <strong>contract − labour − materials − expenses</strong>. Open a job to see the
-        breakdown.
+        Profit on each job = <strong>contract − labour − materials − expenses</strong>. Open a job to
+        see the breakdown.
       </p>
       <Panel className="table-wrap">
         <table className="data">
@@ -121,7 +133,7 @@ export default async function JobsPage() {
             {jobs.length === 0 ? (
               <tr>
                 <td colSpan={10} className="muted">
-                  No jobs yet — accept a quotation to create one.
+                  No jobs in this period.
                 </td>
               </tr>
             ) : null}

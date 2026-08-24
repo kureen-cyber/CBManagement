@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { createSupplier } from "@/app/actions";
+import { DeleteSupplierButton } from "@/components/DeleteSupplierButton";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,7 @@ export default async function SuppliersPage() {
               <th>Contact</th>
               <th>Sales rep</th>
               <th>Supply DB</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -78,11 +80,14 @@ export default async function SuppliersPage() {
                 </td>
                 <td>{s.salesRep || "—"}</td>
                 <td>{s.items.length}</td>
+                <td>
+                  <DeleteSupplierButton supplierId={s.id} supplierName={s.name} />
+                </td>
               </tr>
             ))}
             {suppliers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="muted">No suppliers yet — register one above.</td>
+                <td colSpan={5} className="muted">No suppliers yet — register one above.</td>
               </tr>
             ) : null}
           </tbody>

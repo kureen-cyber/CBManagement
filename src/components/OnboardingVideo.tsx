@@ -19,7 +19,7 @@ export function OnboardingVideo() {
         <source src={VIDEO_SRC} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
-      <p className="landing-video-caption muted">
+      <p className="landing-video-caption">
         Onboarding · Retail &amp; service walkthrough · Complete Business Management (CBManagement)
       </p>
     </div>

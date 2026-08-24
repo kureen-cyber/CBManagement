@@ -5,7 +5,8 @@ export type PlanTier = (typeof PLAN_TIERS)[number];
 
 /**
  * When false, every module and limit behaves as Standard / unrestricted.
- * Re-enable after testing and development are complete.
+ * Keep false while the product is in development so all sidebar items and
+ * pages are visible. Re-enable after testing and development are complete.
  */
 export const TIER_GATING_ENABLED = false;
 
@@ -24,14 +25,15 @@ export const PLAN_TIER_LABELS: Record<PlanTier, string> = {
   STANDARD: "Standard",
 };
 
-/** Modules available on the free retail onboarding tier. */
+/** Modules available on the free retail onboarding tier (when gating is on). */
 export const FREE_RETAIL_NAV = [
   { href: "/home", label: "Dashboard" },
   { href: "/pos", label: "POS" },
+  { href: "/inventory", label: "Inventory" },
   { href: "/customers", label: "Customers" },
-  { href: "/inventory", label: "Items / Inventory" },
   { href: "/payments", label: "Payments" },
   { href: "/employees", label: "Employees" },
+  { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ] as const;

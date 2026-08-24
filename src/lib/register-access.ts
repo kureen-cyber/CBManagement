@@ -1,3 +1,5 @@
+import { TIER_GATING_ENABLED } from "@/lib/tier";
+
 export const POS_REGISTER_COOKIE = "cbm_pos_register";
 
 export type RegisterAccess = {
@@ -21,6 +23,7 @@ export const LIMITED_CASHIER_ALLOWED: Set<string> = new Set(
 );
 
 export function isLimitedCashierPathAllowed(pathname: string): boolean {
+  if (!TIER_GATING_ENABLED) return true;
   if (LIMITED_CASHIER_ALLOWED.has(pathname)) return true;
   if (pathname.startsWith("/pos/")) return true;
   return false;
@@ -47,15 +50,17 @@ export function resolveRegisterAccess(
   const known = activeId ? registers.some((r) => r.id === activeId) : false;
   const registerId = known ? activeId : primaryId;
   const isPrimary = !registerId || registerId === primaryId;
-  const isLimitedCashier = Boolean(registerId && !isPrimary);
+  // Secondary-register cashier lock is off while the app is in development.
+  const isLimitedCashier =
+    TIER_GATING_ENABLED && Boolean(registerId && !isPrimary);
 
   return {
     registerId,
     isPrimary,
     isLimitedCashier,
-    canVoidTickets: isPrimary,
-    canEditDiscounts: isPrimary,
-    canManageInventory: isPrimary,
+    canVoidTickets: !TIER_GATING_ENABLED || isPrimary,
+    canEditDiscounts: !TIER_GATING_ENABLED || isPrimary,
+    canManageInventory: !TIER_GATING_ENABLED || isPrimary,
     canRefund: true,
   };
 }

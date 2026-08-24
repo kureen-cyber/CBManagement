@@ -12,7 +12,10 @@ const STORAGE_KEY = "cbm_nav_collapsed";
 
 function shortLabel(label: string) {
   if (label === "POS") return "POS";
-  if (label.startsWith("Items") || label === "Stock levels") return "Inv";
+  if (label === "AI Assistant") return "AI";
+  if (label === "Financial Reports") return "Fin";
+  if (label === "Analytics") return "An";
+  if (label.startsWith("Items") || label === "Stock levels" || label === "Inventory") return "Inv";
   const words = label.split(/\s+/);
   if (words.length === 1) return label.slice(0, 3);
   return words

@@ -43,7 +43,19 @@ export const SUPPLY_TYPES = [
 export type SupplyType = (typeof SUPPLY_TYPES)[number]["value"];
 
 export function supplyTypeLabel(type: string): string {
-  return SUPPLY_TYPES.find((t) => t.value === type)?.label ?? type;
+  const known = SUPPLY_TYPES.find((t) => t.value === type)?.label;
+  if (known) return known;
+  const raw = String(type || "").trim();
+  if (!raw) return "Other";
+  return raw
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Built-in supply type values (custom categories are free-text). */
+export function isBuiltInSupplyType(type: string): boolean {
+  return SUPPLY_TYPES.some((t) => t.value === type);
 }
 
 /** Suggestion chips only — users can type any expense category. */

@@ -7,7 +7,7 @@ import { nextNumber, nextSku } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
-import { equipmentExpenseBreakdown, parseSupplyLinesJson } from "@/lib/supply-lines";
+import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 
 const IMAGE_MIME = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]);
@@ -1011,57 +1011,30 @@ export async function acceptAndConvertQuotation(quotationId: string) {
   }
 
   const supplyLines = parseSupplyLinesJson(quote.supplyLinesJson);
-  const { equipment: equipmentPurchase, rental: equipmentRental } = equipmentExpenseBreakdown(
-    quote.equipmentCost,
-    supplyLines,
-  );
+  const equipmentExpenseAmount = quotationEquipmentExpenseAmount(quote.equipmentCost, supplyLines);
 
-  const autoExpenses: {
-    category: string;
-    amount: number;
-    autoExpenseKind: string;
-    description: string;
-  }[] = [];
-
-  if (equipmentPurchase > 0) {
-    autoExpenses.push({
-      category: "Equipment",
-      amount: equipmentPurchase,
-      autoExpenseKind: "EQUIPMENT",
-      description: `Equipment for ${job.number} (from ${quote.number})`,
-    });
-  }
-  if (equipmentRental > 0) {
-    autoExpenses.push({
-      category: "Equipment rental",
-      amount: equipmentRental,
-      autoExpenseKind: "EQUIPMENT_RENTAL",
-      description: `Equipment rental for ${job.number} (from ${quote.number})`,
-    });
-  }
-
-  for (const exp of autoExpenses) {
+  if (equipmentExpenseAmount > 0) {
     await prisma.expense.upsert({
       where: {
         sourceQuotationId_autoExpenseKind: {
           sourceQuotationId: quote.id,
-          autoExpenseKind: exp.autoExpenseKind,
+          autoExpenseKind: "EQUIPMENT",
         },
       },
       create: {
         companyId,
-        category: exp.category,
-        description: exp.description,
-        amount: exp.amount,
+        category: "Equipment",
+        description: `Equipment for ${job.number} (from ${quote.number})`,
+        amount: equipmentExpenseAmount,
         date: conversionDate,
         paymentMethod: "CASH",
         jobId: job.id,
         sourceQuotationId: quote.id,
-        autoExpenseKind: exp.autoExpenseKind,
+        autoExpenseKind: "EQUIPMENT",
       },
       update: {
-        amount: exp.amount,
-        description: exp.description,
+        amount: equipmentExpenseAmount,
+        description: `Equipment for ${job.number} (from ${quote.number})`,
         jobId: job.id,
         date: conversionDate,
       },

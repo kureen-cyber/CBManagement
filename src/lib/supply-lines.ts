@@ -27,20 +27,18 @@ export function parseSupplyLinesJson(raw: string | null | undefined): PersistedS
   }
 }
 
-/** Pre-markup equipment purchase vs rental amounts for auto-expenses on quote conversion. */
-export function equipmentExpenseBreakdown(
+/** Pre-markup equipment purchase amount for auto-expenses on quote conversion (EQUIPMENT only). */
+export function quotationEquipmentExpenseAmount(
   equipmentCost: number,
   supplyLines: PersistedSupplyLine[],
-): { equipment: number; rental: number } {
+): number {
   const fromSupplyEquipment = supplyLines
     .filter((l) => l.supplyType === "EQUIPMENT")
     .reduce((s, l) => s + l.lineCost, 0);
   const fromSupplyRental = supplyLines
     .filter((l) => l.supplyType === "EQUIPMENT_RENTAL")
     .reduce((s, l) => s + l.lineCost, 0);
+  // Manual equipment cost typed on the quote (not from supply DB picks)
   const manualEquipment = Math.max(0, equipmentCost - fromSupplyEquipment - fromSupplyRental);
-  return {
-    equipment: fromSupplyEquipment + manualEquipment,
-    rental: fromSupplyRental,
-  };
+  return fromSupplyEquipment + manualEquipment;
 }

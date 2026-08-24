@@ -791,6 +791,25 @@ export async function updateQuotation(formData: FormData) {
   redirect(`/quotations/${id}`);
 }
 
+export async function deleteQuotation(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("quotationId") || "").trim();
+  if (!id) throw new Error("Missing quotation");
+
+  const quote = await prisma.quotation.findFirst({
+    where: { id, companyId },
+    include: { job: { select: { id: true } }, invoice: { select: { id: true } } },
+  });
+  if (!quote) throw new Error("Quotation not found");
+  if (quote.status === "CONVERTED" || quote.job || quote.invoice) {
+    throw new Error("Cannot delete a quotation that was converted to a job and invoice");
+  }
+
+  await prisma.quotation.delete({ where: { id } });
+  revalidatePath("/quotations");
+  redirect("/quotations");
+}
+
 export async function acceptAndConvertQuotation(quotationId: string) {
   const { companyId } = await requireCompany();
   const quote = await prisma.quotation.findFirst({

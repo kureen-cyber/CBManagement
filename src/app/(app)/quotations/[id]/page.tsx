@@ -10,6 +10,7 @@ import { quotationClientLines } from "@/lib/quotation-pricing";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
+import { DeleteQuotationButton } from "@/components/DeleteQuotationButton";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,9 @@ export default async function QuotationViewPage({
               defaultEmail={quote.customer.email}
               hasNotes={Boolean(quote.notes?.trim())}
             />
+            {quote.status !== "CONVERTED" ? (
+              <DeleteQuotationButton quotationId={quote.id} />
+            ) : null}
             <Link className="btn btn-secondary" href="/quotations">
               Back
             </Link>

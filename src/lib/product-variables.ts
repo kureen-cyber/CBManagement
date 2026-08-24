@@ -219,3 +219,17 @@ export function applyOptionQtyDelta(
   }));
   return next;
 }
+
+/** Parse variant label from a sale line description like "Shirt (Colour: Red)". */
+export function parseVariantFromDescription(
+  productName: string,
+  description: string,
+): string | undefined {
+  let desc = String(description || "").trim();
+  if (desc.startsWith("Refund: ")) desc = desc.slice("Refund: ".length).trim();
+  const prefix = `${productName} (`;
+  if (desc.startsWith(prefix) && desc.endsWith(")")) {
+    return desc.slice(prefix.length, -1);
+  }
+  return undefined;
+}

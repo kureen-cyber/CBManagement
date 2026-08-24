@@ -102,15 +102,17 @@ export function ItemMenu({
               Adjust stock
             </button>
           ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            className="item-menu-danger"
-            disabled={pending}
-            onClick={onDelete}
-          >
-            {pending ? "Deleting…" : "Delete item"}
-          </button>
+          {onDeleted ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="item-menu-danger"
+              disabled={pending}
+              onClick={onDelete}
+            >
+              {pending ? "Deleting…" : "Delete item"}
+            </button>
+          ) : null}
           {error ? <div className="item-menu-error">{error}</div> : null}
         </div>
       ) : null}

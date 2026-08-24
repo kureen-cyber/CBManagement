@@ -10,6 +10,8 @@ export type RegisterAccess = {
   canVoidTickets: boolean;
   canEditDiscounts: boolean;
   canManageInventory: boolean;
+  /** Receive/adjust stock from POS (both registers) */
+  canAdjustStock: boolean;
   canRefund: boolean;
 };
 
@@ -61,6 +63,7 @@ export function resolveRegisterAccess(
     canVoidTickets: !TIER_GATING_ENABLED || isPrimary,
     canEditDiscounts: !TIER_GATING_ENABLED || isPrimary,
     canManageInventory: !TIER_GATING_ENABLED || isPrimary,
+    canAdjustStock: true,
     canRefund: true,
   };
 }

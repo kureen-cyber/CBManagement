@@ -19,6 +19,7 @@ import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { ItemMenu } from "@/components/ItemMenu";
 import {
   findOptionForVariantLabel,
+  parseVariantFromDescription,
   resolveOptionUnitPrice,
   type VariableOption,
 } from "@/lib/product-variables";
@@ -100,14 +101,6 @@ function lineKey(productId: string, variantLabel?: string) {
   return `${productId}::${variantLabel || ""}`;
 }
 
-function extractVariant(productName: string, description: string): string | undefined {
-  const prefix = `${productName} (`;
-  if (description.startsWith(prefix) && description.endsWith(")")) {
-    return description.slice(prefix.length, -1);
-  }
-  return undefined;
-}
-
 export function PosTerminal({
   products: initialProducts,
   customers,
@@ -122,6 +115,7 @@ export function PosTerminal({
   discounts = [],
   canVoidTickets = true,
   canManageInventory = true,
+  canAdjustStock = true,
   viewMode = "card",
   initialRegisterId = "",
   honeyPersonsEnabled = false,
@@ -139,6 +133,7 @@ export function PosTerminal({
   discounts?: DiscountOption[];
   canVoidTickets?: boolean;
   canManageInventory?: boolean;
+  canAdjustStock?: boolean;
   /** Matches Settings → POS → Inventory View for this store (also used on Inventory). */
   viewMode?: InventoryViewMode;
   initialRegisterId?: string;
@@ -366,7 +361,7 @@ export function PosTerminal({
         .map((l) => {
           const product = products.find((p) => p.id === l.productId);
           const variantLabel = product
-            ? extractVariant(product.name, l.description)
+            ? parseVariantFromDescription(product.name, l.description)
             : undefined;
           return {
             key: lineKey(l.productId!, variantLabel),
@@ -780,12 +775,12 @@ export function PosTerminal({
                             {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
                           </div>
                         </button>
-                        {canManageInventory ? (
+                        {canAdjustStock || canManageInventory ? (
                           <ItemMenu
                             productId={p.id}
                             productName={p.name}
-                            onDeleted={onProductDeleted}
-                            onAdjustStock={setAdjustingId}
+                            onDeleted={canManageInventory ? onProductDeleted : undefined}
+                            onAdjustStock={canAdjustStock ? setAdjustingId : undefined}
                             canAdjustStock={!p.isService && p.trackStock}
                           />
                         ) : null}
@@ -804,12 +799,12 @@ export function PosTerminal({
                           {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
                         </div>
                       </button>
-                      {canManageInventory ? (
+                      {canAdjustStock || canManageInventory ? (
                         <ItemMenu
                           productId={p.id}
                           productName={p.name}
-                          onDeleted={onProductDeleted}
-                          onAdjustStock={setAdjustingId}
+                          onDeleted={canManageInventory ? onProductDeleted : undefined}
+                          onAdjustStock={canAdjustStock ? setAdjustingId : undefined}
                           canAdjustStock={!p.isService && p.trackStock}
                         />
                       ) : null}

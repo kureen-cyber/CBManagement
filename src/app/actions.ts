@@ -15,6 +15,7 @@ import {
   findOptionForVariantLabel,
   hasOptionStock,
   parseVariableOptions,
+  parseVariantFromDescription,
   resolveOptionUnitPrice,
   serializeVariableOptions,
   sumOptionStock,
@@ -95,6 +96,22 @@ export async function syncCompanyJobStatuses(companyId: string) {
 }
 
 async function requireInventoryManageAccess(companyId: string) {
+  const access = await resolvePosRegisterAccess(companyId);
+  if (!access.canManageInventory) {
+    return { error: "Only POS register 1 can manage inventory" as const };
+  }
+  return { ok: true as const, storeId: access.storeId };
+}
+
+async function requireStockAdjustAccess(companyId: string) {
+  const access = await resolvePosRegisterAccess(companyId);
+  if (!access.canAdjustStock && !access.canManageInventory) {
+    return { error: "Stock adjustments are not allowed from this register" as const };
+  }
+  return { ok: true as const, storeId: access.storeId };
+}
+
+async function resolvePosRegisterAccess(companyId: string) {
   const { ensureStoresForCompany } = await import("@/lib/store");
   const stores = await ensureStoresForCompany(companyId);
   const { readActiveRegisterIdFromCookies, readActiveStoreIdFromCookies } =
@@ -111,10 +128,79 @@ async function requireInventoryManageAccess(companyId: string) {
   });
   const { resolveRegisterAccess } = await import("@/lib/register-access");
   const access = resolveRegisterAccess(registers, await readActiveRegisterIdFromCookies());
-  if (!access.canManageInventory) {
-    return { error: "Only POS register 1 can manage inventory" as const };
-  }
-  return { ok: true as const, storeId: activeStore?.id ?? null };
+  return { ...access, storeId: activeStore?.id ?? null };
+}
+
+type StockMovementInput = {
+  type: string;
+  quantity: number;
+  unitCost: number;
+  reference?: string | null;
+  notes?: string | null;
+};
+
+/** Apply stock delta to a product, updating per-option qty when variables exist. */
+async function applyProductStockDelta(
+  productId: string,
+  quantityDelta: number,
+  opts?: {
+    variantLabel?: string | null;
+    movement?: StockMovementInput;
+  },
+) {
+  const product = await prisma.product.findFirst({
+    where: { id: productId },
+    include: { variables: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!product || !product.trackStock || product.isService) return;
+
+  const variables: ProductVariableDef[] = product.variables.map((v) => ({
+    name: v.name,
+    options: parseVariableOptions(v.options),
+  }));
+  const tracksOptions = hasOptionStock(variables);
+  const variantLabel = String(opts?.variantLabel || "").trim();
+
+  await prisma.$transaction(async (tx) => {
+    if (opts?.movement) {
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          type: opts.movement.type,
+          quantity: opts.movement.quantity,
+          unitCost: opts.movement.unitCost,
+          reference: opts.movement.reference ?? null,
+          notes: opts.movement.notes ?? null,
+        },
+      });
+    }
+
+    if (tracksOptions && variantLabel) {
+      const applied = applyOptionQtyDelta(variables, variantLabel, quantityDelta);
+      if (applied) {
+        const nextQty = sumOptionStock(applied);
+        await tx.product.update({
+          where: { id: productId },
+          data: { stockQty: nextQty },
+        });
+        await tx.productVariable.deleteMany({ where: { productId } });
+        await tx.productVariable.createMany({
+          data: applied.map((v, i) => ({
+            productId,
+            name: v.name,
+            options: serializeVariableOptions(v.options),
+            sortOrder: i,
+          })),
+        });
+        return;
+      }
+    }
+
+    await tx.product.update({
+      where: { id: productId },
+      data: { stockQty: { increment: quantityDelta } },
+    });
+  });
 }
 
 /** Attach a product category name to the active store's category list. */
@@ -576,7 +662,7 @@ export async function updateProduct(formData: FormData) {
 
 export async function adjustProductStock(formData: FormData) {
   const { companyId } = await requireCompany();
-  const access = await requireInventoryManageAccess(companyId);
+  const access = await requireStockAdjustAccess(companyId);
   if ("error" in access) return { error: access.error };
 
   const id = String(formData.get("productId") || "").trim();
@@ -1647,13 +1733,16 @@ export async function saveOpenTicket(input: {
         total,
         amountPaid: 0,
         lines: {
-          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
-            productId,
-            description,
-            quantity,
-            unitPrice,
-            lineTotal,
-          })),
+          create: built.map(
+            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+              productId,
+              description,
+              quantity,
+              unitPrice,
+              lineTotal,
+              variantLabel: variantLabel ?? null,
+            }),
+          ),
         },
       },
     });
@@ -1675,13 +1764,16 @@ export async function saveOpenTicket(input: {
       method: input.method || "CASH",
       notes: input.notes || null,
       lines: {
-        create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
-          productId,
-          description,
-          quantity,
-          unitPrice,
-          lineTotal,
-        })),
+        create: built.map(
+          ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+            productId,
+            description,
+            quantity,
+            unitPrice,
+            lineTotal,
+            variantLabel: variantLabel ?? null,
+          }),
+        ),
       },
     },
   });
@@ -1850,13 +1942,16 @@ export async function completePosSale(input: {
           ? await nextNumber("POS", "sale", companyId)
           : existing.number,
         lines: {
-          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
-            productId,
-            description,
-            quantity,
-            unitPrice,
-            lineTotal,
-          })),
+          create: built.map(
+            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+              productId,
+              description,
+              quantity,
+              unitPrice,
+              lineTotal,
+              variantLabel: variantLabel ?? null,
+            }),
+          ),
         },
       },
     });
@@ -1878,13 +1973,16 @@ export async function completePosSale(input: {
         notes: input.notes || null,
         honeyPersons,
         lines: {
-          create: built.map(({ productId, description, quantity, unitPrice, lineTotal }) => ({
-            productId,
-            description,
-            quantity,
-            unitPrice,
-            lineTotal,
-          })),
+          create: built.map(
+            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+              productId,
+              description,
+              quantity,
+              unitPrice,
+              lineTotal,
+              variantLabel: variantLabel ?? null,
+            }),
+          ),
         },
       },
     });
@@ -1892,9 +1990,9 @@ export async function completePosSale(input: {
 
   for (const line of built) {
     if (!line.trackStock) continue;
-    await prisma.stockMovement.create({
-      data: {
-        productId: line.productId!,
+    await applyProductStockDelta(line.productId!, -line.quantity, {
+      variantLabel: line.variantLabel,
+      movement: {
         type: "USAGE",
         quantity: -line.quantity,
         unitCost: byId[line.productId!]?.unitCost ?? 0,
@@ -1902,46 +2000,6 @@ export async function completePosSale(input: {
         notes: line.variantLabel ? `POS sale (${line.variantLabel})` : "POS sale",
       },
     });
-
-    if (line.tracksOptions) {
-      const current = await prisma.product.findFirst({
-        where: { id: line.productId! },
-        include: { variables: { orderBy: { sortOrder: "asc" } } },
-      });
-      const currentVars: ProductVariableDef[] = (current?.variables || []).map((v) => ({
-        name: v.name,
-        options: parseVariableOptions(v.options),
-      }));
-      const applied = applyOptionQtyDelta(currentVars, line.variantLabel, -line.quantity);
-      if (applied) {
-        const nextQty = sumOptionStock(applied);
-        await prisma.$transaction(async (tx) => {
-          await tx.product.update({
-            where: { id: line.productId! },
-            data: { stockQty: nextQty },
-          });
-          await tx.productVariable.deleteMany({ where: { productId: line.productId! } });
-          await tx.productVariable.createMany({
-            data: applied.map((v, i) => ({
-              productId: line.productId!,
-              name: v.name,
-              options: serializeVariableOptions(v.options),
-              sortOrder: i,
-            })),
-          });
-        });
-      } else {
-        await prisma.product.update({
-          where: { id: line.productId! },
-          data: { stockQty: { decrement: line.quantity } },
-        });
-      }
-    } else {
-      await prisma.product.update({
-        where: { id: line.productId! },
-        data: { stockQty: { decrement: line.quantity } },
-      });
-    }
 
     // Low-stock email when feature enabled and item crosses min threshold
     if (company.featureLowStockEmail) {
@@ -2056,6 +2114,7 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
           quantity: l.quantity,
           unitPrice: -Math.abs(l.unitPrice),
           lineTotal: -Math.abs(l.lineTotal),
+          variantLabel: l.variantLabel,
         })),
       },
     },
@@ -2067,19 +2126,23 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
       where: { id: line.productId, companyId },
     });
     if (!product || !product.trackStock || product.isService) continue;
-    await prisma.stockMovement.create({
-      data: {
-        productId: product.id,
+
+    const variantLabel =
+      line.variantLabel?.trim() ||
+      parseVariantFromDescription(product.name, line.description) ||
+      undefined;
+
+    await applyProductStockDelta(product.id, line.quantity, {
+      variantLabel,
+      movement: {
         type: "RETURN",
         quantity: line.quantity,
         unitCost: product.unitCost,
         reference: refund.number,
-        notes: `Refund of ${original.number}`,
+        notes: variantLabel
+          ? `Refund of ${original.number} (${variantLabel})`
+          : `Refund of ${original.number}`,
       },
-    });
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { stockQty: { increment: line.quantity } },
     });
   }
 

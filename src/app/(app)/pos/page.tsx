@@ -139,6 +139,7 @@ export default async function PosPage() {
         outOfStockWarn={company.featureOutOfStockWarn}
         canVoidTickets={access.canVoidTickets}
         canManageInventory={access.canManageInventory}
+        canAdjustStock={access.canAdjustStock}
         viewMode={parseInventoryViewMode(activeStore?.inventoryViewMode ?? "card")}
         initialRegisterId={access.registerId || ""}
         honeyPersonsEnabled={company.receiptHoneyPersons === true}

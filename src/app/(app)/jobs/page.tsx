@@ -31,6 +31,10 @@ export default async function JobsPage() {
         title="Jobs / Projects"
         description="Jobs are created when you accept a quotation. Track profitability and assign your team on each job."
       />
+      <p className="muted" style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.45 }}>
+        Profit on each job = <strong>contract − labour − materials − expenses</strong>. Open a job to see the
+        breakdown.
+      </p>
       <Panel className="table-wrap">
         <table className="data">
           <thead>

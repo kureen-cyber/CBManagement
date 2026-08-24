@@ -313,7 +313,7 @@ model ProductVariable {
   id        String   @id @default(cuid())
   productId String
   name      String
-  /// JSON string array of option labels
+  /// JSON array of options: { label, qty, unitCost?, unitPrice?, minStock?, optimalStock?, sku? }
   options   String   @default("[]")
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())

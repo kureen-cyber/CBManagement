@@ -1,19 +1,35 @@
+import { requireCompany } from "@/lib/company";
+import { isFreeTier, parsePlanTier } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
+import { fetchPeriodSummary } from "@/lib/period-summary";
 import { PageHeader, Panel } from "@/components/ui";
+import { PeriodSelector } from "@/components/PeriodSelector";
+import { PeriodSummaryCards } from "@/components/PeriodSummaryCards";
 
 export const dynamic = "force-dynamic";
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
+}) {
+  const { companyId, company } = await requireCompany();
+  const planTier = parsePlanTier(company.planTier);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
+  const summary = await fetchPeriodSummary(companyId, range.start, range.end);
+
   return (
     <div className="stack">
       <PageHeader
         title="Analytics"
-        description="Trends and performance insights across sales, jobs, and customers."
+        description={`${range.label} · trends across sales, jobs, and customers.`}
       />
       <Panel style={{ padding: "1.25rem" }}>
-        <p className="muted" style={{ margin: 0, lineHeight: 1.5 }}>
-          Analytics is coming next. This page is available in the sidebar so you can navigate here
-          during development.
-        </p>
+        <PeriodSelector basePath="/analytics" range={range} isFree={isFreeTier(planTier)} />
+      </Panel>
+      <Panel style={{ padding: "1.25rem" }}>
+        <h3 style={{ marginTop: 0 }}>Period summary</h3>
+        <PeriodSummaryCards summary={summary} variant="analytics" />
       </Panel>
     </div>
   );

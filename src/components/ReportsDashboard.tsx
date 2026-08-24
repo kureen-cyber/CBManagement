@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { PeriodSelector } from "@/components/PeriodSelector";
+import type { ResolvedDateRange } from "@/lib/date-range";
 import { formatTTD } from "@/lib/money";
-import { REPORT_PERIODS } from "@/lib/tier";
 import { Panel } from "@/components/ui";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import type { CompanyBranding } from "@/lib/settings";
@@ -328,23 +328,22 @@ function SearchBar({
 export function ReportsDashboard({
   data,
   planTier: _planTier,
-  periodId,
   periodLabel,
-  periodClamped,
+  periodClamped: _periodClamped,
+  periodRange,
   freeMaxDays,
   isFree,
   branding,
 }: {
   data: ReportsData;
   planTier: string;
-  periodId: "7" | "14" | "31" | "90" | "month";
   periodLabel: string;
   periodClamped: boolean;
+  periodRange: ResolvedDateRange;
   freeMaxDays: number;
   isFree: boolean;
   branding?: CompanyBranding;
 }) {
-  const router = useRouter();
   const [tab, setTab] = useState<TabId>("overview");
   const [itemQuery, setItemQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
@@ -480,35 +479,12 @@ export function ReportsDashboard({
           <p className="muted">
             Showing <strong>{periodLabel}</strong>. Choose a range to reload reports for this period.
           </p>
-          {periodClamped ? (
-            <div className="period-clamp-banner" role="status">
-              Free tiers are capped at {freeMaxDays} days. Your selection was adjusted to fit that window.
-            </div>
-          ) : null}
-          <div className="period-chooser" role="group" aria-label="Report period">
-            {REPORT_PERIODS.map((p) => {
-              const disabled = isFree && !p.freeAllowed;
-              const active = periodId === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={active ? "period-chip active" : "period-chip"}
-                  disabled={disabled}
-                  title={disabled ? `Upgrade to unlock ${p.label.toLowerCase()}` : undefined}
-                  onClick={() => router.push(`/reports?period=${p.id}`)}
-                >
-                  {p.label}
-                  {disabled ? <span className="period-chip-note">Standard+</span> : null}
-                </button>
-              );
-            })}
-          </div>
-          {isFree ? (
-            <p className="muted" style={{ marginTop: "0.85rem", fontSize: "0.85rem" }}>
-              Last 90 days is available on Standard plans. Free tiers can view up to {freeMaxDays} days.
-            </p>
-          ) : null}
+          <PeriodSelector
+            basePath="/reports"
+            range={periodRange}
+            isFree={isFree}
+            freeMaxDays={freeMaxDays}
+          />
         </Panel>
       ) : null}
 

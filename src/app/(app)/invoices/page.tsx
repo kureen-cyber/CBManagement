@@ -3,20 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
+import { isFreeTier, parsePlanTier } from "@/lib/tier";
+import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { createInvoice } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
+import { PeriodSelector } from "@/components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; month?: string; from?: string; to?: string }>;
+}) {
   await enforceTierPath("/invoices");
-  const { companyId } = await requireCompany();
+  const { companyId, company } = await requireCompany();
+  const planTier = parsePlanTier(company.planTier);
+  const range = await readDateRangeFromSearchParams(searchParams, planTier);
+
   const [customers, jobs, invoices] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
     prisma.invoice.findMany({
-      where: { companyId },
-      orderBy: { createdAt: "desc" },
+      where: { companyId, issueDate: { gte: range.start, lte: range.end } },
+      orderBy: { issueDate: "desc" },
       include: {
         customer: true,
         job: {
@@ -33,7 +43,13 @@ export default async function InvoicesPage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Invoices" description="Bill customers and track what is still owed." />
+      <PageHeader
+        title="Invoices"
+        description={`${range.label} · bill customers and track what is still owed.`}
+      />
+      <Panel style={{ padding: "1.25rem" }}>
+        <PeriodSelector basePath="/invoices" range={range} isFree={isFreeTier(planTier)} />
+      </Panel>
       <Panel style={{ padding: "1.25rem" }}>
         <form action={createInvoice} className="form-grid">
           <label className="field">
@@ -158,6 +174,13 @@ export default async function InvoicesPage() {
                 </tr>
               );
             })}
+            {invoices.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="muted">
+                  No invoices in this period.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

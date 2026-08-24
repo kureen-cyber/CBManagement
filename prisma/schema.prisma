@@ -464,7 +464,7 @@ model JobEmployee {
   /// Planned hours for this employee on the job
   hoursRequired Float    @default(0)
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime @default(now()) @updatedAt
 
   job      Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

@@ -17,7 +17,43 @@ import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { ItemMenu } from "@/components/ItemMenu";
-import type { VariableOption } from "@/lib/product-variables";
+import {
+  findOptionForVariantLabel,
+  parseVariantFromDescription,
+  resolveOptionUnitPrice,
+  type VariableOption,
+} from "@/lib/product-variables";
+
+function variantLabelFromSelections(
+  vars: ProductVariable[],
+  selections: Record<string, string>,
+): string {
+  return vars.map((v) => `${v.name}: ${selections[v.name]}`).join(", ");
+}
+
+function priceDollarsForSelections(p: Product, selections: Record<string, string>): string {
+  const vars = p.variables || [];
+  if (!vars.length) {
+    return p.variablePrice ? "" : (p.unitPrice / 100).toFixed(2);
+  }
+  const label = variantLabelFromSelections(vars, selections);
+  const hit = findOptionForVariantLabel(vars, label);
+  const resolved = hit
+    ? resolveOptionUnitPrice(hit.option, p.unitPrice, Boolean(p.variablePrice))
+    : p.variablePrice
+      ? null
+      : p.unitPrice;
+  if (resolved == null) return "";
+  return (resolved / 100).toFixed(2);
+}
+
+function availableStockForVariant(p: Product, variantLabel?: string): number {
+  if (!p.trackStock || p.isService) return Infinity;
+  const vars = p.variables || [];
+  if (!vars.length || !variantLabel) return p.stockQty;
+  const hit = findOptionForVariantLabel(vars, variantLabel);
+  return hit?.option.qty ?? 0;
+}
 
 type ProductVariable = { name: string; options: VariableOption[] };
 
@@ -65,14 +101,6 @@ function lineKey(productId: string, variantLabel?: string) {
   return `${productId}::${variantLabel || ""}`;
 }
 
-function extractVariant(productName: string, description: string): string | undefined {
-  const prefix = `${productName} (`;
-  if (description.startsWith(prefix) && description.endsWith(")")) {
-    return description.slice(prefix.length, -1);
-  }
-  return undefined;
-}
-
 export function PosTerminal({
   products: initialProducts,
   customers,
@@ -87,6 +115,7 @@ export function PosTerminal({
   discounts = [],
   canVoidTickets = true,
   canManageInventory = true,
+  canAdjustStock = true,
   viewMode = "card",
   initialRegisterId = "",
   honeyPersonsEnabled = false,
@@ -104,6 +133,7 @@ export function PosTerminal({
   discounts?: DiscountOption[];
   canVoidTickets?: boolean;
   canManageInventory?: boolean;
+  canAdjustStock?: boolean;
   /** Matches Settings → POS → Inventory View for this store (also used on Inventory). */
   viewMode?: InventoryViewMode;
   initialRegisterId?: string;
@@ -192,7 +222,7 @@ export function PosTerminal({
     setAddModal({
       product: p,
       selections,
-      priceDollars: p.variablePrice ? "" : (p.unitPrice / 100).toFixed(2),
+      priceDollars: priceDollarsForSelections(p, selections),
       quantity: "1",
     });
   }
@@ -213,7 +243,19 @@ export function PosTerminal({
       return;
     }
     let unitPrice = p.unitPrice;
-    if (p.variablePrice) {
+    const variantLabel = vars
+      .map((v) => `${v.name}: ${addModal.selections[v.name]}`)
+      .join(", ");
+    const hit = findOptionForVariantLabel(vars, variantLabel);
+    const resolvedOptionPrice = hit
+      ? resolveOptionUnitPrice(hit.option, p.unitPrice, Boolean(p.variablePrice))
+      : p.variablePrice
+        ? null
+        : p.unitPrice;
+
+    if (resolvedOptionPrice != null) {
+      unitPrice = resolvedOptionPrice;
+    } else if (p.variablePrice) {
       const dollars = Number(addModal.priceDollars);
       if (!Number.isFinite(dollars) || dollars < 0) {
         setError("Enter a valid price");
@@ -221,9 +263,6 @@ export function PosTerminal({
       }
       unitPrice = toCents(dollars);
     }
-    const variantLabel = vars
-      .map((v) => `${v.name}: ${addModal.selections[v.name]}`)
-      .join(", ");
     pushToCart(p, unitPrice, variantLabel || undefined, qty);
     setAddModal(null);
   }
@@ -237,9 +276,10 @@ export function PosTerminal({
     const key = lineKey(p.id, variantLabel);
     const existingQty = cart.find((l) => l.key === key)?.quantity ?? 0;
     const nextQty = existingQty + addQty;
-    if (outOfStockWarn && p.trackStock && !p.isService && p.stockQty < nextQty) {
+    const available = availableStockForVariant(p, variantLabel);
+    if (outOfStockWarn && p.trackStock && !p.isService && available < nextQty) {
       setError(
-        `Out of stock: ${p.name} (available ${p.stockQty}). Enable restocking or reduce quantity.`,
+        `Out of stock: ${p.name}${variantLabel ? ` (${variantLabel})` : ""} (available ${available}). Enable restocking or reduce quantity.`,
       );
       return;
     }
@@ -275,14 +315,15 @@ export function PosTerminal({
     const line = cart.find((l) => l.key === key);
     const product = line ? products.find((p) => p.id === line.productId) : undefined;
     const qty = Math.floor(Number(quantity) || 0);
+    const available = product ? availableStockForVariant(product, line?.variantLabel) : Infinity;
     if (
       outOfStockWarn &&
       product &&
       product.trackStock &&
       !product.isService &&
-      qty > product.stockQty
+      qty > available
     ) {
-      setError(`Out of stock: ${product.name} (available ${product.stockQty}).`);
+      setError(`Out of stock: ${product.name} (available ${available}).`);
       return;
     }
     setError(null);
@@ -320,7 +361,7 @@ export function PosTerminal({
         .map((l) => {
           const product = products.find((p) => p.id === l.productId);
           const variantLabel = product
-            ? extractVariant(product.name, l.description)
+            ? parseVariantFromDescription(product.name, l.description)
             : undefined;
           return {
             key: lineKey(l.productId!, variantLabel),
@@ -734,12 +775,12 @@ export function PosTerminal({
                             {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
                           </div>
                         </button>
-                        {canManageInventory ? (
+                        {canAdjustStock || canManageInventory ? (
                           <ItemMenu
                             productId={p.id}
                             productName={p.name}
-                            onDeleted={onProductDeleted}
-                            onAdjustStock={setAdjustingId}
+                            onDeleted={canManageInventory ? onProductDeleted : undefined}
+                            onAdjustStock={canAdjustStock ? setAdjustingId : undefined}
                             canAdjustStock={!p.isService && p.trackStock}
                           />
                         ) : null}
@@ -758,12 +799,12 @@ export function PosTerminal({
                           {p.variablePrice ? "Enter price" : formatTTD(p.unitPrice)}
                         </div>
                       </button>
-                      {canManageInventory ? (
+                      {canAdjustStock || canManageInventory ? (
                         <ItemMenu
                           productId={p.id}
                           productName={p.name}
-                          onDeleted={onProductDeleted}
-                          onAdjustStock={setAdjustingId}
+                          onDeleted={canManageInventory ? onProductDeleted : undefined}
+                          onAdjustStock={canAdjustStock ? setAdjustingId : undefined}
                           canAdjustStock={!p.isService && p.trackStock}
                         />
                       ) : null}
@@ -984,14 +1025,15 @@ export function PosTerminal({
                   <select
                     value={addModal.selections[v.name] || ""}
                     onChange={(e) =>
-                      setAddModal((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              selections: { ...prev.selections, [v.name]: e.target.value },
-                            }
-                          : prev,
-                      )
+                      setAddModal((prev) => {
+                        if (!prev) return prev;
+                        const selections = { ...prev.selections, [v.name]: e.target.value };
+                        return {
+                          ...prev,
+                          selections,
+                          priceDollars: priceDollarsForSelections(prev.product, selections),
+                        };
+                      })
                     }
                   >
                     {v.options.map((o) => (
@@ -1000,12 +1042,14 @@ export function PosTerminal({
                         {addModal.product.trackStock && !addModal.product.isService
                           ? ` (${o.qty} in stock)`
                           : ""}
+                        {(o.unitPrice ?? 0) > 0 ? ` · ${formatTTD(o.unitPrice!)}` : ""}
                       </option>
                     ))}
                   </select>
                 </label>
               ))}
-              {addModal.product.variablePrice ? (
+              {addModal.product.variablePrice &&
+              !priceDollarsForSelections(addModal.product, addModal.selections) ? (
                 <label className="field">
                   Price
                   <input

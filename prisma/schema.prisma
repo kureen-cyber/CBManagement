@@ -313,7 +313,7 @@ model ProductVariable {
   id        String   @id @default(cuid())
   productId String
   name      String
-  /// JSON string array of option labels
+  /// JSON array of options: { label, qty, unitCost?, unitPrice?, minStock?, optimalStock?, sku? }
   options   String   @default("[]")
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
@@ -681,6 +681,8 @@ model SaleLine {
   quantity    Float   @default(1)
   unitPrice   Int     @default(0)
   lineTotal   Int     @default(0)
+  /// e.g. Colour: Red — used to restore per-option stock on refunds
+  variantLabel String?
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])

@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatTTD, fromCents } from "@/lib/money";
-import { SUPPLY_UNITS, SUPPLY_TYPES, supplyTypeLabel } from "@/lib/constants";
+import { SUPPLY_UNITS, SUPPLY_TYPES, isBuiltInSupplyType, supplyTypeLabel } from "@/lib/constants";
 import {
   createSupplierItem,
   createSupplierPurchase,
@@ -50,6 +50,36 @@ export function SupplierDetailClient({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    const seen = new Set<string>();
+    for (const item of items) {
+      const t = String(item.supplyType || "").trim();
+      if (t && !isBuiltInSupplyType(t)) seen.add(t);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  });
+
+  useEffect(() => {
+    setCustomCategories((prev) => {
+      const seen = new Set(prev);
+      for (const item of items) {
+        const t = String(item.supplyType || "").trim();
+        if (t && !isBuiltInSupplyType(t)) seen.add(t);
+      }
+      return [...seen].sort((a, b) => a.localeCompare(b));
+    });
+  }, [items]);
+
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [addSupplyType, setAddSupplyType] = useState("MATERIAL");
+
+  const supplyTypeOptions = useMemo(() => {
+    const extras = customCategories
+      .filter((c) => !isBuiltInSupplyType(c))
+      .map((c) => ({ value: c, label: supplyTypeLabel(c) }));
+    return [...SUPPLY_TYPES, ...extras];
+  }, [customCategories]);
 
   const [purchaseItemId, setPurchaseItemId] = useState("");
   const selectedCatalog = useMemo(
@@ -61,14 +91,40 @@ export function SupplierDetailClient({
     router.refresh();
   }
 
+  function addCustomCategory() {
+    const name = newCategoryName.trim();
+    if (!name) {
+      setError("Enter a category name");
+      return;
+    }
+    if (isBuiltInSupplyType(name) || supplyTypeOptions.some((o) => o.value.toLowerCase() === name.toLowerCase())) {
+      setAddSupplyType(
+        isBuiltInSupplyType(name)
+          ? name
+          : supplyTypeOptions.find((o) => o.value.toLowerCase() === name.toLowerCase())!.value,
+      );
+      setNewCategoryName("");
+      setShowAddCategory(false);
+      setError(null);
+      return;
+    }
+    setCustomCategories((prev) => [...prev, name].sort((a, b) => a.localeCompare(b)));
+    setAddSupplyType(name);
+    setNewCategoryName("");
+    setShowAddCategory(false);
+    setError(null);
+  }
+
   function onAddSupply(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    fd.set("supplyType", addSupplyType);
     startTransition(async () => {
       try {
         await createSupplierItem(fd);
         (e.target as HTMLFormElement).reset();
+        setAddSupplyType("MATERIAL");
         refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not add supply item");
@@ -142,8 +198,72 @@ export function SupplierDetailClient({
             <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Add to supply database</h2>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
               In-house cost reference for this supplier — used when building quotations. Classify
-              each item as material, equipment, or equipment rental.
+              each item as material, equipment, equipment rental, or an additional cost category you
+              define.
             </p>
+
+            <div className="panel" style={{ padding: "1rem", marginBottom: "1rem" }}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <strong>Additional cost category</strong>
+                  <div className="muted" style={{ fontSize: "0.82rem", marginTop: "0.2rem" }}>
+                    Add a custom type (e.g. Transport, Permits, Subcontractor) for supply items
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  aria-label="Add additional cost category"
+                  onClick={() => {
+                    setShowAddCategory(true);
+                    setError(null);
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              {showAddCategory ? (
+                <div
+                  className="row"
+                  style={{ gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-end", marginTop: "0.85rem" }}
+                >
+                  <label className="field" style={{ flex: "1 1 200px" }}>
+                    Category name
+                    <input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="e.g. Transport"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCustomCategory();
+                        }
+                      }}
+                    />
+                  </label>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={addCustomCategory}>
+                    Add category
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setShowAddCategory(false);
+                      setNewCategoryName("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
+              {customCategories.length > 0 ? (
+                <div className="muted" style={{ fontSize: "0.82rem", marginTop: "0.75rem" }}>
+                  Custom categories: {customCategories.map((c) => supplyTypeLabel(c)).join(", ")}
+                </div>
+              ) : null}
+            </div>
+
             <form className="form-grid" onSubmit={onAddSupply} autoComplete="off">
               <input type="hidden" name="supplierId" value={supplierId} />
               <label className="field">
@@ -152,8 +272,12 @@ export function SupplierDetailClient({
               </label>
               <label className="field">
                 Type
-                <select name="supplyType" defaultValue="MATERIAL">
-                  {SUPPLY_TYPES.map((t) => (
+                <select
+                  name="supplyType"
+                  value={addSupplyType}
+                  onChange={(e) => setAddSupplyType(e.target.value)}
+                >
+                  {supplyTypeOptions.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
@@ -216,7 +340,12 @@ export function SupplierDetailClient({
                           <label className="field">
                             Type
                             <select name="supplyType" defaultValue={item.supplyType}>
-                              {SUPPLY_TYPES.map((t) => (
+                              {[
+                                ...supplyTypeOptions,
+                                ...(!supplyTypeOptions.some((t) => t.value === item.supplyType)
+                                  ? [{ value: item.supplyType, label: supplyTypeLabel(item.supplyType) }]
+                                  : []),
+                              ].map((t) => (
                                 <option key={t.value} value={t.value}>
                                   {t.label}
                                 </option>

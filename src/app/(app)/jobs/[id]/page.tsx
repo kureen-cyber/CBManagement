@@ -84,9 +84,39 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <Panel className="kpi">
           <div className="label">Profit</div>
           <div className="value money">{formatTTD(profit.profit)}</div>
-          <div className="hint">{profit.marginPct.toFixed(1)}%</div>
+          <div className="hint">{profit.marginPct.toFixed(1)}% margin</div>
         </Panel>
       </div>
+
+      <Panel style={{ padding: "1.15rem 1.25rem" }}>
+        <h2 style={{ margin: "0 0 0.55rem", fontSize: "1.05rem" }}>How this profit is calculated</h2>
+        <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.92rem", lineHeight: 1.45 }}>
+          <strong className="money">Profit = Contract − Labour − Materials − Expenses</strong>
+          {" "}
+          ({formatTTD(profit.contractValue)} − {formatTTD(profit.labourCost)} −{" "}
+          {formatTTD(profit.materialsCost)} − {formatTTD(profit.expensesCost)} ={" "}
+          <strong className="money">{formatTTD(profit.profit)}</strong>).
+          Margin is profit ÷ contract
+          {profit.contractValue > 0 ? ` (${profit.marginPct.toFixed(1)}%)` : ""}.
+        </p>
+        <ul className="muted" style={{ margin: 0, paddingLeft: "1.15rem", fontSize: "0.9rem", lineHeight: 1.5 }}>
+          <li>
+            <strong>Contract</strong> — selling price for the job (from the quotation total when the quote was
+            accepted).
+          </li>
+          <li>
+            <strong>Labour</strong> — from assigned employees (hourly rate × hours required on this job). If nobody
+            is assigned, logged time entries are used instead (including overtime at 1.5×).
+          </li>
+          <li>
+            <strong>Materials</strong> — materials logged on the job (often seeded from quoted materials).
+          </li>
+          <li>
+            <strong>Expenses</strong> — expenses linked to this job (for example equipment bought when converting
+            the quote).
+          </li>
+        </ul>
+      </Panel>
 
       {job.invoices.length ? (
         <Panel className="table-wrap">

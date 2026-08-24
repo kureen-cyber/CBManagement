@@ -24,7 +24,6 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       where: { id, companyId },
       include: {
         customer: true,
-        timeEntries: { include: { employee: true }, orderBy: { date: "desc" } },
         quotation: true,
         receipts: { orderBy: { createdAt: "desc" } },
         employeeAssignments: {
@@ -128,31 +127,31 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         <table className="data">
           <thead>
             <tr>
-              <th>Date</th>
               <th>Employee</th>
+              <th>Role</th>
+              <th>Rate / hr</th>
               <th>Hours</th>
-              <th>OT</th>
-              <th>Cost</th>
+              <th>Labour cost</th>
             </tr>
           </thead>
           <tbody>
-            {job.timeEntries.map((t) => (
-              <tr key={t.id}>
-                <td>{t.date.toLocaleDateString("en-TT")}</td>
+            {job.employeeAssignments.map((a) => (
+              <tr key={a.id}>
                 <td>
-                  {t.employee.firstName} {t.employee.lastName}
+                  {a.employee.firstName} {a.employee.lastName}
                 </td>
-                <td>{t.hours}h</td>
-                <td>{t.overtimeHours}h</td>
+                <td className="muted">{a.employee.role ?? "—"}</td>
+                <td className="money">{formatTTD(a.hourlyRate)}/hr</td>
+                <td>{a.hoursRequired}h</td>
                 <td className="money">
-                  {formatTTD(Math.round((t.hours + t.overtimeHours * 1.5) * t.hourlyRate))}
+                  {formatTTD(Math.round(a.hourlyRate * a.hoursRequired))}
                 </td>
               </tr>
             ))}
-            {job.timeEntries.length === 0 ? (
+            {job.employeeAssignments.length === 0 ? (
               <tr>
                 <td colSpan={5} className="muted">
-                  No time entries yet.
+                  No employees assigned — use the Assign employee/s tab.
                 </td>
               </tr>
             ) : null}
@@ -202,7 +201,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           firstName: a.employee.firstName,
           lastName: a.employee.lastName,
           role: a.employee.role,
-          hourlyRate: a.employee.hourlyRate,
+          hourlyRate: a.hourlyRate,
+          hoursRequired: a.hoursRequired,
         }))}
       />
     </div>

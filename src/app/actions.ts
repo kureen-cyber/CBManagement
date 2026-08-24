@@ -1294,10 +1294,38 @@ export async function assignEmployeeToJob(formData: FormData) {
   });
   if (existing) throw new Error("Employee is already assigned to this job");
 
+  const hourlyRateRaw = String(formData.get("hourlyRate") || "").trim();
+  const hourlyRate = hourlyRateRaw
+    ? dollarsToCents(formData.get("hourlyRate"))
+    : employee.hourlyRate;
+  const hoursRequired = Math.max(0, Number(formData.get("hoursRequired") || 0) || 0);
+
   await prisma.jobEmployee.create({
-    data: { jobId, employeeId },
+    data: { jobId, employeeId, hourlyRate, hoursRequired },
   });
   revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/jobs");
+}
+
+export async function updateJobEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing assignment");
+
+  const row = await prisma.jobEmployee.findFirst({
+    where: { id, job: { companyId } },
+    include: { job: { select: { id: true } } },
+  });
+  if (!row) throw new Error("Assignment not found");
+
+  const hourlyRate = dollarsToCents(formData.get("hourlyRate"));
+  const hoursRequired = Math.max(0, Number(formData.get("hoursRequired") || 0) || 0);
+
+  await prisma.jobEmployee.update({
+    where: { id },
+    data: { hourlyRate, hoursRequired },
+  });
+  revalidatePath(`/jobs/${row.job.id}`);
   revalidatePath("/jobs");
 }
 

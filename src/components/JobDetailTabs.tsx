@@ -22,6 +22,7 @@ type Assignment = {
   lastName: string;
   role: string | null;
   hourlyRate: number;
+  hoursRequired: number;
 };
 
 export function JobDetailTabs({

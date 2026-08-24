@@ -4,7 +4,7 @@ import { getJobProfitability } from "@/lib/business";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { enforceTierPath } from "@/lib/tier-guard";
-import { addTimeEntry, createJob, syncCompanyJobStatuses } from "@/app/actions";
+import { syncCompanyJobStatuses } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 
@@ -15,18 +15,11 @@ export default async function JobsPage() {
   const { companyId } = await requireCompany();
   await syncCompanyJobStatuses(companyId);
 
-  const [customers, employees, jobs] = await Promise.all([
-    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    prisma.employee.findMany({
-      where: { companyId, active: true },
-      orderBy: { firstName: "asc" },
-    }),
-    prisma.job.findMany({
-      where: { companyId },
-      orderBy: { createdAt: "desc" },
-      include: { customer: true, quotation: { select: { id: true, number: true } } },
-    }),
-  ]);
+  const jobs = await prisma.job.findMany({
+    where: { companyId },
+    orderBy: { createdAt: "desc" },
+    include: { customer: true, quotation: { select: { id: true, number: true } } },
+  });
   const profits = await Promise.all(
     jobs.map(async (j) => ({ id: j.id, ...(await getJobProfitability(j.id, companyId)) })),
   );
@@ -34,41 +27,10 @@ export default async function JobsPage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Jobs / Projects" description="Am I actually making money on this job?" />
-      <div className="kpi-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <Panel style={{ padding: "1.25rem" }}>
-          <form action={createJob} className="form-grid">
-            <label className="field">Customer
-              <select name="customerId" required defaultValue="">
-                <option value="" disabled>Select</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </label>
-            <label className="field">Title<input name="title" required /></label>
-            <label className="field">Contract (TT$)<input name="contractValue" type="number" step="0.01" defaultValue="18500" /></label>
-            <div className="full"><button className="btn btn-primary" type="submit">Create job</button></div>
-          </form>
-        </Panel>
-        <Panel style={{ padding: "1.25rem" }}>
-          <form action={addTimeEntry} className="form-grid">
-            <label className="field">Employee
-              <select name="employeeId" required defaultValue="">
-                <option value="" disabled>Select</option>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}
-              </select>
-            </label>
-            <label className="field">Job
-              <select name="jobId" defaultValue="">
-                <option value="">No job</option>
-                {jobs.map((j) => <option key={j.id} value={j.id}>{j.number}</option>)}
-              </select>
-            </label>
-            <label className="field">Date<input name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-            <label className="field">Hours<input name="hours" type="number" step="0.25" defaultValue="8" /></label>
-            <div className="full"><button className="btn btn-secondary" type="submit">Save hours</button></div>
-          </form>
-        </Panel>
-      </div>
+      <PageHeader
+        title="Jobs / Projects"
+        description="Jobs are created when you accept a quotation. Track profitability and assign your team on each job."
+      />
       <Panel className="table-wrap">
         <table className="data">
           <thead>
@@ -143,6 +105,13 @@ export default async function JobsPage() {
                 </tr>
               );
             })}
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="muted">
+                  No jobs yet — accept a quotation to create one.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

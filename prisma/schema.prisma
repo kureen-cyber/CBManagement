@@ -456,10 +456,15 @@ model Job {
 
 /// Employees assigned to work on a job.
 model JobEmployee {
-  id         String   @id @default(cuid())
-  jobId      String
-  employeeId String
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  jobId         String
+  employeeId    String
+  /// Job-specific hourly rate in cents (may differ from employee profile)
+  hourlyRate    Int      @default(0)
+  /// Planned hours for this employee on the job
+  hoursRequired Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   job      Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

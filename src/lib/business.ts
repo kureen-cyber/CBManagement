@@ -50,13 +50,23 @@ export async function getJobProfitability(
 ): Promise<JobProfitability> {
   const job = await prisma.job.findFirstOrThrow({
     where: companyId ? { id: jobId, companyId } : { id: jobId },
-    include: { materials: true, timeEntries: true, expenses: true },
+    include: {
+      materials: true,
+      timeEntries: true,
+      expenses: true,
+      employeeAssignments: true,
+    },
   });
 
-  const labourCost = job.timeEntries.reduce(
+  const assignmentLabour = job.employeeAssignments.reduce(
+    (sum, a) => sum + Math.round(a.hourlyRate * a.hoursRequired),
+    0,
+  );
+  const timeEntryLabour = job.timeEntries.reduce(
     (sum, t) => sum + Math.round((t.hours + t.overtimeHours * 1.5) * t.hourlyRate),
     0,
   );
+  const labourCost = assignmentLabour > 0 ? assignmentLabour : timeEntryLabour;
   const materialsCost = job.materials.reduce((sum, m) => sum + m.totalCost, 0);
   const expensesCost = job.expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalCost = labourCost + materialsCost + expensesCost;

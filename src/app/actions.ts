@@ -686,6 +686,21 @@ export async function updateExpense(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function deleteExpense(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing expense");
+
+  const existing = await prisma.expense.findFirst({ where: { id, companyId } });
+  if (!existing) throw new Error("Expense not found");
+
+  await prisma.expense.delete({ where: { id } });
+  revalidatePath("/expenses");
+  if (existing.jobId) revalidatePath(`/jobs/${existing.jobId}`);
+  revalidatePath("/jobs");
+  revalidatePath("/");
+}
+
 export async function addJobReceipt(formData: FormData) {
   const { companyId } = await requireCompany();
   const jobId = String(formData.get("jobId") || "").trim();

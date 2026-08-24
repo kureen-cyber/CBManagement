@@ -2,7 +2,7 @@
 
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createExpense, updateExpense } from "@/app/actions";
+import { createExpense, deleteExpense, updateExpense } from "@/app/actions";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
@@ -61,6 +61,23 @@ export function ExpensesClient({
         refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not update expense");
+      }
+    });
+  }
+
+  function onRemove(expense: ExpenseRow) {
+    const label = expense.description || expense.category;
+    if (!confirm(`Remove expense “${label}” (${formatTTD(expense.amount)})?`)) return;
+    setError(null);
+    const fd = new FormData();
+    fd.set("id", expense.id);
+    startTransition(async () => {
+      try {
+        await deleteExpense(fd);
+        if (editingId === expense.id) setEditingId(null);
+        refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not remove expense");
       }
     });
   }
@@ -211,13 +228,23 @@ export function ExpensesClient({
                     )}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setEditingId(e.id)}
-                    >
-                      Edit date / receipt
-                    </button>
+                    <div className="row" style={{ gap: "0.35rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setEditingId(e.id)}
+                      >
+                        Edit date / receipt
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={pending}
+                        onClick={() => onRemove(e)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ),

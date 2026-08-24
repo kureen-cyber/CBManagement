@@ -67,7 +67,16 @@ export default async function JobsPage() {
                   </td>
                   <td>
                     {j.quotation ? (
-                      <Link href={`/quotations/${j.quotation.id}`}>{j.quotation.number}</Link>
+                      <div className="stack" style={{ gap: "0.25rem" }}>
+                        <span>{j.quotation.number}</span>
+                        <Link
+                          href={`/quotations/${j.quotation.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          View
+                        </Link>
+                      </div>
                     ) : (
                       <span className="muted">—</span>
                     )}

@@ -18,7 +18,7 @@ export default async function SuppliersPage() {
     <div className="stack">
       <PageHeader
         title="Suppliers"
-        description="Register vendors, keep a supply cost database for quotations, and track purchases."
+        description="Register vendors, keep a supply cost database for quotations, and track purchases. Open a supplier to classify items as material, equipment, or equipment rental."
       />
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Register supplier</h2>

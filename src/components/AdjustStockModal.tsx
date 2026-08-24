@@ -3,14 +3,21 @@
 import { FormEvent, useState, useTransition } from "react";
 import { adjustProductStock } from "@/app/actions";
 import { fromCents, formatTTD } from "@/lib/money";
-import type { InventoryProduct } from "@/components/InventoryClient";
+
+type AdjustStockProduct = {
+  id: string;
+  name: string;
+  unit: string;
+  unitCost: number;
+  stockQty: number;
+};
 
 export function AdjustStockModal({
   product,
   onClose,
   onAdjusted,
 }: {
-  product: InventoryProduct;
+  product: AdjustStockProduct;
   onClose: () => void;
   onAdjusted: (id: string, stockQty: number) => void;
 }) {

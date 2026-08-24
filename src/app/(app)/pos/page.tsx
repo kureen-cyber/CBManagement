@@ -179,6 +179,7 @@ export default async function PosPage() {
           name: p.name,
           category: p.category,
           unit: p.unit,
+          unitCost: p.unitCost,
           unitPrice: p.unitPrice,
           variablePrice: p.variablePrice,
           stockQty: p.stockQty,

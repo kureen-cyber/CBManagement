@@ -15,6 +15,7 @@ import { formatTTD, toCents } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
+import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { ItemMenu } from "@/components/ItemMenu";
 
 type ProductVariable = { name: string; options: string[] };
@@ -24,6 +25,7 @@ type Product = {
   name: string;
   category: string;
   unit: string;
+  unitCost: number;
   unitPrice: number;
   variablePrice?: boolean;
   stockQty: number;
@@ -125,6 +127,7 @@ export function PosTerminal({
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [registerAsService, setRegisterAsService] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [honeyPersons, setHoneyPersons] = useState("");
@@ -328,6 +331,13 @@ export function PosTerminal({
     router.refresh();
   }
 
+  function onStockAdjusted(id: string, stockQty: number) {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, stockQty } : p)));
+    router.refresh();
+  }
+
+  const adjustingProduct = adjustingId ? products.find((p) => p.id === adjustingId) : null;
+
   function onCreateProduct(formData: FormData) {
     setError(null);
     setMessage(null);
@@ -347,6 +357,7 @@ export function PosTerminal({
               name: created.name,
               category: created.category,
               unit: created.unit,
+              unitCost: created.unitCost,
               unitPrice: created.unitPrice,
               variablePrice: created.variablePrice,
               stockQty: created.stockQty,
@@ -708,6 +719,8 @@ export function PosTerminal({
                             productId={p.id}
                             productName={p.name}
                             onDeleted={onProductDeleted}
+                            onAdjustStock={setAdjustingId}
+                            canAdjustStock={!p.isService && p.trackStock}
                           />
                         ) : null}
                       </div>
@@ -730,6 +743,8 @@ export function PosTerminal({
                           productId={p.id}
                           productName={p.name}
                           onDeleted={onProductDeleted}
+                          onAdjustStock={setAdjustingId}
+                          canAdjustStock={!p.isService && p.trackStock}
                         />
                       ) : null}
                     </div>
@@ -948,6 +963,13 @@ export function PosTerminal({
             </div>
           </div>
         </div>
+      ) : null}
+      {adjustingProduct ? (
+        <AdjustStockModal
+          product={adjustingProduct}
+          onClose={() => setAdjustingId(null)}
+          onAdjusted={onStockAdjusted}
+        />
       ) : null}
     </div>
   );

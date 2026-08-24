@@ -6,12 +6,18 @@ import {
   DEFAULT_RECEIPT_FOOTER,
   HOME_LAYOUTS,
   LANGUAGES,
-  THEME_LABELS,
-  THEMES,
+  THEME_FAMILY_LABELS,
+  THEME_FAMILIES,
+  THEME_MODES,
+  composeTheme,
+  themeFamily,
+  themeMode,
   type HomeLayout,
   type InventoryViewMode,
   type LanguageCode,
   type Theme,
+  type ThemeFamily,
+  type ThemeMode,
   CATEGORY_COLOR_PALETTE,
 } from "@/lib/settings";
 import {
@@ -187,6 +193,9 @@ export function SettingsPanel({
   );
   const [newCategoryColor, setNewCategoryColor] = useState<string>(CATEGORY_COLOR_PALETTE[0]!);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [appearanceFamily, setAppearanceFamily] = useState<ThemeFamily>(() => themeFamily(theme));
+  const [appearanceMode, setAppearanceMode] = useState<ThemeMode>(() => themeMode(theme));
+  const composedTheme = composeTheme(appearanceFamily, appearanceMode);
 
   useEffect(() => {
     if (!removeLogo) setLogoPreview(receiptLogoData);
@@ -533,44 +542,60 @@ export function SettingsPanel({
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
             <fieldset className="settings-fieldset">
               <legend>Colour scheme</legend>
+              <input type="hidden" name="theme" value={composedTheme} />
               <div className="stack" style={{ gap: "0.65rem" }}>
-                {THEMES.map((t) => (
-                  <label key={t} className="choice-card">
-                    <input type="radio" name="theme" value={t} defaultChecked={theme === t} />
+                {THEME_FAMILIES.map((family) => (
+                  <label key={family} className="choice-card">
+                    <input
+                      type="radio"
+                      name="themeFamily"
+                      value={family}
+                      checked={appearanceFamily === family}
+                      onChange={() => setAppearanceFamily(family)}
+                    />
                     <span>
-                      <strong>{THEME_LABELS[t]}</strong>
+                      <strong>{THEME_FAMILY_LABELS[family]}</strong>
                       <span className="row" style={{ gap: "0.35rem", marginTop: "0.35rem" }}>
-                        {t === "light" ? (
-                          <>
-                            <span className="theme-swatch" style={{ background: "#0A6B6E" }} />
-                            <span className="theme-swatch" style={{ background: "#F7F3EB" }} />
-                            <span className="theme-swatch" style={{ background: "#C45C26" }} />
-                          </>
-                        ) : null}
-                        {t === "dark" ? (
-                          <>
-                            <span className="theme-swatch" style={{ background: "#1A2426" }} />
-                            <span className="theme-swatch" style={{ background: "#3DB8BC" }} />
-                          </>
-                        ) : null}
-                        {t === "red-white-black" ? (
+                        {family === "red-white-black" ? (
                           <>
                             <span className="theme-swatch" style={{ background: "#C41E3A" }} />
-                            <span className="theme-swatch" style={{ background: "#FFFFFF", border: "1px solid #ccc" }} />
+                            <span
+                              className="theme-swatch"
+                              style={{ background: "#FFFFFF", border: "1px solid #ccc" }}
+                            />
                             <span className="theme-swatch" style={{ background: "#1A1A1A" }} />
                           </>
-                        ) : null}
-                        {t === "yellow-parrot" ? (
+                        ) : (
                           <>
                             <span className="theme-swatch" style={{ background: "#F4C430" }} />
                             <span className="theme-swatch" style={{ background: "#00843D" }} />
+                            <span className="theme-swatch" style={{ background: "#FFF8E1", border: "1px solid #ccc" }} />
                           </>
-                        ) : null}
+                        )}
                       </span>
                     </span>
                   </label>
                 ))}
               </div>
+            </fieldset>
+            <fieldset className="settings-fieldset">
+              <legend>Mode</legend>
+              <div className="theme-mode-toggle" role="group" aria-label="Light or dark mode">
+                {THEME_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`btn btn-sm ${appearanceMode === mode ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setAppearanceMode(mode)}
+                    aria-pressed={appearanceMode === mode}
+                  >
+                    {mode === "light" ? "Light" : "Dark"}
+                  </button>
+                ))}
+              </div>
+              <p className="muted" style={{ margin: "0.65rem 0 0", fontSize: "0.85rem" }}>
+                Light and dark apply to the colour scheme selected above.
+              </p>
             </fieldset>
 
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Home screen</h2>

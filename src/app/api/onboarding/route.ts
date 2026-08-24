@@ -33,6 +33,7 @@ export async function POST(request: Request) {
     name: businessName,
     businessType,
     planTier,
+    theme: "red-white-black",
     homeLayout: businessType === "RETAIL" ? "RETAIL" : company.homeLayout,
   });
 
@@ -44,6 +45,12 @@ export async function POST(request: Request) {
     planTier,
   });
   res.cookies.set("cbm_business_type", businessType, {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  res.cookies.set("cbm_theme", "red-white-black", {
     httpOnly: false,
     sameSite: "lax",
     path: "/",

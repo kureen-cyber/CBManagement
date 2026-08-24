@@ -1,13 +1,23 @@
-export const THEMES = ["red-white-black", "yellow-parrot", "light", "dark"] as const;
+export const THEME_FAMILIES = ["red-white-black", "yellow-parrot"] as const;
+export type ThemeFamily = (typeof THEME_FAMILIES)[number];
+
+export const THEME_MODES = ["light", "dark"] as const;
+export type ThemeMode = (typeof THEME_MODES)[number];
+
+/** Stored on Company.theme — family + optional dark suffix. */
+export const THEMES = [
+  "red-white-black",
+  "red-white-black-dark",
+  "yellow-parrot",
+  "yellow-parrot-dark",
+] as const;
 export type Theme = (typeof THEMES)[number];
 
 export const DEFAULT_THEME: Theme = "red-white-black";
 
-export const THEME_LABELS: Record<Theme, string> = {
+export const THEME_FAMILY_LABELS: Record<ThemeFamily, string> = {
   "red-white-black": "Red, white & black",
-  "yellow-parrot": "Yellow & parrot green",
-  light: "Light",
-  dark: "Dark",
+  "yellow-parrot": "Green & yellow",
 };
 
 export const INVENTORY_VIEW_MODES = ["card", "list"] as const;
@@ -65,15 +75,32 @@ export function resolveBusinessLogo(company: CompanyBranding): string | null {
   return company.businessLogoData ?? company.receiptLogoData ?? null;
 }
 
+export function themeFamily(theme: Theme): ThemeFamily {
+  return theme.startsWith("yellow-parrot") ? "yellow-parrot" : "red-white-black";
+}
+
+export function themeMode(theme: Theme): ThemeMode {
+  return theme.endsWith("-dark") ? "dark" : "light";
+}
+
+export function composeTheme(family: ThemeFamily, mode: ThemeMode): Theme {
+  if (family === "yellow-parrot") {
+    return mode === "dark" ? "yellow-parrot-dark" : "yellow-parrot";
+  }
+  return mode === "dark" ? "red-white-black-dark" : "red-white-black";
+}
+
 export function parseTheme(value: unknown): Theme {
   const v = String(value || DEFAULT_THEME).toLowerCase();
+  if (v === "light") return "red-white-black";
+  if (v === "dark") return "red-white-black-dark";
   if (THEMES.includes(v as Theme)) return v as Theme;
   return DEFAULT_THEME;
 }
 
-/** Browser color-scheme hint for non light/dark themes. */
+/** Browser color-scheme hint. */
 export function themeColorScheme(theme: Theme): "light" | "dark" {
-  return theme === "dark" ? "dark" : "light";
+  return themeMode(theme) === "dark" ? "dark" : "light";
 }
 
 export function parseInventoryViewMode(value: unknown): InventoryViewMode {

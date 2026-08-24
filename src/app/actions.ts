@@ -339,6 +339,26 @@ export async function createSupplier(formData: FormData) {
   revalidatePath("/suppliers");
 }
 
+export async function deleteSupplier(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("supplierId") || "").trim();
+  if (!id) throw new Error("Missing supplier");
+
+  const supplier = await prisma.supplier.findFirst({ where: { id, companyId } });
+  if (!supplier) throw new Error("Supplier not found");
+
+  await prisma.$transaction([
+    prisma.product.updateMany({ where: { supplierId: id, companyId }, data: { supplierId: null } }),
+    prisma.expense.updateMany({ where: { supplierId: id, companyId }, data: { supplierId: null } }),
+    prisma.supplier.delete({ where: { id } }),
+  ]);
+
+  revalidatePath("/suppliers");
+  revalidatePath("/inventory");
+  revalidatePath("/expenses");
+  revalidatePath("/quotations");
+}
+
 export async function createSupplierItem(formData: FormData) {
   const { companyId } = await requireCompany();
   const supplierId = String(formData.get("supplierId") || "").trim();

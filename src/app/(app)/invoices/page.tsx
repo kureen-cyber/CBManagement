@@ -115,14 +115,32 @@ export default async function InvoicesPage() {
                   <td>{inv.customer.name}</td>
                   <td>
                     {quote ? (
-                      <Link href={`/quotations/${quote.id}`}>{quote.number}</Link>
+                      <div className="stack" style={{ gap: "0.25rem" }}>
+                        <span>{quote.number}</span>
+                        <Link
+                          href={`/quotations/${quote.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          View
+                        </Link>
+                      </div>
                     ) : (
                       <span className="muted">—</span>
                     )}
                   </td>
                   <td>
                     {inv.job ? (
-                      <Link href={`/jobs/${inv.job.id}`}>{inv.job.number}</Link>
+                      <div className="stack" style={{ gap: "0.25rem" }}>
+                        <span>{inv.job.number}</span>
+                        <Link
+                          href={`/jobs/${inv.job.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          View
+                        </Link>
+                      </div>
                     ) : (
                       <span className="muted">—</span>
                     )}

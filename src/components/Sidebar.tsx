@@ -15,6 +15,7 @@ function shortLabel(label: string) {
   if (label === "AI Assistant") return "AI";
   if (label === "Financial Reports") return "Fin";
   if (label === "Analytics") return "An";
+  if (label === "Marketing") return "Mkt";
   if (label.startsWith("Items") || label === "Stock levels" || label === "Inventory") return "Inv";
   const words = label.split(/\s+/);
   if (words.length === 1) return label.slice(0, 3);

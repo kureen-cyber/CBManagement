@@ -11,6 +11,7 @@ export const NAV_ITEMS = [
   { href: "/employees", label: "Employees" },
   { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
+  { href: "/marketing", label: "Marketing" },
   { href: "/analytics", label: "Analytics" },
   { href: "/financial-reports", label: "Financial Reports" },
   { href: "/settings", label: "Settings" },

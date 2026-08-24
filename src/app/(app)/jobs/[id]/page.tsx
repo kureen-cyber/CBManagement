@@ -19,19 +19,29 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
   await syncJobStatus(id, companyId);
 
-  const job = await prisma.job.findFirst({
-    where: { id, companyId },
-    include: {
-      customer: true,
-      timeEntries: { include: { employee: true }, orderBy: { date: "desc" } },
-      quotation: true,
-      receipts: { orderBy: { createdAt: "desc" } },
-      invoices: {
-        select: { id: true, number: true, total: true, amountPaid: true, status: true },
-        orderBy: { createdAt: "asc" },
+  const [job, employees] = await Promise.all([
+    prisma.job.findFirst({
+      where: { id, companyId },
+      include: {
+        customer: true,
+        timeEntries: { include: { employee: true }, orderBy: { date: "desc" } },
+        quotation: true,
+        receipts: { orderBy: { createdAt: "desc" } },
+        employeeAssignments: {
+          include: { employee: true },
+          orderBy: { createdAt: "asc" },
+        },
+        invoices: {
+          select: { id: true, number: true, total: true, amountPaid: true, status: true },
+          orderBy: { createdAt: "asc" },
+        },
       },
-    },
-  });
+    }),
+    prisma.employee.findMany({
+      where: { companyId, active: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    }),
+  ]);
   if (!job) notFound();
   const profit = await getJobProfitability(job.id, companyId);
   const needsDates = needsEngagementPeriod(job);
@@ -172,11 +182,27 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       <JobDetailTabs
         overview={overview}
         jobId={job.id}
+        jobNumber={job.number}
         receipts={job.receipts.map((r) => ({
           id: r.id,
           label: r.label,
           receiptData: r.receiptData,
           createdAt: r.createdAt.toISOString(),
+        }))}
+        employees={employees.map((e) => ({
+          id: e.id,
+          firstName: e.firstName,
+          lastName: e.lastName,
+          role: e.role,
+          hourlyRate: e.hourlyRate,
+        }))}
+        assignments={job.employeeAssignments.map((a) => ({
+          id: a.id,
+          employeeId: a.employeeId,
+          firstName: a.employee.firstName,
+          lastName: a.employee.lastName,
+          role: a.employee.role,
+          hourlyRate: a.employee.hourlyRate,
         }))}
       />
     </div>

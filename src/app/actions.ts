@@ -1275,6 +1275,48 @@ export async function addTimeEntry(formData: FormData) {
   revalidatePath("/employees");
 }
 
+export async function assignEmployeeToJob(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "").trim();
+  const employeeId = String(formData.get("employeeId") || "").trim();
+  if (!jobId || !employeeId) throw new Error("Missing job or employee");
+
+  const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+  if (!job) throw new Error("Job not found");
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, companyId, active: true },
+  });
+  if (!employee) throw new Error("Employee not found");
+
+  const existing = await prisma.jobEmployee.findUnique({
+    where: { jobId_employeeId: { jobId, employeeId } },
+  });
+  if (existing) throw new Error("Employee is already assigned to this job");
+
+  await prisma.jobEmployee.create({
+    data: { jobId, employeeId },
+  });
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath("/jobs");
+}
+
+export async function removeJobEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing assignment");
+
+  const row = await prisma.jobEmployee.findFirst({
+    where: { id, job: { companyId } },
+    include: { job: { select: { id: true } } },
+  });
+  if (!row) throw new Error("Assignment not found");
+
+  await prisma.jobEmployee.delete({ where: { id } });
+  revalidatePath(`/jobs/${row.job.id}`);
+  revalidatePath("/jobs");
+}
+
 export async function assignEmployeeToInvoice(formData: FormData) {
   const { companyId } = await requireCompany();
   const invoiceId = String(formData.get("invoiceId") || "").trim();

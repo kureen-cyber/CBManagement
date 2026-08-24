@@ -135,6 +135,7 @@ export function PosTerminal({
     product: Product;
     selections: Record<string, string>;
     priceDollars: string;
+    quantity: string;
   } | null>(null);
 
   useEffect(() => {
@@ -182,10 +183,6 @@ export function PosTerminal({
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
   const total = Math.max(0, subtotal - discountAmount);
 
-  function needsAddModal(p: Product) {
-    return Boolean(p.variablePrice) || Boolean(p.variables?.length);
-  }
-
   function openAddModal(p: Product) {
     const selections: Record<string, string> = {};
     for (const v of p.variables || []) {
@@ -195,6 +192,7 @@ export function PosTerminal({
       product: p,
       selections,
       priceDollars: p.variablePrice ? "" : (p.unitPrice / 100).toFixed(2),
+      quantity: "1",
     });
   }
 
@@ -208,6 +206,11 @@ export function PosTerminal({
         return;
       }
     }
+    const qty = Math.max(1, Math.floor(Number(addModal.quantity) || 0));
+    if (!Number.isFinite(qty) || qty < 1) {
+      setError("Enter a quantity of at least 1");
+      return;
+    }
     let unitPrice = p.unitPrice;
     if (p.variablePrice) {
       const dollars = Number(addModal.priceDollars);
@@ -220,18 +223,19 @@ export function PosTerminal({
     const variantLabel = vars
       .map((v) => `${v.name}: ${addModal.selections[v.name]}`)
       .join(", ");
-    pushToCart(p, unitPrice, variantLabel || undefined);
+    pushToCart(p, unitPrice, variantLabel || undefined, qty);
     setAddModal(null);
   }
 
-  function pushToCart(p: Product, unitPrice: number, variantLabel?: string) {
+  function pushToCart(p: Product, unitPrice: number, variantLabel?: string, quantity = 1) {
     setMessage(null);
     setError(null);
     setReceiptHref(null);
 
+    const addQty = Math.max(1, Math.floor(quantity) || 1);
     const key = lineKey(p.id, variantLabel);
     const existingQty = cart.find((l) => l.key === key)?.quantity ?? 0;
-    const nextQty = existingQty + 1;
+    const nextQty = existingQty + addQty;
     if (outOfStockWarn && p.trackStock && !p.isService && p.stockQty < nextQty) {
       setError(
         `Out of stock: ${p.name} (available ${p.stockQty}). Enable restocking or reduce quantity.`,
@@ -243,7 +247,9 @@ export function PosTerminal({
     setCart((prev) => {
       const existing = prev.find((l) => l.key === key);
       if (existing) {
-        return prev.map((l) => (l.key === key ? { ...l, quantity: l.quantity + 1 } : l));
+        return prev.map((l) =>
+          l.key === key ? { ...l, quantity: l.quantity + addQty, unitPrice } : l,
+        );
       }
       return [
         ...prev,
@@ -252,7 +258,7 @@ export function PosTerminal({
           productId: p.id,
           name: displayName,
           unitPrice,
-          quantity: 1,
+          quantity: addQty,
           variantLabel,
         },
       ];
@@ -260,29 +266,34 @@ export function PosTerminal({
   }
 
   function addProduct(p: Product) {
-    if (needsAddModal(p)) {
-      openAddModal(p);
-      return;
-    }
-    pushToCart(p, p.unitPrice);
+    // Always confirm quantity (and options/price when needed) so cashiers can type qty once
+    openAddModal(p);
   }
 
   function updateQty(key: string, quantity: number) {
     const line = cart.find((l) => l.key === key);
     const product = line ? products.find((p) => p.id === line.productId) : undefined;
+    const qty = Math.floor(Number(quantity) || 0);
     if (
       outOfStockWarn &&
       product &&
       product.trackStock &&
       !product.isService &&
-      quantity > product.stockQty
+      qty > product.stockQty
     ) {
       setError(`Out of stock: ${product.name} (available ${product.stockQty}).`);
       return;
     }
+    setError(null);
     setCart((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, quantity } : l)).filter((l) => l.quantity > 0),
+      prev.map((l) => (l.key === key ? { ...l, quantity: qty } : l)).filter((l) => l.quantity > 0),
     );
+  }
+
+  function removeLine(key: string) {
+    setCart((prev) => prev.filter((l) => l.key !== key));
+    setError(null);
+    setMessage(null);
   }
 
   function clearTicket() {
@@ -767,20 +778,49 @@ export function PosTerminal({
                         {formatTTD(l.unitPrice)} each
                       </div>
                     </div>
-                    <div className="row">
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={l.quantity}
-                        style={{ width: 72 }}
-                        onChange={(e) => updateQty(l.key, Number(e.target.value) || 0)}
-                      />
+                    <div className="cart-line-actions">
+                      <div className="cart-qty" aria-label={`Quantity for ${l.name}`}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm cart-qty-btn"
+                          aria-label="Decrease quantity"
+                          onClick={() => updateQty(l.key, l.quantity - 1)}
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={l.quantity}
+                          aria-label="Quantity"
+                          onChange={(e) => updateQty(l.key, Number(e.target.value) || 0)}
+                          onFocus={(e) => e.currentTarget.select()}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm cart-qty-btn"
+                          aria-label="Increase quantity"
+                          onClick={() => updateQty(l.key, l.quantity + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
                       <span className="money">{formatTTD(l.unitPrice * l.quantity)}</span>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => removeLine(l.key)}
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 ))}
-                {cart.length === 0 ? <div className="muted">Tap products to add.</div> : null}
+                {cart.length === 0 ? (
+                  <div className="muted">Tap a product, enter quantity, then add to cart.</div>
+                ) : null}
               </div>
 
               <div className="stack" style={{ marginTop: "1rem" }}>
@@ -906,6 +946,29 @@ export function PosTerminal({
           >
             <h3 style={{ marginTop: 0 }}>{addModal.product.name}</h3>
             <div className="stack" style={{ gap: "0.75rem" }}>
+              <label className="field">
+                Quantity
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={addModal.quantity}
+                  onChange={(e) =>
+                    setAddModal((prev) =>
+                      prev ? { ...prev, quantity: e.target.value } : prev,
+                    )
+                  }
+                  onFocus={(e) => e.currentTarget.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      confirmAddModal();
+                    }
+                  }}
+                  autoFocus={!addModal.product.variablePrice}
+                />
+              </label>
               {(addModal.product.variables || []).map((v) => (
                 <label key={v.name} className="field">
                   {v.name}

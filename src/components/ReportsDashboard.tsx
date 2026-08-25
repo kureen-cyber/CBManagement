@@ -63,6 +63,15 @@ export type ReportsData = {
   saleLines: SaleLineReport[];
   weekly: { label: string; income: number; expenses: number }[];
   dailyEarnings: { label: string; amount: number; date: string }[];
+  salesSummaryByDay: {
+    date: string;
+    grossSales: number;
+    refunds: number;
+    discounts: number;
+    netSales: number;
+    cogs: number;
+    grossProfit: number;
+  }[];
 };
 
 type TabId =
@@ -361,7 +370,6 @@ export function ReportsDashboard({
   const [tab, setTab] = useState<TabId>("overview");
   const [itemQuery, setItemQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
-  const [summaryQuery, setSummaryQuery] = useState("");
   const [refundQuery, setRefundQuery] = useState("");
   const [receiptQuery, setReceiptQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -429,18 +437,6 @@ export function ReportsDashboard({
   function toggleCategory(category: string) {
     setExpandedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   }
-
-  const filteredLines = useMemo(() => {
-    const q = summaryQuery.trim().toLowerCase();
-    if (!q) return data.saleLines;
-    return data.saleLines.filter(
-      (r) =>
-        r.description.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q) ||
-        r.saleNumber.toLowerCase().includes(q) ||
-        r.method.toLowerCase().includes(q),
-    );
-  }, [data.saleLines, summaryQuery]);
 
   const refundLines = useMemo(
     () => data.saleLines.filter((r) => r.isRefund),
@@ -909,80 +905,65 @@ export function ReportsDashboard({
         <Panel className="report-tab-panel">
           <h3>Sales summary</h3>
           <p className="muted">
-            Gross sales, refunds, discounts, net sales, and gross profit for{" "}
+            Daily gross sales, refunds, discounts, net sales, cost of goods, and gross profit for{" "}
             <strong>{periodLabel}</strong>.
           </p>
-          <div className="kpi-grid sales-summary-kpis" style={{ marginTop: "0.85rem" }}>
-            <div className="report-stat blue">
-              <div className="label">Gross sales</div>
-              <div className="value money">{formatTTD(data.grossSales)}</div>
-            </div>
-            <div className="report-stat accent">
-              <div className="label">Refunds</div>
-              <div className="value money">{formatTTD(data.refunds)}</div>
-            </div>
-            <div className="report-stat purple">
-              <div className="label">Discounts</div>
-              <div className="value money">{formatTTD(data.discounts)}</div>
-            </div>
-            <div className="report-stat sea">
-              <div className="label">Net sales</div>
-              <div className="value money">{formatTTD(data.netSales)}</div>
-            </div>
-            <div className="report-stat" style={{ borderColor: "rgba(31, 122, 77, 0.35)" }}>
-              <div className="label">Gross profit</div>
-              <div className="value money">{formatTTD(data.grossProfit)}</div>
-              <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
-                Net sales − COGS ({formatTTD(data.cogs)})
-              </div>
-            </div>
-          </div>
-          <SearchBar
-            value={summaryQuery}
-            onChange={setSummaryQuery}
-            placeholder="Search receipt, item, category, or method…"
-          />
           <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Receipt</th>
-                  <th>Item</th>
-                  <th>Category</th>
-                  <th>Type</th>
-                  <th>Qty</th>
-                  <th>Amount</th>
+                  <th>Gross sales</th>
+                  <th>Refunds</th>
+                  <th>Discounts</th>
+                  <th>Net sales</th>
+                  <th>Cost of goods</th>
+                  <th>Gross profit</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredLines.map((r) => (
-                  <tr key={r.id}>
-                    <td>{formatAppDateTime(new Date(r.soldAt))}</td>
-                    <td>
-                      {r.saleNumber}
-                      {r.isRefund ? (
-                        <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>
-                          Refund
-                        </span>
-                      ) : null}
-                    </td>
-                    <td>
-                      <strong>{r.description}</strong>
-                    </td>
-                    <td>{r.category}</td>
-                    <td>{r.isService ? "Service" : "Retail"}</td>
-                    <td>{r.quantity}</td>
-                    <td className="money">{formatTTD(r.lineTotal)}</td>
+                {data.salesSummaryByDay.map((r) => (
+                  <tr key={r.date}>
+                    <td>{formatAppDate(`${r.date}T12:00:00`)}</td>
+                    <td className="money">{formatTTD(r.grossSales)}</td>
+                    <td className="money">{formatTTD(r.refunds)}</td>
+                    <td className="money">{formatTTD(r.discounts)}</td>
+                    <td className="money">{formatTTD(r.netSales)}</td>
+                    <td className="money">{formatTTD(r.cogs)}</td>
+                    <td className="money">{formatTTD(r.grossProfit)}</td>
                   </tr>
                 ))}
-                {filteredLines.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="muted">
-                      No sales lines this period.
+                {data.salesSummaryByDay.length > 0 ? (
+                  <tr className="sales-summary-total-row">
+                    <td>
+                      <strong>Total</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.grossSales)}</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.refunds)}</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.discounts)}</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.netSales)}</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.cogs)}</strong>
+                    </td>
+                    <td className="money">
+                      <strong>{formatTTD(data.grossProfit)}</strong>
                     </td>
                   </tr>
-                ) : null}
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      No sales this period.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

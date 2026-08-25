@@ -225,6 +225,55 @@ export default async function ReportsPage({
     date: key,
   }));
 
+  type DaySummary = {
+    date: string;
+    grossSales: number;
+    refunds: number;
+    discounts: number;
+    cogs: number;
+  };
+  const daySummaryMap = new Map<string, DaySummary>();
+  function dayBucket(dt: Date): DaySummary {
+    const key = format(dt, "yyyy-MM-dd");
+    let row = daySummaryMap.get(key);
+    if (!row) {
+      row = { date: key, grossSales: 0, refunds: 0, discounts: 0, cogs: 0 };
+      daySummaryMap.set(key, row);
+    }
+    return row;
+  }
+  for (const sale of salesInRange) {
+    const row = dayBucket(sale.soldAt);
+    if (sale.isRefund) {
+      row.refunds += Math.abs(sale.total);
+    } else {
+      row.grossSales += Math.max(0, sale.subtotal);
+      row.discounts += Math.max(0, sale.discountAmount);
+    }
+  }
+  for (const line of saleLines) {
+    const service = Boolean(line.product?.isService);
+    if (service) continue;
+    const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
+    const unitCost = line.product?.unitCost ?? 0;
+    dayBucket(line.sale.soldAt).cogs += Math.round(unitCost * line.quantity) * sign;
+  }
+  const salesSummaryByDay = [...daySummaryMap.values()]
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+    .map((row) => {
+      const netSalesDay = Math.max(0, row.grossSales - row.discounts - row.refunds);
+      const cogsDay = Math.max(0, row.cogs);
+      return {
+        date: row.date,
+        grossSales: row.grossSales,
+        refunds: row.refunds,
+        discounts: row.discounts,
+        netSales: netSalesDay,
+        cogs: cogsDay,
+        grossProfit: netSalesDay - cogsDay,
+      };
+    });
+
   const weeklyMap = new Map<string, { label: string; sort: number; income: number; expenses: number }>();
   for (const sale of salesInRange) {
     const w = weekMeta(sale.soldAt);
@@ -315,6 +364,7 @@ export default async function ReportsPage({
           })),
           weekly,
           dailyEarnings,
+          salesSummaryByDay,
         }}
       />
     </div>

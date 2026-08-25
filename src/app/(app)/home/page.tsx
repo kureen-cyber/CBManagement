@@ -29,24 +29,19 @@ export default async function DashboardPage() {
   const prevMonthEnd = endOfMonth(subMonths(now, 1));
 
   const [
-    paymentsToday,
     expensesToday,
     outstandingInvoices,
     customerCount,
     employeeCount,
     activeJobs,
-    monthPayments,
+    monthSales,
     monthExpenses,
-    prevMonthPayments,
+    prevMonthSales,
     overdueInvoices,
     dueThisWeek,
     products,
     salesToday,
   ] = await Promise.all([
-    prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: { companyId, paidAt: { gte: todayStart, lte: todayEnd } },
-    }),
     prisma.expense.aggregate({
       _sum: { amount: true },
       where: { companyId, date: { gte: todayStart, lte: todayEnd } },
@@ -58,17 +53,26 @@ export default async function DashboardPage() {
     prisma.customer.count({ where: { companyId } }),
     prisma.employee.count({ where: { companyId, active: true } }),
     prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
-    prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: { companyId, paidAt: { gte: monthStart, lte: monthEnd } },
+    // COMPLETED only (excludes VOID open/voided tickets); refunds are negative → net sales
+    prisma.sale.aggregate({
+      _sum: { total: true },
+      where: {
+        companyId,
+        status: "COMPLETED",
+        soldAt: { gte: monthStart, lte: monthEnd },
+      },
     }),
     prisma.expense.aggregate({
       _sum: { amount: true },
       where: { companyId, date: { gte: monthStart, lte: monthEnd } },
     }),
-    prisma.payment.aggregate({
-      _sum: { amount: true },
-      where: { companyId, paidAt: { gte: prevMonthStart, lte: prevMonthEnd } },
+    prisma.sale.aggregate({
+      _sum: { total: true },
+      where: {
+        companyId,
+        status: "COMPLETED",
+        soldAt: { gte: prevMonthStart, lte: prevMonthEnd },
+      },
     }),
     prisma.invoice.count({
       where: {
@@ -94,14 +98,13 @@ export default async function DashboardPage() {
       where: {
         companyId,
         status: "COMPLETED",
-        isRefund: false,
         soldAt: { gte: todayStart, lte: todayEnd },
       },
     }),
   ]);
 
   const lowStockCount = products.filter((p) => p.stockQty <= p.minStock).length;
-  const salesTodayAmt = (paymentsToday._sum.amount ?? 0) || (salesToday._sum.total ?? 0);
+  const salesTodayAmt = Math.max(0, salesToday._sum.total ?? 0);
   const expensesTodayAmt = expensesToday._sum.amount ?? 0;
   const grossToday = salesTodayAmt - expensesTodayAmt;
 
@@ -118,11 +121,11 @@ export default async function DashboardPage() {
   );
   const notYetDue = Math.max(0, outstanding - overdueAmt - dueWeekAmt);
 
-  const salesMonth = monthPayments._sum.amount ?? 0;
+  const salesMonth = Math.max(0, monthSales._sum.total ?? 0);
   const expensesMonth = monthExpenses._sum.amount ?? 0;
   const profitMonth = salesMonth - expensesMonth;
   const margin = salesMonth === 0 ? 0 : (profitMonth / salesMonth) * 100;
-  const prevSales = prevMonthPayments._sum.amount ?? 0;
+  const prevSales = Math.max(0, prevMonthSales._sum.total ?? 0);
   const salesChange =
     prevSales === 0 ? (salesMonth > 0 ? 100 : 0) : ((salesMonth - prevSales) / prevSales) * 100;
 

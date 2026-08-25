@@ -147,7 +147,7 @@ export function VariableOptionsEditor({
                       <th>Price</th>
                       <th>In stock</th>
                       <th>Low stock</th>
-                      <th>Negative stock</th>
+                      <th>Optimal</th>
                       <th>SKU</th>
                     </tr>
                   </thead>

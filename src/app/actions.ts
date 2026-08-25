@@ -2234,8 +2234,8 @@ export async function voidPosSale(saleId: string, posRegisterId?: string | null)
   const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
   const cookieReg = await readActiveRegisterIdFromCookies();
   const access = resolveRegisterAccess(registers, posRegisterId || cookieReg);
-  if (!access.canVoidTickets) {
-    return { error: "Only POS register 1 can void completed receipts." };
+  if (!access.canRefund) {
+    return { error: "You do not have permission to void receipts." };
   }
 
   const original = await prisma.sale.findFirst({

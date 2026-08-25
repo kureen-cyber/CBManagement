@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateJobEngagement } from "@/app/actions";
+import { formatAppDate, formatAppMonthYear } from "@/lib/timezone";
 
 function toIsoDate(d: Date): string {
   const y = d.getFullYear();
@@ -65,10 +66,7 @@ export function JobEngagementCalendar({
     return out;
   }, [viewYear, viewMonth]);
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-TT", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = formatAppMonthYear(new Date(viewYear, viewMonth, 1));
 
   function shiftMonth(delta: number) {
     const d = new Date(viewYear, viewMonth + delta, 1);
@@ -137,14 +135,14 @@ export function JobEngagementCalendar({
           className={picking === "start" ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
           onClick={() => setPicking("start")}
         >
-          Start: {startDate ? parseIso(startDate).toLocaleDateString("en-TT") : "Select"}
+          Start: {startDate ? formatAppDate(parseIso(startDate)) : "Select"}
         </button>
         <button
           type="button"
           className={picking === "end" ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
           onClick={() => setPicking("end")}
         >
-          End: {endDate ? parseIso(endDate).toLocaleDateString("en-TT") : "Select"}
+          End: {endDate ? formatAppDate(parseIso(endDate)) : "Select"}
         </button>
       </div>
 

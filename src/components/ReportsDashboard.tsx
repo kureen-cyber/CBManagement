@@ -7,6 +7,7 @@ import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import type { CompanyBranding } from "@/lib/settings";
+import { formatAppDateTime } from "@/lib/timezone";
 
 export type SaleLineReport = {
   id: string;
@@ -771,7 +772,7 @@ export function ReportsDashboard({
               <tbody>
                 {filteredLines.map((r) => (
                   <tr key={r.id}>
-                    <td>{new Date(r.soldAt).toLocaleString("en-TT")}</td>
+                    <td>{formatAppDateTime(new Date(r.soldAt))}</td>
                     <td>
                       {r.saleNumber}
                       {r.isRefund ? (

@@ -10,6 +10,7 @@ import { InvoiceDetailTabs } from "@/components/InvoiceDetailTabs";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -57,12 +58,12 @@ export default async function InvoiceViewPage({
         </div>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span>Issue date</span>
-          <span>{invoice.issueDate.toLocaleDateString("en-TT")}</span>
+          <span>{formatAppDate(invoice.issueDate)}</span>
         </div>
         {invoice.dueDate ? (
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Due date</span>
-            <span>{invoice.dueDate.toLocaleDateString("en-TT")}</span>
+            <span>{formatAppDate(invoice.dueDate)}</span>
           </div>
         ) : null}
         <div className="row" style={{ justifyContent: "space-between" }}>

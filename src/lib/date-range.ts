@@ -6,6 +6,7 @@ import {
   type PlanTier,
   type ReportPeriodId,
 } from "@/lib/tier";
+import { formatAppDate, formatAppMonthYear } from "@/lib/timezone";
 
 export type DateRangeParams = {
   period?: string;
@@ -96,7 +97,7 @@ export function resolvePageDateRange(
         mode: "custom",
         fromIso: toIsoDate(startRaw),
         toIso: toIsoDate(endLabel),
-        label: `${start.toLocaleDateString("en-TT")} – ${endLabel.toLocaleDateString("en-TT")}`,
+        label: `${formatAppDate(start)} – ${formatAppDate(endLabel)}`,
       };
     }
   }
@@ -114,7 +115,7 @@ export function resolvePageDateRange(
       clamped,
       mode: "month",
       monthKey,
-      label: start.toLocaleDateString("en-TT", { month: "long", year: "numeric" }),
+      label: formatAppMonthYear(start),
     };
   }
 

@@ -5,6 +5,7 @@ import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { CustomerSummaryDiagram } from "@/components/CustomerSummaryDiagram";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,7 @@ type ActivityRow = {
 };
 
 function formatDate(d: Date) {
-  return d.toLocaleDateString("en-TT", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatAppDate(d);
 }
 
 export default async function CustomerDetailPage({

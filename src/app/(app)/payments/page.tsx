@@ -7,6 +7,7 @@ import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader, Panel } from "@/components/ui";
 import { PaymentForm } from "@/components/PaymentForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,7 @@ export default async function PaymentsPage({
           <tbody>
             {payments.map((p) => (
               <tr key={p.id}>
-                <td>{p.paidAt.toLocaleDateString("en-TT")}</td>
+                <td>{formatAppDate(p.paidAt)}</td>
                 <td>{p.customer.name}</td>
                 <td className="muted">{p.invoice?.number ?? p.reference ?? "—"}</td>
                 <td>{p.method}</td>

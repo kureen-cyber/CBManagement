@@ -12,6 +12,7 @@ import {
   updateSupplierItem,
 } from "@/app/actions";
 import { Panel } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 type SupplyItem = {
   id: string;
@@ -541,11 +542,7 @@ export function SupplierDetailClient({
                 {purchases.map((p) => (
                   <tr key={p.id}>
                     <td className="muted">
-                      {new Date(p.purchasedAt).toLocaleDateString("en-TT", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {formatAppDate(p.purchasedAt)}
                     </td>
                     <td>
                       <strong>{p.name}</strong>

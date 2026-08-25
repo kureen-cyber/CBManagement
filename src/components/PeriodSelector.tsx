@@ -8,6 +8,7 @@ import {
   parseIsoDate,
   type ResolvedDateRange,
 } from "@/lib/date-range";
+import { formatAppDate } from "@/lib/timezone";
 import { FREE_TIER_MAX_TRANSACTION_DAYS, REPORT_PERIODS, type ReportPeriodId } from "@/lib/tier";
 
 export function PeriodSelector({
@@ -97,7 +98,7 @@ export function PeriodSelector({
         <div>
           <strong>{range.label}</strong>
           <div className="muted" style={{ fontSize: "0.85rem", marginTop: "0.15rem" }}>
-            {range.start.toLocaleDateString("en-TT")} – {range.end.toLocaleDateString("en-TT")}
+            {formatAppDate(range.start)} – {formatAppDate(range.end)}
           </div>
         </div>
         <button
@@ -153,7 +154,7 @@ export function PeriodSelector({
 
       {pickStart && !pickEnd && pickingEnd ? (
         <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-          Start: {parseIsoDate(pickStart)?.toLocaleDateString("en-TT")} — pick an end date
+          Start: {pickStart ? formatAppDate(parseIsoDate(pickStart)) : "—"} — pick an end date
         </p>
       ) : null}
 

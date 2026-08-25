@@ -6,6 +6,7 @@ import { createExpense, deleteExpense, updateExpense } from "@/app/actions";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 type ExpenseRow = {
   id: string;
@@ -203,7 +204,7 @@ export function ExpensesClient({
                 </tr>
               ) : (
                 <tr key={e.id}>
-                  <td>{new Date(e.date).toLocaleDateString("en-TT")}</td>
+                  <td>{formatAppDate(new Date(e.date))}</td>
                   <td>{e.category}</td>
                   <td className="muted">{e.description ?? "—"}</td>
                   <td className="muted">{e.jobNumber ?? "—"}</td>

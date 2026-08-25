@@ -10,6 +10,7 @@ import { syncCompanyJobStatuses } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,7 @@ export default async function JobsPage({
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td>{j.createdAt.toLocaleDateString("en-TT")}</td>
+                  <td>{formatAppDate(j.createdAt)}</td>
                   <td>{j.customer.name}</td>
                   <td>
                     {needsDates ? (
@@ -102,8 +103,8 @@ export default async function JobsPage({
                       </Link>
                     ) : (
                       <span style={{ fontSize: "0.85rem" }}>
-                        {j.startDate?.toLocaleDateString("en-TT")} →{" "}
-                        {j.endDate?.toLocaleDateString("en-TT")}
+                        {formatAppDate(j.startDate)} →{" "}
+                        {formatAppDate(j.endDate)}
                       </span>
                     )}
                   </td>

@@ -8,6 +8,7 @@ import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { createInvoice } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -126,8 +127,8 @@ export default async function InvoicesPage({
                   <td>
                     <strong>{inv.number}</strong>
                   </td>
-                  <td>{inv.issueDate.toLocaleDateString("en-TT")}</td>
-                  <td>{inv.dueDate ? inv.dueDate.toLocaleDateString("en-TT") : "—"}</td>
+                  <td>{formatAppDate(inv.issueDate)}</td>
+                  <td>{formatAppDate(inv.dueDate)}</td>
                   <td>{inv.customer.name}</td>
                   <td>
                     {quote ? (

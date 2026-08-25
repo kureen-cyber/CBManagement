@@ -9,6 +9,7 @@ import { acceptAndConvertQuotation } from "@/app/actions";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +93,7 @@ export default async function QuotationsPage({
                       {q.fixedPrice ? " · Fixed price" : ""}
                     </div>
                   </td>
-                  <td>{q.createdAt.toLocaleDateString("en-TT")}</td>
+                  <td>{formatAppDate(q.createdAt)}</td>
                   <td>{q.customer.name}</td>
                   <td className="money">{formatTTD(cost)}</td>
                   <td className="money">{formatTTD(q.total)}</td>

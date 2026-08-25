@@ -7,6 +7,7 @@ import {
   ensureDefaultInventoryCategories,
   ensureDefaultPaymentTypes,
 } from "@/lib/catalog";
+import { formatAppDateTime } from "@/lib/timezone";
 import { ensureStoresForCompany } from "@/lib/store";
 import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
@@ -210,7 +211,7 @@ export default async function PosPage() {
                 <td>
                   <strong>{s.number}</strong>
                   <div className="muted" style={{ fontSize: "0.8rem" }}>
-                    {s.soldAt.toLocaleString("en-TT")}
+                    {formatAppDateTime(s.soldAt)}
                     {s.isRefund ? " · Refund" : ""}
                   </div>
                 </td>

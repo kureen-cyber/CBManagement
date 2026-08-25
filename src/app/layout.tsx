@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Fraunces, Manrope } from "next/font/google";
 import { parseTheme, themeColorScheme } from "@/lib/settings";
+import { ensureAppTimezone } from "@/lib/timezone";
 import "./globals.css";
+
+ensureAppTimezone();
 
 const fraunces = Fraunces({
   subsets: ["latin"],

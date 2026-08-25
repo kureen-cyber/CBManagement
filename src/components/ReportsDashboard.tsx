@@ -103,6 +103,8 @@ const TABS: { id: TabId; label: string; color: string }[] = [
 
 const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777", "#0f766e"];
 const LINE_COLOR = "#0a6b6e";
+const WEEKLY_INCOME_COLOR = "#1f7a4d";
+const WEEKLY_EXPENSE_COLOR = "#c45c26";
 
 function DonutChart({
   slices,
@@ -112,16 +114,16 @@ function DonutChart({
   size?: number;
 }) {
   const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
-  const r = size / 2 - 18;
+  const r = size / 2 - Math.max(12, size * 0.08);
   const c = size / 2;
-  const stroke = 28;
+  const stroke = Math.max(16, Math.round(size * 0.12));
 
   if (total <= 0) {
     return (
       <div className="chart-empty">
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <circle cx={c} cy={c} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
-          <text x={c} y={c} textAnchor="middle" dominantBaseline="middle" fill="var(--muted)" fontSize="14">
+          <text x={c} y={c} textAnchor="middle" dominantBaseline="middle" fill="var(--muted)" fontSize="12">
             No data yet
           </text>
         </svg>
@@ -165,11 +167,11 @@ function DonutChart({
             className="donut-slice"
           />
         ))}
-        <circle cx={c} cy={c} r={r - stroke / 2 - 4} fill="var(--surface)" />
-        <text x={c} y={c - 8} textAnchor="middle" className="donut-center-label">
+        <circle cx={c} cy={c} r={r - stroke / 2 - 3} fill="var(--surface)" />
+        <text x={c} y={c - 6} textAnchor="middle" className="donut-center-label">
           Total
         </text>
-        <text x={c} y={c + 14} textAnchor="middle" className="donut-center-value">
+        <text x={c} y={c + 10} textAnchor="middle" className="donut-center-value">
           {formatTTD(total)}
         </text>
       </svg>
@@ -186,58 +188,32 @@ function DonutChart({
   );
 }
 
-function BarChart({
-  bars,
-}: {
-  bars: { label: string; income: number; expenses: number }[];
-}) {
-  const max = Math.max(1, ...bars.flatMap((b) => [b.income, b.expenses]));
-  return (
-    <div className="bar-chart">
-      {bars.map((b) => (
-        <div key={b.label} className="bar-col">
-          <div className="bar-pair">
-            <div
-              className="bar income"
-              style={{ height: `${Math.max(4, (b.income / max) * 140)}px` }}
-              title={`Income ${formatTTD(b.income)}`}
-            />
-            <div
-              className="bar expense"
-              style={{ height: `${Math.max(4, (b.expenses / max) * 140)}px` }}
-              title={`Expenses ${formatTTD(b.expenses)}`}
-            />
-          </div>
-          <div className="bar-label">{b.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function LineChart({
   points,
+  height = 160,
+  ariaLabel = "Line chart",
 }: {
   points: { label: string; amount: number; date: string }[];
+  height?: number;
+  ariaLabel?: string;
 }) {
   const width = 640;
-  const height = 220;
-  const padL = 36;
-  const padR = 16;
-  const padT = 28;
-  const padB = 36;
+  const padL = 28;
+  const padR = 12;
+  const padT = 22;
+  const padB = 28;
 
   if (!points.length) {
     return (
       <div className="chart-empty line-chart">
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily earnings">
+        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
           <text
             x={width / 2}
             y={height / 2}
             textAnchor="middle"
             dominantBaseline="middle"
             fill="var(--muted)"
-            fontSize="14"
+            fontSize="12"
           >
             No data yet
           </text>
@@ -262,13 +238,12 @@ function LineChart({
 
   const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
 
-  // Show amount labels sparingly: first, last, and peaks / every ~N points
-  const labelStep = Math.max(1, Math.ceil(n / 5));
+  const labelStep = Math.max(1, Math.ceil(n / 4));
   const showLabel = (i: number) => i === 0 || i === n - 1 || i % labelStep === 0;
 
   return (
     <div className="line-chart">
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Daily earnings">
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
         <line
           x1={padL}
           y1={padT + innerH}
@@ -277,29 +252,140 @@ function LineChart({
           stroke="var(--line)"
           strokeWidth="1"
         />
-        <path d={pathD} fill="none" stroke={LINE_COLOR} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <path
+          d={pathD}
+          fill="none"
+          stroke={LINE_COLOR}
+          strokeWidth="2.25"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {coords.map((c, i) => (
           <g key={c.date}>
-            <circle cx={c.x} cy={c.y} r={3.5} fill={LINE_COLOR} />
+            <circle cx={c.x} cy={c.y} r={3} fill={LINE_COLOR} />
             {showLabel(i) && c.amount > 0 ? (
               <text
                 x={c.x}
-                y={c.y - 10}
+                y={c.y - 8}
                 textAnchor="middle"
                 fill={LINE_COLOR}
-                fontSize="10"
+                fontSize="9"
                 fontWeight="700"
               >
                 {formatTTD(c.amount)}
               </text>
             ) : null}
-            {(i === 0 || i === n - 1 || i % Math.max(1, Math.ceil(n / 4)) === 0) ? (
+            {i === 0 || i === n - 1 || i % Math.max(1, Math.ceil(n / 4)) === 0 ? (
               <text
                 x={c.x}
-                y={height - 10}
+                y={height - 8}
                 textAnchor="middle"
                 fill="var(--muted)"
-                fontSize="10"
+                fontSize="9"
+                fontWeight="600"
+              >
+                {c.label}
+              </text>
+            ) : null}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function WeeklyLineChart({
+  points,
+  height = 160,
+}: {
+  points: { label: string; income: number; expenses: number }[];
+  height?: number;
+}) {
+  const width = 640;
+  const padL = 28;
+  const padR = 12;
+  const padT = 22;
+  const padB = 28;
+
+  if (!points.length) {
+    return (
+      <div className="chart-empty line-chart">
+        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Weekly flow">
+          <text
+            x={width / 2}
+            y={height / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="var(--muted)"
+            fontSize="12"
+          >
+            No data yet
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  const max = Math.max(1, ...points.flatMap((p) => [p.income, p.expenses]));
+  const min = 0;
+  const span = Math.max(1, max - min);
+  const innerW = width - padL - padR;
+  const innerH = height - padT - padB;
+  const n = points.length;
+
+  const coords = points.map((p, i) => {
+    const x = padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+    const incomeY = padT + innerH - ((p.income - min) / span) * innerH;
+    const expenseY = padT + innerH - ((p.expenses - min) / span) * innerH;
+    return { ...p, x, incomeY, expenseY };
+  });
+
+  const incomePath = coords
+    .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.incomeY.toFixed(1)}`)
+    .join(" ");
+  const expensePath = coords
+    .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.expenseY.toFixed(1)}`)
+    .join(" ");
+  const labelStep = Math.max(1, Math.ceil(n / 4));
+
+  return (
+    <div className="line-chart">
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Weekly flow">
+        <line
+          x1={padL}
+          y1={padT + innerH}
+          x2={width - padR}
+          y2={padT + innerH}
+          stroke="var(--line)"
+          strokeWidth="1"
+        />
+        <path
+          d={incomePath}
+          fill="none"
+          stroke={WEEKLY_INCOME_COLOR}
+          strokeWidth="2.25"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path
+          d={expensePath}
+          fill="none"
+          stroke={WEEKLY_EXPENSE_COLOR}
+          strokeWidth="2.25"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {coords.map((c, i) => (
+          <g key={`${c.label}-${i}`}>
+            <circle cx={c.x} cy={c.incomeY} r={3} fill={WEEKLY_INCOME_COLOR} />
+            <circle cx={c.x} cy={c.expenseY} r={3} fill={WEEKLY_EXPENSE_COLOR} />
+            {i === 0 || i === n - 1 || i % labelStep === 0 ? (
+              <text
+                x={c.x}
+                y={height - 8}
+                textAnchor="middle"
+                fill="var(--muted)"
+                fontSize="9"
                 fontWeight="600"
               >
                 {c.label}
@@ -500,30 +586,36 @@ export function ReportsDashboard({
           ]}
         />
 
-        <div className="reports-diagrams">
-          <div className="diagram-card">
+        <div className="reports-diagrams reports-diagrams-compact">
+          <div className="diagram-card diagram-card-compact">
             <h3>Money mix</h3>
-            <DonutChart slices={overviewSlices} />
+            <DonutChart slices={overviewSlices} size={140} />
           </div>
-          <div className="diagram-card">
+          <div className="diagram-card diagram-card-compact">
             <h3>Daily earnings</h3>
-            <LineChart points={data.dailyEarnings} />
+            <LineChart points={data.dailyEarnings} height={140} ariaLabel="Daily earnings" />
+          </div>
+          <div className="diagram-card diagram-card-compact">
+            <h3>Weekly flow</h3>
+            {data.weekly.length > 0 ? (
+              <>
+                <WeeklyLineChart points={data.weekly} height={140} />
+                <div className="bar-key">
+                  <span>
+                    <i className="swatch income" /> Income
+                  </span>
+                  <span>
+                    <i className="swatch expense" /> Expenses
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="muted" style={{ margin: 0, fontSize: "0.82rem" }}>
+                No weekly data yet.
+              </p>
+            )}
           </div>
         </div>
-        {data.weekly.length > 0 ? (
-          <div className="diagram-card" style={{ marginTop: "1rem" }}>
-            <h3>Weekly flow</h3>
-            <BarChart bars={data.weekly} />
-            <div className="bar-key">
-              <span>
-                <i className="swatch income" /> Income
-              </span>
-              <span>
-                <i className="swatch expense" /> Expenses
-              </span>
-            </div>
-          </div>
-        ) : null}
       </Panel>
 
       <div className="settings-tabs report-tabs" role="tablist">

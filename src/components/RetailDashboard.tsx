@@ -20,7 +20,6 @@ export async function RetailDashboard() {
       where: {
         companyId,
         status: "COMPLETED",
-        isRefund: false,
         soldAt: { gte: todayStart, lte: todayEnd },
       },
     }),
@@ -47,7 +46,8 @@ export async function RetailDashboard() {
   ]);
 
   const lowStock = products.filter((p) => p.stockQty <= p.minStock).length;
-  const salesAmt = salesToday._sum.total ?? 0;
+  // Net of refunds (negative sale totals); voids excluded via COMPLETED
+  const salesAmt = Math.max(0, salesToday._sum.total ?? 0);
 
   return (
     <div className="stack">

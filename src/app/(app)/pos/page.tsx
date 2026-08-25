@@ -147,6 +147,9 @@ export default async function PosPage() {
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
         categories={categories.map((c) => c.name)}
+        categoryColors={Object.fromEntries(
+          categories.map((c) => [c.name.toLowerCase(), c.color]),
+        )}
         discounts={discounts.map((d) => ({
           id: d.id,
           name: d.name,

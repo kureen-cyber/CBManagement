@@ -156,7 +156,7 @@ export default async function CustomerDetailPage({
         jobs={customer.jobs.length}
         invoices={customer.invoices.length}
       />
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

@@ -190,7 +190,7 @@ export default async function PosPage() {
         customers={customers.map((c) => ({ id: c.id, name: c.name }))}
       />
 
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         {isFreeRetailTier(planTier) ? (
           <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>
             Showing receipts from the last {FREE_TIER_MAX_TRANSACTION_DAYS} days only.

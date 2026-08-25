@@ -3,6 +3,7 @@
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createExpense, deleteExpense, updateExpense } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
@@ -91,7 +92,7 @@ export function ExpensesClient({
         </div>
       ) : null}
 
-      <Panel style={{ padding: "1.25rem" }}>
+      <AddEntityTab label="Add expense">
         <form className="form-grid" onSubmit={onCreate} autoComplete="off">
           <label className="field">
             Category
@@ -151,9 +152,9 @@ export function ExpensesClient({
             </button>
           </div>
         </form>
-      </Panel>
+      </AddEntityTab>
 
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

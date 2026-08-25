@@ -11,6 +11,7 @@ import {
   deleteSupplierPurchase,
   updateSupplierItem,
 } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { Panel } from "@/components/ui";
 import { formatAppDate } from "@/lib/timezone";
 
@@ -195,8 +196,7 @@ export function SupplierDetailClient({
 
       {tab === "database" ? (
         <>
-          <Panel style={{ padding: "1.25rem" }}>
-            <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Add to supply database</h2>
+          <AddEntityTab label="Add supply item" title="Add to supply database" wide>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
               In-house cost reference for this supplier — used when building quotations. Classify
               each item as material, equipment, equipment rental, or an additional cost category you
@@ -313,9 +313,9 @@ export function SupplierDetailClient({
                 </button>
               </div>
             </form>
-          </Panel>
+          </AddEntityTab>
 
-          <Panel className="table-wrap">
+          <Panel className="table-wrap list-dense">
             <table className="data">
               <thead>
                 <tr>
@@ -431,7 +431,7 @@ export function SupplierDetailClient({
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="muted">
-                      No supply items yet — add costs here for quotations.
+                      No supply items yet — use Add supply item.
                     </td>
                   </tr>
                 ) : null}
@@ -443,8 +443,7 @@ export function SupplierDetailClient({
 
       {tab === "purchases" ? (
         <>
-          <Panel style={{ padding: "1.25rem" }}>
-            <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Record a purchase</h2>
+          <AddEntityTab label="Record purchase" title="Record a purchase" wide>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
               Track what you actually bought from this supplier. Optionally pick from the supply
               database to fill name and cost.
@@ -524,9 +523,9 @@ export function SupplierDetailClient({
                 </button>
               </div>
             </form>
-          </Panel>
+          </AddEntityTab>
 
-          <Panel className="table-wrap">
+          <Panel className="table-wrap list-dense">
             <table className="data">
               <thead>
                 <tr>
@@ -579,7 +578,7 @@ export function SupplierDetailClient({
                 {purchases.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="muted">
-                      No purchases recorded yet.
+                      No purchases recorded yet — use Record purchase.
                     </td>
                   </tr>
                 ) : null}

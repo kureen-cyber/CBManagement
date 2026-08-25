@@ -6,6 +6,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { acceptAndConvertQuotation } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
@@ -50,7 +51,7 @@ export default async function QuotationsPage({
           isFree={isFreeTier(planTier)}
         />
       </Panel>
-      <Panel style={{ padding: "1.25rem" }}>
+      <AddEntityTab label="Add quotation" title="New quotation" wide>
         <QuotationForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
           supplyCatalog={supplyItems.map((i) => ({
@@ -62,8 +63,8 @@ export default async function QuotationsPage({
             supplierName: i.supplier.name,
           }))}
         />
-      </Panel>
-      <Panel className="table-wrap">
+      </AddEntityTab>
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

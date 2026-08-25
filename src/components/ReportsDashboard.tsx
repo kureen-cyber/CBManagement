@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import type { ResolvedDateRange } from "@/lib/date-range";
 import { formatTTD } from "@/lib/money";
@@ -352,6 +352,7 @@ export function ReportsDashboard({
   const [categoryQuery, setCategoryQuery] = useState("");
   const [summaryQuery, setSummaryQuery] = useState("");
   const [refundQuery, setRefundQuery] = useState("");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const overviewSlices = useMemo(
     () => [
@@ -399,6 +400,23 @@ export function ReportsDashboard({
     if (!q) return data.salesByCategory;
     return data.salesByCategory.filter((r) => r.category.toLowerCase().includes(q));
   }, [data.salesByCategory, categoryQuery]);
+
+  const itemsByCategory = useMemo(() => {
+    const map = new Map<string, ReportsData["salesByItem"]>();
+    for (const item of data.salesByItem) {
+      const list = map.get(item.category) || [];
+      list.push(item);
+      map.set(item.category, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => b.netSales - a.netSales);
+    }
+    return map;
+  }, [data.salesByItem]);
+
+  function toggleCategory(category: string) {
+    setExpandedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
+  }
 
   const filteredLines = useMemo(() => {
     const q = summaryQuery.trim().toLowerCase();
@@ -702,6 +720,9 @@ export function ReportsDashboard({
       {tab === "by-category" ? (
         <Panel className="report-tab-panel">
           <h3>Search by category</h3>
+          <p className="muted">
+            Expand a category to see items sold, quantities, and sales for this period.
+          </p>
           <SearchBar value={categoryQuery} onChange={setCategoryQuery} placeholder="Search category…" />
           <div style={{ marginTop: "1rem" }}>
             <DonutChart
@@ -716,24 +737,85 @@ export function ReportsDashboard({
             <table className="data">
               <thead>
                 <tr>
-                  <th>Category</th>
+                  <th style={{ width: "2.25rem" }} aria-label="Expand" />
+                  <th>Category / Item</th>
                   <th>Qty sold</th>
                   <th>Sales</th>
+                  <th>Cost of goods</th>
+                  <th>Gross profit</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredCategories.map((r) => (
-                  <tr key={r.category}>
-                    <td>
-                      <strong>{r.category}</strong>
-                    </td>
-                    <td>{r.qty}</td>
-                    <td className="money">{formatTTD(r.amount)}</td>
-                  </tr>
-                ))}
+                {filteredCategories.map((r) => {
+                  const open = Boolean(expandedCategories[r.category]);
+                  const items = itemsByCategory.get(r.category) || [];
+                  const categoryCogs = items.reduce((s, i) => s + i.cogs, 0);
+                  const categoryGp = items.reduce((s, i) => s + i.grossProfit, 0);
+                  return (
+                    <Fragment key={r.category}>
+                      <tr className="category-row-summary">
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm report-expand-btn"
+                            aria-expanded={open}
+                            aria-label={open ? `Collapse ${r.category}` : `Expand ${r.category}`}
+                            onClick={() => toggleCategory(r.category)}
+                            disabled={items.length === 0}
+                          >
+                            <span
+                              className={open ? "report-chevron open" : "report-chevron"}
+                              aria-hidden
+                            >
+                              ▸
+                            </span>
+                          </button>
+                        </td>
+                        <td>
+                          <strong>{r.category}</strong>
+                          <div className="muted" style={{ fontSize: "0.72rem" }}>
+                            {items.length} item{items.length === 1 ? "" : "s"}
+                          </div>
+                        </td>
+                        <td>{r.qty}</td>
+                        <td className="money">{formatTTD(r.amount)}</td>
+                        <td className="money">{formatTTD(categoryCogs)}</td>
+                        <td className="money">{formatTTD(categoryGp)}</td>
+                      </tr>
+                      {open
+                        ? items.map((item) => (
+                            <tr
+                              key={`${r.category}-${item.name}`}
+                              className="category-item-row"
+                            >
+                              <td />
+                              <td style={{ paddingLeft: "1.25rem" }}>
+                                <span>{item.name}</span>
+                                <div className="muted" style={{ fontSize: "0.72rem" }}>
+                                  {item.isService ? "Service" : "Retail"}
+                                </div>
+                              </td>
+                              <td>{item.qty}</td>
+                              <td className="money">{formatTTD(item.netSales)}</td>
+                              <td className="money">{formatTTD(item.cogs)}</td>
+                              <td className="money">{formatTTD(item.grossProfit)}</td>
+                            </tr>
+                          ))
+                        : null}
+                      {open && items.length === 0 ? (
+                        <tr className="category-item-row">
+                          <td />
+                          <td colSpan={5} className="muted" style={{ paddingLeft: "1.25rem" }}>
+                            No item lines for this category.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
                 {filteredCategories.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="muted">
+                    <td colSpan={6} className="muted">
                       No matching categories this period.
                     </td>
                   </tr>

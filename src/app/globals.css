@@ -780,7 +780,7 @@ input:focus, select:focus, textarea:focus {
   background: rgba(196, 92, 38, 0.1);
 }
 
-.inventory-variant-data tbody tr.variant-row-negative td {
+.inventory-variant-data tbody tr.variant-row-out td {
   background: rgba(180, 35, 24, 0.1);
 }
 
@@ -792,8 +792,15 @@ input:focus, select:focus, textarea:focus {
   border-left-color: #c45c26;
 }
 
-.inventory-variant-data tbody tr.variant-row-negative td:first-child {
+.inventory-variant-data tbody tr.variant-row-out td:first-child {
   border-left-color: var(--danger);
+}
+
+.inventory-variant-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .inventory-list-row .inventory-thumb,

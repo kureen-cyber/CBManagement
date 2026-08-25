@@ -9,7 +9,7 @@ export type VariableOption = {
   unitPrice?: number;
   /** Low-stock threshold for this option. */
   minStock?: number;
-  /** Target / negative-stock threshold for replenishment alerts. */
+  /** Target / optimal stock level for replenishment. */
   optimalStock?: number;
   sku?: string;
 };

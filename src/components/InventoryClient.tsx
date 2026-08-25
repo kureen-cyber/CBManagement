@@ -8,7 +8,6 @@ import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { InventoryViewMode } from "@/lib/settings";
 import {
   isOptionLowStock,
-  resolveOptionMinStock,
   resolveOptionUnitCost,
   resolveOptionUnitPrice,
   type VariableOption,
@@ -113,12 +112,10 @@ function VariantTable({
         <thead>
           <tr>
             <th>{first.name}</th>
-            <th>Cost</th>
             <th>Price</th>
+            <th>Cost</th>
             <th>Margin %</th>
             <th>In stock</th>
-            <th>Low stock</th>
-            <th>Negative stock</th>
           </tr>
         </thead>
         <tbody>
@@ -126,13 +123,11 @@ function VariantTable({
             const cost = resolveOptionUnitCost(o, unitCost);
             const price = resolveOptionUnitPrice(o, unitPrice, Boolean(variablePrice));
             const costCents = cost > 0 ? cost : null;
-            const lowAt = resolveOptionMinStock(o, productMinStock);
-            const negativeStock = Number(o.optimalStock) || 0;
-            const isLow = isOptionLowStock(o, productMinStock);
-            const isNegative = o.qty < 0;
+            const isOut = o.qty <= 0;
+            const isLow = !isOut && isOptionLowStock(o, productMinStock);
             const rowClass = highlightRows
-              ? isNegative
-                ? "variant-row variant-row-negative"
+              ? isOut
+                ? "variant-row variant-row-out"
                 : isLow
                   ? "variant-row variant-row-low"
                   : "variant-row"
@@ -142,16 +137,21 @@ function VariantTable({
                 <td>
                   <strong>{o.label}</strong>
                 </td>
-                <td className="money">{costCents != null ? formatTTD(costCents) : "—"}</td>
                 <td className="money">{price != null ? formatTTD(price) : "At POS"}</td>
+                <td className="money">{costCents != null ? formatTTD(costCents) : "—"}</td>
                 <td>{marginLabel(costCents, price)}</td>
                 <td>
-                  <strong>
-                    {o.qty} {unit}
-                  </strong>
+                  <div className="inventory-variant-stock">
+                    <strong>
+                      {o.qty} {unit}
+                    </strong>
+                    {isOut ? (
+                      <span className="badge badge-danger">Out of stock</span>
+                    ) : isLow ? (
+                      <span className="badge badge-warn">Low stock</span>
+                    ) : null}
+                  </div>
                 </td>
-                <td>{lowAt > 0 ? lowAt : "—"}</td>
-                <td>{negativeStock !== 0 ? negativeStock : "—"}</td>
               </tr>
             );
           })}
@@ -231,17 +231,17 @@ function VariantExpanded({
 
 function StockStatusBadge({
   isService,
-  negative,
+  out,
   low,
   listMode,
 }: {
   isService: boolean;
-  negative: boolean;
+  out: boolean;
   low: boolean;
   listMode?: boolean;
 }) {
   if (isService) return <span className="badge badge-info">Service</span>;
-  if (negative) return <span className="badge badge-danger">Negative stock</span>;
+  if (out) return <span className="badge badge-danger">Out of stock</span>;
   if (low) return <span className="badge badge-warn">Low stock</span>;
   return <span className="badge badge-ok">{listMode ? "OK" : "In stock"}</span>;
 }
@@ -535,14 +535,14 @@ export function InventoryClient({
       <div className={viewMode === "list" ? "inventory-list" : "inventory-grid"}>
         {products.map((p) => {
           const hasOptions = Boolean(p.variables?.some((v) => v.options.length));
-          const negative =
+          const out =
             p.trackStock &&
             !p.isService &&
-            (hasOptions && p.variables
-              ? p.variables.some((v) => v.options.some((o) => o.qty < 0)) || p.stockQty < 0
-              : p.stockQty < 0);
+            (hasOptions && p.variables?.[0]?.options.length
+              ? p.variables[0].options.every((o) => o.qty <= 0)
+              : p.stockQty <= 0);
           const low =
-            !negative &&
+            !out &&
             p.trackStock &&
             !p.isService &&
             (hasOptions && p.variables
@@ -586,17 +586,17 @@ export function InventoryClient({
                     <>
                       <div>
                         <div className="muted" style={{ fontSize: "0.72rem" }}>
-                          Cost
-                        </div>
-                        <strong className="money">{formatTTD(p.unitCost)}</strong>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: "0.72rem" }}>
                           Price
                         </div>
                         <strong className="money">
                           {p.variablePrice ? "At POS" : formatTTD(p.unitPrice)}
                         </strong>
+                      </div>
+                      <div>
+                        <div className="muted" style={{ fontSize: "0.72rem" }}>
+                          Cost
+                        </div>
+                        <strong className="money">{formatTTD(p.unitCost)}</strong>
                       </div>
                       <div>
                         <div className="muted" style={{ fontSize: "0.72rem" }}>
@@ -609,7 +609,7 @@ export function InventoryClient({
                   <div>
                     <StockStatusBadge
                       isService={p.isService}
-                      negative={negative}
+                      out={out}
                       low={low}
                       listMode
                     />
@@ -669,17 +669,17 @@ export function InventoryClient({
               <div className="row" style={{ marginTop: "0.75rem", justifyContent: "space-between" }}>
                 <div>
                   <div className="muted" style={{ fontSize: "0.72rem" }}>
-                    Cost
-                  </div>
-                  <strong className="money">{formatTTD(p.unitCost)}</strong>
-                </div>
-                <div>
-                  <div className="muted" style={{ fontSize: "0.72rem" }}>
                     Price
                   </div>
                   <strong className="money">
                     {p.variablePrice ? "At POS" : formatTTD(p.unitPrice)}
                   </strong>
+                </div>
+                <div>
+                  <div className="muted" style={{ fontSize: "0.72rem" }}>
+                    Cost
+                  </div>
+                  <strong className="money">{formatTTD(p.unitCost)}</strong>
                 </div>
                 <div>
                   <div className="muted" style={{ fontSize: "0.72rem" }}>
@@ -695,7 +695,7 @@ export function InventoryClient({
                 </div>
               </div>
               <div style={{ marginTop: "0.75rem" }}>
-                <StockStatusBadge isService={p.isService} negative={negative} low={low} />
+                <StockStatusBadge isService={p.isService} out={out} low={low} />
               </div>
             </div>
           );

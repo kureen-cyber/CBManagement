@@ -1479,6 +1479,10 @@ input:focus, select:focus, textarea:focus {
 .category-row-summary td {
   vertical-align: middle;
 }
+.sales-summary-total-row td {
+  border-top: 2px solid var(--line);
+  background: rgba(230, 244, 244, 0.45);
+}
 
 @media (max-width: 900px) {
   .report-metric-strip,

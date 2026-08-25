@@ -7,7 +7,7 @@ import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import type { CompanyBranding } from "@/lib/settings";
-import { formatAppDateTime } from "@/lib/timezone";
+import { formatAppDate, formatAppDateTime } from "@/lib/timezone";
 
 export type SaleLineReport = {
   id: string;
@@ -51,6 +51,15 @@ export type ReportsData = {
     isService: boolean;
   }[];
   salesByCategory: { category: string; qty: number; amount: number }[];
+  receipts: {
+    id: string;
+    soldAt: string;
+    number: string;
+    employeeName: string | null;
+    customerName: string | null;
+    type: string;
+    total: number;
+  }[];
   saleLines: SaleLineReport[];
   weekly: { label: string; income: number; expenses: number }[];
   dailyEarnings: { label: string; amount: number; date: string }[];
@@ -65,6 +74,7 @@ type TabId =
   | "pos"
   | "by-item"
   | "by-category"
+  | "receipts"
   | "sales-summary"
   | "refunds";
 
@@ -77,6 +87,7 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "pos", label: "POS", color: "#0e7cc0" },
   { id: "by-item", label: "By item", color: "#db2777" },
   { id: "by-category", label: "By category", color: "#b45309" },
+  { id: "receipts", label: "Receipts", color: "#475569" },
   { id: "sales-summary", label: "Sales summary", color: "#0f766e" },
   { id: "refunds", label: "Refunds", color: "#b42318" },
 ];
@@ -352,6 +363,7 @@ export function ReportsDashboard({
   const [categoryQuery, setCategoryQuery] = useState("");
   const [summaryQuery, setSummaryQuery] = useState("");
   const [refundQuery, setRefundQuery] = useState("");
+  const [receiptQuery, setReceiptQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const overviewSlices = useMemo(
@@ -446,6 +458,23 @@ export function ReportsDashboard({
         r.method.toLowerCase().includes(q),
     );
   }, [refundLines, refundQuery]);
+
+  const filteredReceipts = useMemo(() => {
+    const q = receiptQuery.trim().toLowerCase();
+    const rows = data.receipts.map((r) => ({
+      ...r,
+      employeeDisplay: r.employeeName?.trim() || "Manager",
+      customerDisplay: r.customerName?.trim() || "Walk-in customer",
+    }));
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.number.toLowerCase().includes(q) ||
+        r.employeeDisplay.toLowerCase().includes(q) ||
+        r.customerDisplay.toLowerCase().includes(q) ||
+        r.type.toLowerCase().includes(q),
+    );
+  }, [data.receipts, receiptQuery]);
 
   const refundReceiptCount = useMemo(() => {
     const nums = new Set(refundLines.map((r) => r.saleNumber));
@@ -817,6 +846,56 @@ export function ReportsDashboard({
                   <tr>
                     <td colSpan={6} className="muted">
                       No matching categories this period.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "receipts" ? (
+        <Panel className="report-tab-panel">
+          <h3>Receipts</h3>
+          <p className="muted">
+            Completed POS receipts for <strong>{periodLabel}</strong>. Missing employee defaults to
+            Manager; missing customer defaults to Walk-in customer.
+          </p>
+          <SearchBar
+            value={receiptQuery}
+            onChange={setReceiptQuery}
+            placeholder="Search receipt, employee, customer, or type…"
+          />
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Receipt number</th>
+                  <th>Employee</th>
+                  <th>Customer</th>
+                  <th>Type</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredReceipts.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatAppDate(r.soldAt)}</td>
+                    <td>
+                      <strong>{r.number}</strong>
+                    </td>
+                    <td>{r.employeeDisplay}</td>
+                    <td>{r.customerDisplay}</td>
+                    <td>{r.type}</td>
+                    <td className="money">{formatTTD(r.total)}</td>
+                  </tr>
+                ))}
+                {filteredReceipts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="muted">
+                      No receipts this period.
                     </td>
                   </tr>
                 ) : null}

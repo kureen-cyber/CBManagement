@@ -80,13 +80,16 @@ export default async function ReportsPage({
       prisma.sale.findMany({
         where: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
         select: {
+          id: true,
+          number: true,
           soldAt: true,
           total: true,
           subtotal: true,
           discountAmount: true,
           isRefund: true,
+          customer: { select: { name: true } },
         },
-        orderBy: { soldAt: "asc" },
+        orderBy: { soldAt: "desc" },
       }),
     ]);
 
@@ -239,6 +242,16 @@ export default async function ReportsPage({
     .sort((a, b) => a.sort - b.sort)
     .map(({ label, income: inc, expenses: exp }) => ({ label, income: inc, expenses: exp }));
 
+  const receipts = salesInRange.map((s) => ({
+    id: s.id,
+    soldAt: s.soldAt.toISOString(),
+    number: s.number,
+    employeeName: null as string | null,
+    customerName: s.customer?.name?.trim() || null,
+    type: s.isRefund ? "Refund" : "Sale",
+    total: s.total,
+  }));
+
   return (
     <div className="stack">
       <PageHeader
@@ -285,6 +298,7 @@ export default async function ReportsPage({
             }))
             .sort((a, b) => b.netSales - a.netSales),
           salesByCategory: [...categoryMap.values()].sort((a, b) => b.amount - a.amount),
+          receipts,
           saleLines: saleLines.map((l) => ({
             id: l.id,
             description: l.description,

@@ -19,6 +19,7 @@ import { readActiveRegisterIdFromCookies } from "@/lib/register-access-server";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { RefundButton } from "@/components/RefundButton";
+import { VoidButton } from "@/components/VoidButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 import { formatAppDateTimeInZone } from "@/lib/timezone";
 
@@ -74,8 +75,14 @@ export default async function ReceiptPage({
   }
 
   const canPrint = company.receiptPrinting !== false;
+  const isVoided = sale.status === "VOID";
   const alreadyRefunded = sale.refunds.length > 0 || sale.isRefund;
   const canRefund =
+    access.canRefund &&
+    sale.status === "COMPLETED" &&
+    !sale.isRefund &&
+    !alreadyRefunded;
+  const canVoid =
     access.canRefund &&
     sale.status === "COMPLETED" &&
     !sale.isRefund &&
@@ -90,11 +97,13 @@ export default async function ReceiptPage({
   return (
     <div className="stack">
       <PageHeader
-        title={sale.isRefund ? "Refund receipt" : "Receipt"}
+        title={
+          sale.isRefund ? "Refund receipt" : isVoided ? "Voided receipt" : "Receipt"
+        }
         description={sale.number}
         actions={
           <>
-            <PrintButton enabled={canPrint} />
+            <PrintButton enabled={canPrint && !isVoided} />
             <EmailDocumentButton
               kind="receipt"
               documentId={sale.id}
@@ -104,6 +113,11 @@ export default async function ReceiptPage({
               saleId={sale.id}
               posRegisterId={access.registerId}
               disabled={!canRefund}
+            />
+            <VoidButton
+              saleId={sale.id}
+              posRegisterId={access.registerId}
+              disabled={!canVoid}
             />
             <Link className="btn btn-secondary" href="/pos">
               Back to POS
@@ -126,7 +140,7 @@ export default async function ReceiptPage({
             {header}
           </div>
           <div className="muted" style={{ fontSize: "0.85rem" }}>
-            {sale.isRefund ? "Refund" : labels.salesReceipt}
+            {sale.isRefund ? "Refund" : isVoided ? "Voided" : labels.salesReceipt}
             {isFreeRetailTier(planTier) ? ` · ${FREE_TIER_MAX_TRANSACTION_DAYS}-day visibility` : ""}
           </div>
         </div>
@@ -229,6 +243,13 @@ export default async function ReceiptPage({
             {formatTTD(sale.total)}
           </strong>
         </div>
+
+        {isVoided ? (
+          <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+            This receipt was voided. Inventory was restored and the sale is excluded from
+            dashboard, reports, and analytics.
+          </p>
+        ) : null}
 
         {alreadyRefunded && !sale.isRefund ? (
           <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>

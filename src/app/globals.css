@@ -725,13 +725,174 @@ input:focus, select:focus, textarea:focus {
 }
 
 .inventory-list-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto auto auto;
-  gap: 0.85rem;
-  align-items: center;
+  display: block;
   padding: 0.75rem 1rem;
   padding-right: 2.4rem;
   position: relative;
+}
+
+.inventory-top-tabs {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Densified inventory so more items fit on screen (~half prior row/card size). */
+.inventory-compact.inventory-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.4rem;
+}
+.inventory-compact .inventory-card {
+  padding: 0.45rem 0.55rem;
+  padding-right: 1.85rem;
+}
+.inventory-compact .inventory-card .name {
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+.inventory-compact.inventory-list {
+  gap: 0.28rem;
+}
+.inventory-compact .inventory-list-row {
+  padding: 0.35rem 0.55rem;
+  padding-right: 1.85rem;
+}
+.inventory-compact .inventory-list-row-main {
+  gap: 0.45rem;
+}
+.inventory-compact .inventory-list-row .inventory-thumb,
+.inventory-compact .inventory-card .inventory-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.inventory-compact .inventory-card .inventory-thumb {
+  width: 100%;
+  height: 56px;
+  margin-bottom: 0.3rem;
+  border-radius: 8px;
+}
+.inventory-compact .muted {
+  font-size: 0.7rem !important;
+}
+.inventory-compact .category-badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+}
+.inventory-compact .badge {
+  font-size: 0.68rem;
+  padding: 0.12rem 0.4rem;
+}
+.inventory-compact .inventory-variant-toggle {
+  padding: 0.18rem 0.5rem;
+  font-size: 0.7rem;
+}
+.inventory-compact .inventory-list-row-main .muted {
+  font-size: 0.65rem !important;
+}
+.inventory-compact .inventory-list-row-main strong {
+  font-size: 0.8rem;
+}
+
+.inventory-list-row-main {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1.4fr) auto auto auto auto;
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.inventory-list-row-main-compact {
+  grid-template-columns: auto 1fr auto;
+}
+
+.inventory-list-identity {
+  min-width: 0;
+}
+
+.inventory-variant-dropdown {
+  margin-top: 0.45rem;
+}
+
+.inventory-variant-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inventory-variant-toggle:hover {
+  border-color: var(--sea);
+  background: var(--sea-soft);
+  color: var(--sea-deep);
+}
+
+.inventory-variant-caret {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  line-height: 1;
+}
+
+.inventory-variant-dropdown.is-open .inventory-variant-expanded {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--line);
+}
+
+.inventory-list-identity .inventory-variant-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.inventory-variant-table {
+  margin-top: 0.15rem;
+}
+
+.inventory-variant-data thead th {
+  background: var(--sea-soft);
+  color: var(--sea-deep);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inventory-variant-data tbody tr.variant-row td {
+  background: rgba(10, 107, 110, 0.04);
+  border-bottom: 1px solid var(--line);
+}
+
+.inventory-variant-data tbody tr.variant-row-low td {
+  background: rgba(196, 92, 38, 0.1);
+}
+
+.inventory-variant-data tbody tr.variant-row-out td {
+  background: rgba(180, 35, 24, 0.1);
+}
+
+.inventory-variant-data tbody tr.variant-row td:first-child {
+  border-left: 3px solid var(--sea);
+}
+
+.inventory-variant-data tbody tr.variant-row-low td:first-child {
+  border-left-color: #c45c26;
+}
+
+.inventory-variant-data tbody tr.variant-row-out td:first-child {
+  border-left-color: var(--danger);
+}
+
+.inventory-variant-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .inventory-list-row .inventory-thumb,
@@ -1801,12 +1962,18 @@ input:focus, select:focus, textarea:focus {
   .inventory-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
-  .inventory-list-row {
+  .inventory-list-row-main {
     grid-template-columns: auto 1fr;
     gap: 0.65rem;
   }
-  .inventory-list-row > :nth-child(n+3) {
+  .inventory-list-row-main > :nth-child(n + 3) {
     grid-column: 2;
+  }
+  .inventory-list-row-main-compact {
+    grid-template-columns: auto 1fr auto;
+  }
+  .inventory-list-row-main-compact > :nth-child(n + 3) {
+    grid-column: auto;
   }
   .main {
     padding: 1.25rem 1.15rem 2.5rem;

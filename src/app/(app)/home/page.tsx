@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { getBusinessType } from "@/lib/session-business";
 import { requireCompany } from "@/lib/company";
-import { isRetailOnly } from "@/lib/business-type";
+import { isRetailOnly, isServiceOnly } from "@/lib/business-type";
 import { parseHomeLayout } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { RetailDashboard } from "@/components/RetailDashboard";
@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   const { company, companyId } = await requireCompany();
   const homeLayout = parseHomeLayout(company.homeLayout);
 
+  // Pure retail keeps the focused POS home; BOTH / service get the dual overview.
   if (isRetailOnly(businessType) || (businessType === "BOTH" && homeLayout === "RETAIL")) {
     return <RetailDashboard />;
   }
@@ -25,35 +26,24 @@ export default async function DashboardPage() {
   const todayEnd = endOfDay(now);
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const prevMonthStart = startOfMonth(subMonths(now, 1));
-  const prevMonthEnd = endOfMonth(subMonths(now, 1));
+  const showPos = !isServiceOnly(businessType);
+  const showService = businessType !== "RETAIL";
 
   const [
-    expensesToday,
+    posSalesMonth,
+    posSalesToday,
+    stockPurchasesMonth,
+    stockPurchasesRows,
+    equipmentExpensesMonth,
+    allExpensesMonth,
+    servicePaymentsMonth,
     outstandingInvoices,
     customerCount,
     employeeCount,
     activeJobs,
-    monthSales,
-    monthExpenses,
-    prevMonthSales,
-    overdueInvoices,
-    dueThisWeek,
     products,
-    salesToday,
+    quotationCountMonth,
   ] = await Promise.all([
-    prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: { companyId, date: { gte: todayStart, lte: todayEnd } },
-    }),
-    prisma.invoice.findMany({
-      where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
-      select: { total: true, amountPaid: true, dueDate: true },
-    }),
-    prisma.customer.count({ where: { companyId } }),
-    prisma.employee.count({ where: { companyId, active: true } }),
-    prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
-    // COMPLETED only (excludes VOID open/voided tickets); refunds are negative → net sales
     prisma.sale.aggregate({
       _sum: { total: true },
       where: {
@@ -62,37 +52,6 @@ export default async function DashboardPage() {
         soldAt: { gte: monthStart, lte: monthEnd },
       },
     }),
-    prisma.expense.aggregate({
-      _sum: { amount: true },
-      where: { companyId, date: { gte: monthStart, lte: monthEnd } },
-    }),
-    prisma.sale.aggregate({
-      _sum: { total: true },
-      where: {
-        companyId,
-        status: "COMPLETED",
-        soldAt: { gte: prevMonthStart, lte: prevMonthEnd },
-      },
-    }),
-    prisma.invoice.count({
-      where: {
-        companyId,
-        status: { in: ["SENT", "PARTIAL", "OVERDUE"] },
-        dueDate: { lt: todayStart },
-      },
-    }),
-    prisma.invoice.findMany({
-      where: {
-        companyId,
-        status: { in: ["SENT", "PARTIAL", "OVERDUE"] },
-        dueDate: {
-          gte: todayStart,
-          lte: new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000),
-        },
-      },
-      select: { total: true, amountPaid: true },
-    }),
-    prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.aggregate({
       _sum: { total: true },
       where: {
@@ -101,48 +60,103 @@ export default async function DashboardPage() {
         soldAt: { gte: todayStart, lte: todayEnd },
       },
     }),
+    // POS expenses = stock purchases (supplier buys of materials / untyped catalog)
+    prisma.supplierPurchase.findMany({
+      where: {
+        companyId,
+        purchasedAt: { gte: monthStart, lte: monthEnd },
+        OR: [
+          { supplierItemId: null },
+          { supplierItem: { supplyType: "MATERIAL" } },
+        ],
+      },
+      select: { totalCost: true },
+    }),
+    prisma.supplierPurchase.count({
+      where: {
+        companyId,
+        purchasedAt: { gte: monthStart, lte: monthEnd },
+        OR: [
+          { supplierItemId: null },
+          { supplierItem: { supplyType: "MATERIAL" } },
+        ],
+      },
+    }),
+    // Service expenses = equipment purchases
+    prisma.expense.aggregate({
+      _sum: { amount: true },
+      where: {
+        companyId,
+        date: { gte: monthStart, lte: monthEnd },
+        OR: [
+          { category: { in: ["Equipment", "Equipment rental"] } },
+          { autoExpenseKind: { in: ["EQUIPMENT", "EQUIPMENT_RENTAL"] } },
+        ],
+      },
+    }),
+    // All operating expenses on the Expense ledger (equipment, labour-related, rentals, etc.)
+    prisma.expense.aggregate({
+      _sum: { amount: true },
+      where: { companyId, date: { gte: monthStart, lte: monthEnd } },
+    }),
+    // Service income = payments applied to invoices this month
+    prisma.payment.aggregate({
+      _sum: { amount: true },
+      where: {
+        companyId,
+        invoiceId: { not: null },
+        paidAt: { gte: monthStart, lte: monthEnd },
+      },
+    }),
+    prisma.invoice.findMany({
+      where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
+      select: { total: true, amountPaid: true, dueDate: true },
+    }),
+    prisma.customer.count({ where: { companyId } }),
+    prisma.employee.count({ where: { companyId, active: true } }),
+    prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
+    prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
+    prisma.quotation.count({
+      where: { companyId, createdAt: { gte: monthStart, lte: monthEnd } },
+    }),
   ]);
 
+  const posSales = Math.max(0, posSalesMonth._sum.total ?? 0);
+  const posSalesTodayAmt = Math.max(0, posSalesToday._sum.total ?? 0);
+  const stockSpend = stockPurchasesMonth.reduce((s, r) => s + r.totalCost, 0);
+  const posProfit = posSales - stockSpend;
+  const posMargin = posSales === 0 ? 0 : (posProfit / posSales) * 100;
   const lowStockCount = products.filter((p) => p.stockQty <= p.minStock).length;
-  const salesTodayAmt = Math.max(0, salesToday._sum.total ?? 0);
-  const expensesTodayAmt = expensesToday._sum.amount ?? 0;
-  const grossToday = salesTodayAmt - expensesTodayAmt;
+
+  const serviceIncome = servicePaymentsMonth._sum.amount ?? 0;
+  const equipmentSpend = equipmentExpensesMonth._sum.amount ?? 0;
+  const serviceProfit = serviceIncome - equipmentSpend;
+  const serviceMargin = serviceIncome === 0 ? 0 : (serviceProfit / serviceIncome) * 100;
 
   const outstanding = outstandingInvoices.reduce(
     (sum, inv) => sum + (inv.total - inv.amountPaid),
     0,
   );
-  const overdueAmt = outstandingInvoices
-    .filter((inv) => inv.dueDate && inv.dueDate < todayStart)
-    .reduce((sum, inv) => sum + (inv.total - inv.amountPaid), 0);
-  const dueWeekAmt = dueThisWeek.reduce(
-    (sum, inv) => sum + (inv.total - inv.amountPaid),
-    0,
-  );
-  const notYetDue = Math.max(0, outstanding - overdueAmt - dueWeekAmt);
 
-  const salesMonth = Math.max(0, monthSales._sum.total ?? 0);
-  const expensesMonth = monthExpenses._sum.amount ?? 0;
-  const profitMonth = salesMonth - expensesMonth;
-  const margin = salesMonth === 0 ? 0 : (profitMonth / salesMonth) * 100;
-  const prevSales = Math.max(0, prevMonthSales._sum.total ?? 0);
-  const salesChange =
-    prevSales === 0 ? (salesMonth > 0 ? 100 : 0) : ((salesMonth - prevSales) / prevSales) * 100;
+  const totalIncome = posSales + serviceIncome;
+  const totalExpenses = stockSpend + (allExpensesMonth._sum.amount ?? 0);
+  const grossProfit = totalIncome - totalExpenses;
+  const profitMargin = totalIncome === 0 ? 0 : (grossProfit / totalIncome) * 100;
 
   return (
     <div className="stack">
       <PageHeader
-        title="Today's Business"
-        description="Plain numbers. No accounting jargon."
+        title="Business overview"
+        description="POS and service standing for this month."
         actions={
           <>
-            {businessType !== "SERVICE" ? (
+            {showPos ? (
               <Link className="btn btn-secondary" href="/pos">
                 Open POS
               </Link>
             ) : null}
-            <Link className="btn btn-primary" href="/invoices">
-              New invoice
+            <Link className="btn btn-primary" href="/quotations">
+              New quotation
             </Link>
             <Link className="btn btn-secondary" href="/settings">
               Settings
@@ -151,72 +165,146 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="kpi-grid">
-        <Panel className="kpi">
-          <div className="label">Sales today</div>
-          <div className="value money">{formatTTD(salesTodayAmt)}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Expenses today</div>
-          <div className="value money">{formatTTD(expensesTodayAmt)}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Gross profit</div>
-          <div className="value money">{formatTTD(grossToday)}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Money customers owe you</div>
-          <div className="value money">{formatTTD(outstanding)}</div>
-          <div className="hint">
-            Overdue {formatTTD(overdueAmt)} · Due this week {formatTTD(dueWeekAmt)} · Not yet due{" "}
-            {formatTTD(notYetDue)}
-          </div>
-        </Panel>
+      <div className="dashboard-split">
+        {showPos ? (
+          <Panel className="dashboard-side-card" style={{ padding: "1.25rem" }}>
+            <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.15rem" }}>POS</h2>
+            <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.85rem" }}>
+              Retail sales this month. Expenses here are new stock purchased from suppliers.
+            </p>
+            <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              <div className="report-stat sea">
+                <div className="label">Sales</div>
+                <div className="value money">{formatTTD(posSales)}</div>
+                <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  Today {formatTTD(posSalesTodayAmt)}
+                </div>
+              </div>
+              <div className="report-stat accent">
+                <div className="label">Stock purchases</div>
+                <div className="value money">{formatTTD(stockSpend)}</div>
+                <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  {stockPurchasesRows} purchase{stockPurchasesRows === 1 ? "" : "s"}
+                </div>
+              </div>
+              <div className="report-stat blue">
+                <div className="label">Gross profit</div>
+                <div className="value money">{formatTTD(posProfit)}</div>
+              </div>
+              <div className="report-stat purple">
+                <div className="label">Margin</div>
+                <div className="value">{posMargin.toFixed(1)}%</div>
+              </div>
+            </div>
+            <div className="muted" style={{ marginTop: "0.85rem", fontSize: "0.82rem" }}>
+              Low stock alerts: <strong>{lowStockCount}</strong>
+              {" · "}
+              <Link href="/inventory">Inventory</Link>
+              {" · "}
+              <Link href="/suppliers">Suppliers</Link>
+            </div>
+          </Panel>
+        ) : null}
+
+        {showService ? (
+          <Panel className="dashboard-side-card" style={{ padding: "1.25rem" }}>
+            <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.15rem" }}>Service</h2>
+            <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.85rem" }}>
+              Job and invoice income this month. Expenses here are equipment purchases.
+            </p>
+            <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+              <div className="report-stat sea">
+                <div className="label">Income</div>
+                <div className="value money">{formatTTD(serviceIncome)}</div>
+                <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  Invoice payments received
+                </div>
+              </div>
+              <div className="report-stat accent">
+                <div className="label">Equipment purchases</div>
+                <div className="value money">{formatTTD(equipmentSpend)}</div>
+              </div>
+              <div className="report-stat blue">
+                <div className="label">Gross profit</div>
+                <div className="value money">{formatTTD(serviceProfit)}</div>
+              </div>
+              <div className="report-stat purple">
+                <div className="label">Margin</div>
+                <div className="value">{serviceMargin.toFixed(1)}%</div>
+              </div>
+            </div>
+            <div className="muted" style={{ marginTop: "0.85rem", fontSize: "0.82rem" }}>
+              Active jobs: <strong>{activeJobs}</strong>
+              {" · "}
+              Quotations this month: <strong>{quotationCountMonth}</strong>
+              {" · "}
+              Customers owe: <strong className="money">{formatTTD(outstanding)}</strong>
+              {" · "}
+              <Link href="/quotations">Quotations</Link>
+              {" · "}
+              <Link href="/jobs">Jobs</Link>
+            </div>
+          </Panel>
+        ) : null}
       </div>
 
-      <div className="kpi-grid">
-        <Panel className="kpi">
-          <div className="label">Low stock items</div>
-          <div className="value">{lowStockCount}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Customers</div>
-          <div className="value">{customerCount}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Employees</div>
-          <div className="value">{employeeCount}</div>
-        </Panel>
-        <Panel className="kpi">
-          <div className="label">Active jobs</div>
-          <div className="value">{activeJobs}</div>
-        </Panel>
-      </div>
-
-      <Panel className="kpi">
-        <div className="label">Your business this month</div>
-        <div className="row" style={{ marginTop: "0.75rem", gap: "2rem" }}>
+      <Panel className="kpi" style={{ padding: "1.25rem" }}>
+        <div className="label">Overall business standing</div>
+        <p className="muted" style={{ margin: "0.35rem 0 1rem", fontSize: "0.85rem" }}>
+          Combined POS + service view for this month.
+        </p>
+        <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
           <div>
-            <div className="muted" style={{ fontSize: "0.8rem" }}>Sales</div>
-            <div className="value money" style={{ fontSize: "1.4rem" }}>{formatTTD(salesMonth)}</div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Customers
+            </div>
+            <div className="value" style={{ fontSize: "1.35rem" }}>
+              {customerCount}
+            </div>
           </div>
           <div>
-            <div className="muted" style={{ fontSize: "0.8rem" }}>Expenses</div>
-            <div className="value money" style={{ fontSize: "1.4rem" }}>{formatTTD(expensesMonth)}</div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Employees
+            </div>
+            <div className="value" style={{ fontSize: "1.35rem" }}>
+              {employeeCount}
+            </div>
           </div>
           <div>
-            <div className="muted" style={{ fontSize: "0.8rem" }}>Estimated profit</div>
-            <div className="value money" style={{ fontSize: "1.4rem" }}>{formatTTD(profitMonth)}</div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Total income
+            </div>
+            <div className="value money" style={{ fontSize: "1.35rem" }}>
+              {formatTTD(totalIncome)}
+            </div>
           </div>
           <div>
-            <div className="muted" style={{ fontSize: "0.8rem" }}>Profit margin</div>
-            <div className="value" style={{ fontSize: "1.4rem" }}>{margin.toFixed(1)}%</div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Total expenses
+            </div>
+            <div className="value money" style={{ fontSize: "1.35rem" }}>
+              {formatTTD(totalExpenses)}
+            </div>
+            <div className="muted" style={{ fontSize: "0.72rem", marginTop: "0.2rem" }}>
+              Stock + equipment + operating (labour, rentals, etc.)
+            </div>
           </div>
-        </div>
-        <div className="insight" style={{ marginTop: "1rem" }}>
-          Your sales are {Math.abs(salesChange).toFixed(0)}%{" "}
-          {salesChange >= 0 ? "higher" : "lower"} than last month
-          {overdueInvoices > 0 ? ` · ${overdueInvoices} overdue invoice(s)` : ""}.
+          <div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Gross profit
+            </div>
+            <div className="value money" style={{ fontSize: "1.35rem" }}>
+              {formatTTD(grossProfit)}
+            </div>
+          </div>
+          <div>
+            <div className="muted" style={{ fontSize: "0.8rem" }}>
+              Profit margin
+            </div>
+            <div className="value" style={{ fontSize: "1.35rem" }}>
+              {profitMargin.toFixed(1)}%
+            </div>
+          </div>
         </div>
       </Panel>
     </div>

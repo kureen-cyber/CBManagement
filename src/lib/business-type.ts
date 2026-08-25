@@ -20,6 +20,10 @@ export function isRetailOnly(type: BusinessType): boolean {
   return type === "RETAIL";
 }
 
+export function isServiceOnly(type: BusinessType): boolean {
+  return type === "SERVICE";
+}
+
 export function isServiceFocused(type: BusinessType): boolean {
   return type === "SERVICE" || type === "BOTH";
 }

@@ -746,18 +746,46 @@ input:focus, select:focus, textarea:focus {
   min-width: 0;
 }
 
-.inventory-variant-expanded {
-  margin-top: 0.75rem;
+.inventory-variant-dropdown {
+  margin-top: 0.45rem;
+}
+
+.inventory-variant-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inventory-variant-toggle:hover {
+  border-color: var(--sea);
+  background: var(--sea-soft);
+  color: var(--sea-deep);
+}
+
+.inventory-variant-caret {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  line-height: 1;
+}
+
+.inventory-variant-dropdown.is-open .inventory-variant-expanded {
+  margin-top: 0.65rem;
   padding-top: 0.65rem;
   border-top: 1px solid var(--line);
 }
 
-.inventory-variant-expanded-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  margin-bottom: 0.4rem;
+.inventory-list-identity .inventory-variant-table {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .inventory-variant-table {

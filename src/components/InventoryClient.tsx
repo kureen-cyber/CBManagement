@@ -192,8 +192,8 @@ function OptionStockSelect({
   );
 }
 
-/** Expanded variants table under the main item name (list view). */
-function VariantExpanded({
+/** Collapsed-by-default variants for list view (keeps rows tight). */
+function VariantDropdown({
   variables,
   unit,
   unitPrice,
@@ -208,23 +208,39 @@ function VariantExpanded({
   variablePrice?: boolean;
   productMinStock: number;
 }) {
+  const [open, setOpen] = useState(false);
   const first = variables[0];
   if (!first?.options.length) return null;
+  const count = first.options.length;
 
   return (
-    <div className="inventory-variant-expanded">
-      <div className="inventory-variant-expanded-label muted">
-        {first.name} variants
-      </div>
-      <VariantTable
-        variables={variables}
-        unit={unit}
-        unitPrice={unitPrice}
-        unitCost={unitCost}
-        variablePrice={variablePrice}
-        productMinStock={productMinStock}
-        highlightRows
-      />
+    <div className={open ? "inventory-variant-dropdown is-open" : "inventory-variant-dropdown"}>
+      <button
+        type="button"
+        className="inventory-variant-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>
+          {open ? `Hide ${first.name}` : `${first.name} (${count})`}
+        </span>
+        <span className="inventory-variant-caret" aria-hidden>
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open ? (
+        <div className="inventory-variant-expanded">
+          <VariantTable
+            variables={variables}
+            unit={unit}
+            unitPrice={unitPrice}
+            unitCost={unitCost}
+            variablePrice={variablePrice}
+            productMinStock={productMinStock}
+            highlightRows
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -616,7 +632,7 @@ export function InventoryClient({
                   </div>
                 </div>
                 {hasOptions && p.variables ? (
-                  <VariantExpanded
+                  <VariantDropdown
                     variables={p.variables}
                     unit={p.unit}
                     unitPrice={p.unitPrice}

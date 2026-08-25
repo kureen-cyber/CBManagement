@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { createCustomer } from "@/app/actions";
+import { DeleteCustomerButton } from "@/components/DeleteCustomerButton";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,14 @@ export default async function CustomersPage() {
       <Panel className="table-wrap">
         <table className="data">
           <thead>
-            <tr><th>Customer</th><th>Contact</th><th>Quotes</th><th>Jobs</th><th>Outstanding</th></tr>
+            <tr>
+              <th>Customer</th>
+              <th>Contact</th>
+              <th>Quotes</th>
+              <th>Jobs</th>
+              <th>Outstanding</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
             {customers.map((c) => {
@@ -45,14 +53,28 @@ export default async function CustomersPage() {
                 .reduce((s, i) => s + (i.total - i.amountPaid), 0);
               return (
                 <tr key={c.id}>
-                  <td><Link href={`/customers/${c.id}`}><strong>{c.name}</strong></Link></td>
+                  <td>
+                    <Link href={`/customers/${c.id}`}>
+                      <strong>{c.name}</strong>
+                    </Link>
+                  </td>
                   <td className="muted">{[c.phone, c.email].filter(Boolean).join(" · ") || "—"}</td>
                   <td>{c.quotations.length}</td>
                   <td>{c.jobs.length}</td>
                   <td className="money">{formatTTD(outstanding)}</td>
+                  <td>
+                    <DeleteCustomerButton customerId={c.id} customerName={c.name} />
+                  </td>
                 </tr>
               );
             })}
+            {customers.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  No customers yet — add one above.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </Panel>

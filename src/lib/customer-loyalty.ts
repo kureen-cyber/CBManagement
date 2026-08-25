@@ -13,33 +13,58 @@ export type CustomerLoyaltyData = {
   customersWithVisits: number;
   totalVisits: number;
   repeatRatePct: number;
+  breakdown: {
+    posVisits: number;
+    quotations: number;
+    jobs: number;
+  };
 };
 
 /**
- * Customer loyalty by repeat POS visits in the period.
- * A visit = one completed, non-refund sale linked to a customer.
+ * Customer loyalty by repeat engagement in the period.
+ * A visit = POS sale (completed, non-refund), quotation, or job linked to a customer.
  */
 export async function fetchCustomerLoyalty(
   companyId: string,
   start: Date,
   end: Date,
 ): Promise<CustomerLoyaltyData> {
-  const sales = await prisma.sale.findMany({
-    where: {
-      companyId,
-      status: "COMPLETED",
-      isRefund: false,
-      customerId: { not: null },
-      soldAt: { gte: start, lte: end },
-    },
-    select: { customerId: true },
-  });
+  const [sales, quotations, jobs] = await Promise.all([
+    prisma.sale.findMany({
+      where: {
+        companyId,
+        status: "COMPLETED",
+        isRefund: false,
+        customerId: { not: null },
+        soldAt: { gte: start, lte: end },
+      },
+      select: { customerId: true },
+    }),
+    prisma.quotation.findMany({
+      where: {
+        companyId,
+        createdAt: { gte: start, lte: end },
+      },
+      select: { customerId: true },
+    }),
+    prisma.job.findMany({
+      where: {
+        companyId,
+        createdAt: { gte: start, lte: end },
+      },
+      select: { customerId: true },
+    }),
+  ]);
 
   const visitCounts = new Map<string, number>();
-  for (const sale of sales) {
-    if (!sale.customerId) continue;
-    visitCounts.set(sale.customerId, (visitCounts.get(sale.customerId) || 0) + 1);
+  function bump(customerId: string | null | undefined) {
+    if (!customerId) return;
+    visitCounts.set(customerId, (visitCounts.get(customerId) || 0) + 1);
   }
+
+  for (const sale of sales) bump(sale.customerId);
+  for (const quote of quotations) bump(quote.customerId);
+  for (const job of jobs) bump(job.customerId);
 
   let firstTime = 0;
   let returning = 0;
@@ -51,7 +76,7 @@ export async function fetchCustomerLoyalty(
   }
 
   const customersWithVisits = visitCounts.size;
-  const totalVisits = sales.length;
+  const totalVisits = sales.length + quotations.length + jobs.length;
   const repeatCustomers = returning + loyal;
   const repeatRatePct =
     customersWithVisits > 0 ? Math.round((repeatCustomers / customersWithVisits) * 100) : 0;
@@ -60,6 +85,11 @@ export async function fetchCustomerLoyalty(
     customersWithVisits,
     totalVisits,
     repeatRatePct,
+    breakdown: {
+      posVisits: sales.length,
+      quotations: quotations.length,
+      jobs: jobs.length,
+    },
     slices: [
       {
         id: "first-time",

@@ -44,8 +44,8 @@ export function CustomerLoyaltyChart({ data }: { data: CustomerLoyaltyData }) {
       <div>
         <h3 style={{ margin: 0 }}>Customer loyalty</h3>
         <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.88rem", lineHeight: 1.45 }}>
-          Repeat visits from identified customers (completed POS sales in this period). Walk-ins
-          without a customer profile are not included.
+          Repeat engagement from identified customers in this period — each POS sale, quotation,
+          and job counts as a visit. Walk-ins without a customer profile are not included.
         </p>
       </div>
 
@@ -121,6 +121,13 @@ export function CustomerLoyaltyChart({ data }: { data: CustomerLoyaltyData }) {
           <div className="muted" style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
             {data.customersWithVisits} customer{data.customersWithVisits === 1 ? "" : "s"} ·{" "}
             {data.totalVisits} visit{data.totalVisits === 1 ? "" : "s"}
+            {data.totalVisits > 0 ? (
+              <>
+                {" "}
+                ({data.breakdown.posVisits} POS · {data.breakdown.quotations} quotes ·{" "}
+                {data.breakdown.jobs} jobs)
+              </>
+            ) : null}
           </div>
         </div>
       </div>

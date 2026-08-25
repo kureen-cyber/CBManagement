@@ -91,7 +91,12 @@ export default async function DashboardPage() {
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.aggregate({
       _sum: { total: true },
-      where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } },
+      where: {
+        companyId,
+        status: "COMPLETED",
+        isRefund: false,
+        soldAt: { gte: todayStart, lte: todayEnd },
+      },
     }),
   ]);
 

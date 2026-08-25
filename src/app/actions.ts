@@ -2213,5 +2213,94 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
   revalidatePath(`/pos/receipt/${original.id}`);
   revalidatePath("/inventory");
   revalidatePath("/reports");
+  revalidatePath("/analytics");
+  revalidatePath("/payments");
+  revalidatePath("/");
   return { saleId: refund.id, number: refund.number, originalNumber: original.number };
+}
+
+/**
+ * Void a completed POS receipt: restore stock, remove the linked payment, and set
+ * status VOID so the sale is excluded from dashboard / reports / analytics.
+ * Unlike refund, no reversing sale is created — metrics are scrubbed entirely.
+ */
+export async function voidPosSale(saleId: string, posRegisterId?: string | null) {
+  const { companyId } = await requireCompany();
+  const registers = await prisma.posRegister.findMany({
+    where: { companyId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const { resolveRegisterAccess } = await import("@/lib/register-access");
+  const { readActiveRegisterIdFromCookies } = await import("@/lib/register-access-server");
+  const cookieReg = await readActiveRegisterIdFromCookies();
+  const access = resolveRegisterAccess(registers, posRegisterId || cookieReg);
+  if (!access.canVoidTickets) {
+    return { error: "Only POS register 1 can void completed receipts." };
+  }
+
+  const original = await prisma.sale.findFirst({
+    where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
+    include: { lines: true },
+  });
+  if (!original) return { error: "Sale not found" };
+
+  const alreadyRefunded = await prisma.sale.findFirst({
+    where: { companyId, refundOfSaleId: original.id, isRefund: true },
+  });
+  if (alreadyRefunded) {
+    return { error: "This sale was refunded — void is not available. Use the refund record." };
+  }
+
+  for (const line of original.lines) {
+    if (!line.productId) continue;
+    const product = await prisma.product.findFirst({
+      where: { id: line.productId, companyId },
+    });
+    if (!product || !product.trackStock || product.isService) continue;
+
+    const variantLabel =
+      line.variantLabel?.trim() ||
+      parseVariantFromDescription(product.name, line.description) ||
+      undefined;
+
+    await applyProductStockDelta(product.id, line.quantity, {
+      variantLabel,
+      movement: {
+        type: "RETURN",
+        quantity: line.quantity,
+        unitCost: product.unitCost,
+        reference: original.number,
+        notes: variantLabel
+          ? `Void of ${original.number} (${variantLabel})`
+          : `Void of ${original.number}`,
+      },
+    });
+  }
+
+  // Scrub POS payment rows tied to this receipt (income / dashboard / reports).
+  await prisma.payment.deleteMany({
+    where: {
+      companyId,
+      reference: original.number,
+    },
+  });
+
+  await prisma.sale.update({
+    where: { id: original.id },
+    data: {
+      status: "VOID",
+      notes: original.notes
+        ? `${original.notes}\n[Voided]`
+        : "Voided — inventory restored; excluded from sales metrics",
+    },
+  });
+
+  revalidatePath("/pos");
+  revalidatePath(`/pos/receipt/${original.id}`);
+  revalidatePath("/inventory");
+  revalidatePath("/reports");
+  revalidatePath("/payments");
+  revalidatePath("/analytics");
+  revalidatePath("/");
+  return { ok: true as const, saleId: original.id, number: original.number };
 }

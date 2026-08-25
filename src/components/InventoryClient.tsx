@@ -21,7 +21,6 @@ import {
   VariableOptionsEditor,
   type VarDraft,
 } from "@/components/VariableOptionsEditor";
-import { Panel } from "@/components/ui";
 
 export type InventoryProduct = {
   id: string;
@@ -287,6 +286,7 @@ export function InventoryClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     setProducts(initialProducts);
@@ -348,9 +348,19 @@ export function InventoryClient({
         setVars([]);
         setImagePreview(null);
         form.reset();
+        setShowAdd(false);
       }
       router.refresh();
     });
+  }
+
+  function closeAdd() {
+    setShowAdd(false);
+    setMessage(null);
+    setIsService(false);
+    setVariablePrice(false);
+    setVars([]);
+    setImagePreview(null);
   }
 
   function onDeleted(id: string) {
@@ -386,169 +396,233 @@ export function InventoryClient({
   return (
     <div className="stack">
       {canManage ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form onSubmit={onCreate} className="form-grid" encType="multipart/form-data">
-            <label className="field">
-              Name
-              <input name="name" required placeholder="Item or fixed-price service" />
-            </label>
-            <label className="field">
-              SKU
-              <input name="sku" placeholder="Auto-generated if blank" />
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                Leave blank to auto-generate (e.g. SKU-0001)
-              </span>
-            </label>
-            <label className="field">
-              Category
-              <CategoryInput
-                name="category"
-                defaultValue={categories[0] || "General"}
-                suggestions={
-                  categories.length
-                    ? categories
-                    : [...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]
-                }
-                listId="inventory-category-suggestions"
-              />
-              {categories.length ? (
-                <span className="muted" style={{ fontSize: "0.78rem" }}>
-                  Category colours are set in Settings → POS → Categories
-                </span>
-              ) : null}
-            </label>
-            <label className="field full">
-              Item photo (optional)
-              <input
-                name="image"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  setImagePreview(file ? URL.createObjectURL(file) : null);
-                }}
-              />
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                PNG, JPEG, WebP, or GIF · max 500KB
-              </span>
-            </label>
-            {imagePreview ? (
-              <div className="full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="inventory-thumb"
-                  style={{ width: 120, height: 120 }}
-                />
-              </div>
-            ) : null}
-            <label className="field">
-              Unit
-              <input name="unit" defaultValue="each" />
-            </label>
-            <label className="field">
-              Unit cost
-              <input name="unitCost" type="number" step="0.01" defaultValue="0" />
-            </label>
-            <label className="field">
-              Unit price (fixed)
-              <input
-                name="unitPrice"
-                type="number"
-                step="0.01"
-                defaultValue="0"
-                disabled={variablePrice}
-                placeholder={variablePrice ? "Entered at POS" : "0.00"}
-              />
-            </label>
-            {!isService ? (
-              <>
-                <label className="field">
-                  Opening stock
-                  <input
-                    name="stockQty"
-                    type="number"
-                    step="0.01"
-                    value={hasOptionQtys ? autoOpeningStock : undefined}
-                    defaultValue={hasOptionQtys ? undefined : 0}
-                    readOnly={hasOptionQtys}
-                    key={hasOptionQtys ? `auto-${autoOpeningStock}` : "manual"}
-                  />
-                  {hasOptionQtys ? (
-                    <span className="muted" style={{ fontSize: "0.78rem" }}>
-                      Auto-calculated from option quantities
-                    </span>
-                  ) : null}
-                </label>
-                <label className="field">
-                  Min stock
-                  <input name="minStock" type="number" step="0.01" defaultValue="10" />
-                </label>
-              </>
-            ) : null}
-
-            <label className="choice-card full">
-              <input
-                type="checkbox"
-                checked={variablePrice}
-                onChange={(e) => setVariablePrice(e.target.checked)}
-              />
-              <span>
-                <strong>Variable price at POS</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Cashier enters the price when selling (leave fixed price empty or check this)
-                </span>
-              </span>
-            </label>
-
-            <label
-              className="field"
-              style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
-            >
-              <input
-                name="isService"
-                type="checkbox"
-                checked={isService}
-                onChange={(e) => setIsService(e.target.checked)}
-              />{" "}
-              Service (fixed price — also shows on POS)
-            </label>
-            {!isService ? (
-              <label
-                className="field"
-                style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
-              >
-                <input name="trackStock" type="checkbox" defaultChecked /> Track stock
-              </label>
-            ) : null}
-
-            <VariableOptionsEditor
-              vars={vars}
-              setVars={setVars}
-              variableNames={variableNames}
-              listId="variable-name-catalog"
-              showQty={!isService}
-              optionDefaults={{ minStock: 10 }}
-            />
-
-            <div className="full">
-              <button className="btn btn-primary" type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Save item"}
-              </button>
-            </div>
-          </form>
-          {message ? (
-            <div className="badge badge-ok" style={{ marginTop: "0.75rem" }}>
-              {message}
-            </div>
-          ) : null}
-        </Panel>
+        <div className="inventory-top-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showAdd}
+            className={showAdd ? "settings-subtab active" : "settings-subtab"}
+            onClick={() => setShowAdd(true)}
+          >
+            Add inventory
+          </button>
+        </div>
       ) : (
         <div className="info-banner">Stock levels only — inventory changes require POS register 1.</div>
       )}
 
-      <div className={viewMode === "list" ? "inventory-list" : "inventory-grid"}>
+      {message && !showAdd ? (
+        <div className="badge badge-ok" style={{ alignSelf: "flex-start" }}>
+          {message}
+        </div>
+      ) : null}
+
+      {canManage && showAdd ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-inventory-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 50,
+            padding: "1rem",
+          }}
+          onClick={closeAdd}
+        >
+          <div
+            className="panel"
+            style={{
+              padding: "1.25rem",
+              width: "min(720px, 100%)",
+              maxHeight: "min(90vh, 920px)",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="row"
+              style={{ justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}
+            >
+              <h3 id="add-inventory-title" style={{ margin: 0 }}>
+                Add inventory
+              </h3>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={closeAdd}>
+                Close
+              </button>
+            </div>
+            <form onSubmit={onCreate} className="form-grid" encType="multipart/form-data">
+              <label className="field">
+                Name
+                <input name="name" required placeholder="Item or fixed-price service" />
+              </label>
+              <label className="field">
+                SKU
+                <input name="sku" placeholder="Auto-generated if blank" />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  Leave blank to auto-generate (e.g. SKU-0001)
+                </span>
+              </label>
+              <label className="field">
+                Category
+                <CategoryInput
+                  name="category"
+                  defaultValue={categories[0] || "General"}
+                  suggestions={
+                    categories.length
+                      ? categories
+                      : [...PRODUCT_CATEGORIES, ...products.map((p) => p.category)]
+                  }
+                  listId="inventory-category-suggestions"
+                />
+                {categories.length ? (
+                  <span className="muted" style={{ fontSize: "0.78rem" }}>
+                    Category colours are set in Settings → POS → Categories
+                  </span>
+                ) : null}
+              </label>
+              <label className="field full">
+                Item photo (optional)
+                <input
+                  name="image"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    setImagePreview(file ? URL.createObjectURL(file) : null);
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 500KB
+                </span>
+              </label>
+              {imagePreview ? (
+                <div className="full">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="inventory-thumb"
+                    style={{ width: 120, height: 120 }}
+                  />
+                </div>
+              ) : null}
+              <label className="field">
+                Unit
+                <input name="unit" defaultValue="each" />
+              </label>
+              <label className="field">
+                Unit cost
+                <input name="unitCost" type="number" step="0.01" defaultValue="0" />
+              </label>
+              <label className="field">
+                Unit price (fixed)
+                <input
+                  name="unitPrice"
+                  type="number"
+                  step="0.01"
+                  defaultValue="0"
+                  disabled={variablePrice}
+                  placeholder={variablePrice ? "Entered at POS" : "0.00"}
+                />
+              </label>
+              {!isService ? (
+                <>
+                  <label className="field">
+                    Opening stock
+                    <input
+                      name="stockQty"
+                      type="number"
+                      step="0.01"
+                      value={hasOptionQtys ? autoOpeningStock : undefined}
+                      defaultValue={hasOptionQtys ? undefined : 0}
+                      readOnly={hasOptionQtys}
+                      key={hasOptionQtys ? `auto-${autoOpeningStock}` : "manual"}
+                    />
+                    {hasOptionQtys ? (
+                      <span className="muted" style={{ fontSize: "0.78rem" }}>
+                        Auto-calculated from option quantities
+                      </span>
+                    ) : null}
+                  </label>
+                  <label className="field">
+                    Min stock
+                    <input name="minStock" type="number" step="0.01" defaultValue="10" />
+                  </label>
+                </>
+              ) : null}
+
+              <label className="choice-card full">
+                <input
+                  type="checkbox"
+                  checked={variablePrice}
+                  onChange={(e) => setVariablePrice(e.target.checked)}
+                />
+                <span>
+                  <strong>Variable price at POS</strong>
+                  <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    Cashier enters the price when selling (leave fixed price empty or check this)
+                  </span>
+                </span>
+              </label>
+
+              <label
+                className="field"
+                style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
+              >
+                <input
+                  name="isService"
+                  type="checkbox"
+                  checked={isService}
+                  onChange={(e) => setIsService(e.target.checked)}
+                />{" "}
+                Service (fixed price — also shows on POS)
+              </label>
+              {!isService ? (
+                <label
+                  className="field"
+                  style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
+                >
+                  <input name="trackStock" type="checkbox" defaultChecked /> Track stock
+                </label>
+              ) : null}
+
+              <VariableOptionsEditor
+                vars={vars}
+                setVars={setVars}
+                variableNames={variableNames}
+                listId="variable-name-catalog"
+                showQty={!isService}
+                optionDefaults={{ minStock: 10 }}
+              />
+
+              <div className="full row" style={{ gap: "0.5rem" }}>
+                <button className="btn btn-primary" type="submit" disabled={pending}>
+                  {pending ? "Saving…" : "Save item"}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={closeAdd}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+            {message ? (
+              <div className="badge badge-ok" style={{ marginTop: "0.75rem" }}>
+                {message}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        className={
+          viewMode === "list" ? "inventory-list inventory-compact" : "inventory-grid inventory-compact"
+        }
+      >
         {products.map((p) => {
           const hasOptions = Boolean(p.variables?.some((v) => v.options.length));
           const out =

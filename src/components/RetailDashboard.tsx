@@ -17,14 +17,27 @@ export async function RetailDashboard() {
   const [salesToday, saleCount, customerCount, products, recentSales] = await Promise.all([
     prisma.sale.aggregate({
       _sum: { total: true },
-      where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } },
+      where: {
+        companyId,
+        status: "COMPLETED",
+        isRefund: false,
+        soldAt: { gte: todayStart, lte: todayEnd },
+      },
     }),
-    prisma.sale.count({ where: { companyId, soldAt: { gte: todayStart, lte: todayEnd } } }),
+    prisma.sale.count({
+      where: {
+        companyId,
+        status: "COMPLETED",
+        isRefund: false,
+        soldAt: { gte: todayStart, lte: todayEnd },
+      },
+    }),
     prisma.customer.count({ where: { companyId } }),
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.findMany({
       where: {
         companyId,
+        status: "COMPLETED",
         ...(since ? { soldAt: { gte: since } } : {}),
       },
       orderBy: { soldAt: "desc" },

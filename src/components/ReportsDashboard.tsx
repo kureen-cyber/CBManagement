@@ -65,7 +65,8 @@ type TabId =
   | "pos"
   | "by-item"
   | "by-category"
-  | "sales-summary";
+  | "sales-summary"
+  | "refunds";
 
 const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "period", label: "Period", color: "#0a6b6e" },
@@ -77,6 +78,7 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "by-item", label: "By item", color: "#db2777" },
   { id: "by-category", label: "By category", color: "#b45309" },
   { id: "sales-summary", label: "Sales summary", color: "#0f766e" },
+  { id: "refunds", label: "Refunds", color: "#b42318" },
 ];
 
 const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777", "#0f766e"];
@@ -349,6 +351,7 @@ export function ReportsDashboard({
   const [itemQuery, setItemQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [summaryQuery, setSummaryQuery] = useState("");
+  const [refundQuery, setRefundQuery] = useState("");
 
   const overviewSlices = useMemo(
     () => [
@@ -408,6 +411,28 @@ export function ReportsDashboard({
         r.method.toLowerCase().includes(q),
     );
   }, [data.saleLines, summaryQuery]);
+
+  const refundLines = useMemo(
+    () => data.saleLines.filter((r) => r.isRefund),
+    [data.saleLines],
+  );
+
+  const filteredRefunds = useMemo(() => {
+    const q = refundQuery.trim().toLowerCase();
+    if (!q) return refundLines;
+    return refundLines.filter(
+      (r) =>
+        r.description.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        r.saleNumber.toLowerCase().includes(q) ||
+        r.method.toLowerCase().includes(q),
+    );
+  }, [refundLines, refundQuery]);
+
+  const refundReceiptCount = useMemo(() => {
+    const nums = new Set(refundLines.map((r) => r.saleNumber));
+    return nums.size;
+  }, [refundLines]);
 
   return (
     <div className="stack reports-dashboard">
@@ -794,6 +819,77 @@ export function ReportsDashboard({
                   <tr>
                     <td colSpan={7} className="muted">
                       No sales lines this period.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "refunds" ? (
+        <Panel className="report-tab-panel">
+          <h3>Refunds</h3>
+          <p className="muted">
+            Refund receipts issued in <strong>{periodLabel}</strong>. Voided sales are excluded
+            entirely (not listed here).
+          </p>
+          <div className="kpi-grid sales-summary-kpis" style={{ marginTop: "0.85rem" }}>
+            <div className="report-stat accent">
+              <div className="label">Refund total</div>
+              <div className="value money">{formatTTD(data.refunds)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Refund receipts</div>
+              <div className="value">{refundReceiptCount}</div>
+            </div>
+            <div className="report-stat blue">
+              <div className="label">Line items</div>
+              <div className="value">{refundLines.length}</div>
+            </div>
+          </div>
+          <SearchBar
+            value={refundQuery}
+            onChange={setRefundQuery}
+            placeholder="Search refund receipt, item, category, or method…"
+          />
+          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Receipt</th>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th>Type</th>
+                  <th>Qty</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRefunds.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatAppDateTime(new Date(r.soldAt))}</td>
+                    <td>
+                      <strong>{r.saleNumber}</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>
+                        Refund · {r.method}
+                      </span>
+                    </td>
+                    <td>
+                      <strong>{r.description}</strong>
+                    </td>
+                    <td>{r.category}</td>
+                    <td>{r.isService ? "Service" : "Retail"}</td>
+                    <td>{r.quantity}</td>
+                    <td className="money">{formatTTD(r.lineTotal)}</td>
+                  </tr>
+                ))}
+                {filteredRefunds.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      No refunds this period.
                     </td>
                   </tr>
                 ) : null}

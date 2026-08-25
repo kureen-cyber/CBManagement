@@ -658,7 +658,7 @@ export function ReportsDashboard({
           <h3>Sales by item</h3>
           <p className="muted">Item name, category, qty sold, net sales, cost of goods, and gross profit.</p>
           <SearchBar value={itemQuery} onChange={setItemQuery} placeholder="Search item name or category…" />
-          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
@@ -712,7 +712,7 @@ export function ReportsDashboard({
               }))}
             />
           </div>
-          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
@@ -781,7 +781,7 @@ export function ReportsDashboard({
             onChange={setSummaryQuery}
             placeholder="Search receipt, item, category, or method…"
           />
-          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
@@ -854,7 +854,7 @@ export function ReportsDashboard({
             onChange={setRefundQuery}
             placeholder="Search refund receipt, item, category, or method…"
           />
-          <div className="table-wrap" style={{ marginTop: "1rem" }}>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>

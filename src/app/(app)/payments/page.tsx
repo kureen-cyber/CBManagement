@@ -5,6 +5,7 @@ import { requireCompany } from "@/lib/company";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader, Panel } from "@/components/ui";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { PaymentForm } from "@/components/PaymentForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
@@ -47,7 +48,7 @@ export default async function PaymentsPage({
           isFree={isFreeTier(planTier)}
         />
       </Panel>
-      <Panel style={{ padding: "1.25rem" }}>
+      <AddEntityTab label="Add payment" title="Record payment">
         <PaymentForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
           invoices={invoices.map((inv) => ({
@@ -58,8 +59,8 @@ export default async function PaymentsPage({
             amountDue: Math.max(0, inv.total - inv.amountPaid),
           }))}
         />
-      </Panel>
-      <Panel className="table-wrap">
+      </AddEntityTab>
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

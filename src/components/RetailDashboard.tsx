@@ -118,7 +118,7 @@ export async function RetailDashboard() {
           </div>
         </Panel>
 
-        <Panel className="table-wrap">
+        <Panel className="table-wrap list-dense">
           <table className="data">
             <thead>
               <tr>

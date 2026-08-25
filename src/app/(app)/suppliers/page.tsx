@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { createSupplier } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { DeleteSupplierButton } from "@/components/DeleteSupplierButton";
 import { PageHeader, Panel } from "@/components/ui";
 
@@ -21,12 +22,16 @@ export default async function SuppliersPage() {
         title="Suppliers"
         description="Register vendors, keep a supply cost database for quotations, and track purchases. Open a supplier to classify items as material, equipment, or equipment rental."
       />
-      <Panel style={{ padding: "1.25rem" }}>
-        <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Register supplier</h2>
+      <AddEntityTab label="Add supplier" title="Register supplier">
         <form action={createSupplier} className="form-grid" autoComplete="off">
           <label className="field">
             Name
-            <input name="name" required placeholder="Caribbean Electrical Supplies" autoComplete="organization" />
+            <input
+              name="name"
+              required
+              placeholder="Caribbean Electrical Supplies"
+              autoComplete="organization"
+            />
           </label>
           <label className="field">
             Address
@@ -49,11 +54,13 @@ export default async function SuppliersPage() {
             <textarea name="notes" rows={2} autoComplete="off" />
           </label>
           <div className="full">
-            <button className="btn btn-primary" type="submit">Save supplier</button>
+            <button className="btn btn-primary" type="submit">
+              Save supplier
+            </button>
           </div>
         </form>
-      </Panel>
-      <Panel className="table-wrap">
+      </AddEntityTab>
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>
@@ -72,7 +79,9 @@ export default async function SuppliersPage() {
                     <strong>{s.name}</strong>
                   </Link>
                   {s.address ? (
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>{s.address}</div>
+                    <div className="muted" style={{ fontSize: "0.82rem" }}>
+                      {s.address}
+                    </div>
                   ) : null}
                 </td>
                 <td className="muted">
@@ -87,7 +96,9 @@ export default async function SuppliersPage() {
             ))}
             {suppliers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted">No suppliers yet — register one above.</td>
+                <td colSpan={5} className="muted">
+                  No suppliers yet — use Add supplier.
+                </td>
               </tr>
             ) : null}
           </tbody>

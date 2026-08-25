@@ -3,6 +3,7 @@
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addJobReceipt, deleteJobReceipt } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { Panel } from "@/components/ui";
 import { formatAppDate } from "@/lib/timezone";
 
@@ -52,8 +53,7 @@ export function JobReceiptsPanel({
         </div>
       ) : null}
 
-      <Panel style={{ padding: "1.25rem" }}>
-        <h2 style={{ marginTop: 0, fontSize: "1.15rem" }}>Add receipt</h2>
+      <AddEntityTab label="Add receipt" title="Upload receipt">
         <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
           Upload sales receipts, delivery notes, or other proof tied to this job. You can add as many
           as you need.
@@ -73,9 +73,9 @@ export function JobReceiptsPanel({
             </button>
           </div>
         </form>
-      </Panel>
+      </AddEntityTab>
 
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>
@@ -102,7 +102,7 @@ export function JobReceiptsPanel({
                       <img
                         src={r.receiptData}
                         alt={r.label || "Receipt"}
-                        style={{ maxHeight: 48, maxWidth: 80, objectFit: "cover", borderRadius: 4 }}
+                        style={{ maxHeight: 40, maxWidth: 64, objectFit: "cover", borderRadius: 4 }}
                       />
                     </a>
                   )}
@@ -129,7 +129,7 @@ export function JobReceiptsPanel({
             {receipts.length === 0 ? (
               <tr>
                 <td colSpan={4} className="muted">
-                  No receipts uploaded for this job yet.
+                  No receipts uploaded for this job yet — use Add receipt.
                 </td>
               </tr>
             ) : null}

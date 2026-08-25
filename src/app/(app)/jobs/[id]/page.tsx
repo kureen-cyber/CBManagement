@@ -120,7 +120,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
       </Panel>
 
       {job.invoices.length ? (
-        <Panel className="table-wrap">
+        <Panel className="table-wrap list-dense">
           <table className="data">
             <thead>
               <tr>
@@ -154,7 +154,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         </Panel>
       ) : null}
 
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

@@ -6,6 +6,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { createInvoice } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
@@ -51,7 +52,7 @@ export default async function InvoicesPage({
       <Panel style={{ padding: "1.25rem" }}>
         <PeriodSelector basePath="/invoices" range={range} isFree={isFreeTier(planTier)} />
       </Panel>
-      <Panel style={{ padding: "1.25rem" }}>
+      <AddEntityTab label="Add invoice" title="Create invoice">
         <form action={createInvoice} className="form-grid">
           <label className="field">
             Customer
@@ -102,8 +103,8 @@ export default async function InvoicesPage({
             </button>
           </div>
         </form>
-      </Panel>
-      <Panel className="table-wrap">
+      </AddEntityTab>
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

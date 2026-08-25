@@ -48,7 +48,7 @@ export default async function JobsPage({
         Profit on each job = <strong>contract − labour − materials − expenses</strong>. Open a job to
         see the breakdown.
       </p>
-      <Panel className="table-wrap">
+      <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>

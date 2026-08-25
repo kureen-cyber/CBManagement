@@ -50,6 +50,7 @@ import {
   type PlanTier,
 } from "@/lib/tier";
 import { maxStoresForTier } from "@/lib/store";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { Panel } from "@/components/ui";
 
 type Tab =
@@ -959,25 +960,27 @@ export function SettingsPanel({
                 </li>
               ))}
               {paymentTypes.length === 0 ? (
-                <li className="muted">No payment types yet — add one below.</li>
+                <li className="muted">No payment types yet — use Add payment type.</li>
               ) : null}
             </ul>
 
-            <form className="stack" onSubmit={onAddPayment}>
-              <label className="field">
-                New payment method
-                <input
-                  name="label"
-                  type="text"
-                  required
-                  placeholder="e.g. Cash, Debit card, Cheque"
-                  autoComplete="off"
-                />
-              </label>
-              <button className="btn btn-primary" type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Add payment type"}
-              </button>
-            </form>
+            <AddEntityTab label="Add payment type">
+              <form className="stack" onSubmit={onAddPayment}>
+                <label className="field">
+                  New payment method
+                  <input
+                    name="label"
+                    type="text"
+                    required
+                    placeholder="e.g. Cash, Debit card, Cheque"
+                    autoComplete="off"
+                  />
+                </label>
+                <button className="btn btn-primary" type="submit" disabled={pending}>
+                  {pending ? "Saving…" : "Add payment type"}
+                </button>
+              </form>
+            </AddEntityTab>
           </div>
         </Panel>
       ) : null}
@@ -1064,25 +1067,27 @@ export function SettingsPanel({
                 </div>
               ))}
               {discountPresets.length === 0 ? (
-                <div className="muted">No discount presets yet.</div>
+                <div className="muted">No discount presets yet — use Add discount.</div>
               ) : null}
             </div>
             {canEditDiscounts ? (
-              <form className="form-grid" onSubmit={onAddDiscount}>
-                <label className="field">
-                  Name
-                  <input name="name" required placeholder="Staff discount" />
-                </label>
-                <label className="field">
-                  Percent
-                  <input name="percent" type="number" step="0.01" min="0.01" max="100" required placeholder="10" />
-                </label>
-                <div className="full">
-                  <button className="btn btn-primary" type="submit" disabled={pending}>
-                    {pending ? "Saving…" : "Add discount"}
-                  </button>
-                </div>
-              </form>
+              <AddEntityTab label="Add discount">
+                <form className="form-grid" onSubmit={onAddDiscount}>
+                  <label className="field">
+                    Name
+                    <input name="name" required placeholder="Staff discount" />
+                  </label>
+                  <label className="field">
+                    Percent
+                    <input name="percent" type="number" step="0.01" min="0.01" max="100" required placeholder="10" />
+                  </label>
+                  <div className="full">
+                    <button className="btn btn-primary" type="submit" disabled={pending}>
+                      {pending ? "Saving…" : "Add discount"}
+                    </button>
+                  </div>
+                </form>
+              </AddEntityTab>
             ) : null}
           </div>
         </Panel>
@@ -1433,53 +1438,55 @@ export function SettingsPanel({
                     );
                   })}
                   {storeCategories.length === 0 ? (
-                    <li className="muted">No categories yet — add one below.</li>
+                    <li className="muted">No categories yet — use Add category.</li>
                   ) : null}
                 </ul>
 
-                <form className="stack" onSubmit={onAddCategory}>
-                  <label className="field">
-                    New category
-                    <input
-                      name="name"
-                      type="text"
-                      required
-                      placeholder="e.g. Grocery, Gift items"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <label className="field">
-                    Colour code
-                    <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                <AddEntityTab label="Add category">
+                  <form className="stack" onSubmit={onAddCategory}>
+                    <label className="field">
+                      New category
                       <input
-                        name="color"
-                        type="color"
-                        value={newCategoryColor}
-                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                        name="name"
+                        type="text"
+                        required
+                        placeholder="e.g. Grocery, Gift items"
+                        autoComplete="off"
                       />
-                      {CATEGORY_COLOR_PALETTE.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          className="category-swatch pick"
-                          style={{
-                            background: c,
-                            outline:
-                              newCategoryColor.toUpperCase() === c.toUpperCase()
-                                ? "2px solid var(--ink)"
-                                : "none",
-                            outlineOffset: 2,
-                          }}
-                          aria-label={`Use ${c}`}
-                          onClick={() => setNewCategoryColor(c)}
+                    </label>
+                    <label className="field">
+                      Colour code
+                      <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                        <input
+                          name="color"
+                          type="color"
+                          value={newCategoryColor}
+                          onChange={(e) => setNewCategoryColor(e.target.value)}
                         />
-                      ))}
-                    </div>
-                  </label>
-                  <button className="btn btn-primary" type="submit" disabled={pending}>
-                    {pending ? "Saving…" : "Add category"}
-                  </button>
-                </form>
+                        {CATEGORY_COLOR_PALETTE.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className="category-swatch pick"
+                            style={{
+                              background: c,
+                              outline:
+                                newCategoryColor.toUpperCase() === c.toUpperCase()
+                                  ? "2px solid var(--ink)"
+                                  : "none",
+                              outlineOffset: 2,
+                            }}
+                            aria-label={`Use ${c}`}
+                            onClick={() => setNewCategoryColor(c)}
+                          />
+                        ))}
+                      </div>
+                    </label>
+                    <button className="btn btn-primary" type="submit" disabled={pending}>
+                      {pending ? "Saving…" : "Add category"}
+                    </button>
+                  </form>
+                </AddEntityTab>
               </div>
             ) : null}
 

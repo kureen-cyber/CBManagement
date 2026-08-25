@@ -321,6 +321,49 @@ export async function createCustomer(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function deleteCustomer(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("customerId") || "").trim();
+  if (!id) return { error: "Missing customer" };
+
+  const customer = await prisma.customer.findFirst({
+    where: { id, companyId },
+    include: {
+      _count: {
+        select: {
+          quotations: true,
+          jobs: true,
+          invoices: true,
+          payments: true,
+        },
+      },
+    },
+  });
+  if (!customer) return { error: "Customer not found" };
+
+  const blockers: string[] = [];
+  if (customer._count.quotations) blockers.push(`${customer._count.quotations} quotation(s)`);
+  if (customer._count.jobs) blockers.push(`${customer._count.jobs} job(s)`);
+  if (customer._count.invoices) blockers.push(`${customer._count.invoices} invoice(s)`);
+  if (customer._count.payments) blockers.push(`${customer._count.payments} payment(s)`);
+  if (blockers.length) {
+    return {
+      error: `Cannot delete “${customer.name}” while linked to ${blockers.join(", ")}. Remove those records first.`,
+    };
+  }
+
+  await prisma.$transaction([
+    prisma.sale.updateMany({ where: { customerId: id, companyId }, data: { customerId: null } }),
+    prisma.expense.updateMany({ where: { customerId: id, companyId }, data: { customerId: null } }),
+    prisma.customer.delete({ where: { id } }),
+  ]);
+
+  revalidatePath("/customers");
+  revalidatePath("/pos");
+  revalidatePath("/");
+  return { ok: true as const, id };
+}
+
 export async function createSupplier(formData: FormData) {
   const { companyId } = await requireCompany();
   const name = String(formData.get("name") || "").trim();

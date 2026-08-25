@@ -57,26 +57,30 @@ type Tab =
   | "taxes"
   | "printers"
   | "receipts"
-  | "features"
   | "payments"
   | "discounts"
   | "pos";
 
-type PosSubTab = "registers" | "inventory-view" | "categories";
+type PosSubTab = "registers" | "inventory-view" | "categories" | "features";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "taxes", label: "Taxes" },
   { id: "printers", label: "Printers" },
   { id: "receipts", label: "Receipts" },
-  { id: "features", label: "Features" },
   { id: "payments", label: "Payment types" },
   { id: "discounts", label: "Discounts" },
   { id: "pos", label: "POS" },
 ];
 
 function parsePosSubTab(value: string | null): PosSubTab {
-  if (value === "inventory-view" || value === "categories") return value;
+  if (
+    value === "inventory-view" ||
+    value === "categories" ||
+    value === "features"
+  ) {
+    return value;
+  }
   return "registers";
 }
 
@@ -155,9 +159,9 @@ export function SettingsPanel({
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
-  // Legacy ?tab=categories → POS → Categories
+  // Legacy ?tab=categories → POS → Categories; ?tab=features → POS → Features
   const initialTab: Tab =
-    rawTab === "categories"
+    rawTab === "categories" || rawTab === "features"
       ? "pos"
       : TABS.some((t) => t.id === (rawTab as Tab))
         ? (rawTab as Tab)
@@ -175,7 +179,9 @@ export function SettingsPanel({
   const initialPosSub =
     rawTab === "categories"
       ? "categories"
-      : parsePosSubTab(searchParams.get("posSub"));
+      : rawTab === "features"
+        ? "features"
+        : parsePosSubTab(searchParams.get("posSub"));
   const [posSubTab, setPosSubTab] = useState<PosSubTab>(initialPosSub);
   const [selectedStoreId, setSelectedStoreId] = useState<string>(
     initialActiveStoreId || stores[0]?.id || "",
@@ -897,64 +903,6 @@ export function SettingsPanel({
         </Panel>
       ) : null}
 
-      {tab === "features" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onFeatures}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Features</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-              Turn optional POS and inventory behaviours on or off for your business.
-            </p>
-
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="featureOpenTickets"
-                defaultChecked={featureOpenTickets}
-              />
-              <span>
-                <strong>Open Ticket</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Save and edit orders before completing payment. Shows a Saved Tickets tab on POS.
-                </span>
-              </span>
-            </label>
-
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="featureLowStockEmail"
-                defaultChecked={featureLowStockEmail}
-              />
-              <span>
-                <strong>Low stock notification</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Weekly email of items at or below minimum stock, plus alerts when stock drops after
-                  a sale. Sent to your account email (requires RESEND_API_KEY on the server).
-                </span>
-              </span>
-            </label>
-
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="featureOutOfStockWarn"
-                defaultChecked={featureOutOfStockWarn}
-              />
-              <span>
-                <strong>Out of stock</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Warn cashiers when they try to sell unavailable stock, and email your account.
-                </span>
-              </span>
-            </label>
-
-            <button className="btn btn-primary" type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save features"}
-            </button>
-          </form>
-        </Panel>
-      ) : null}
-
       {tab === "payments" ? (
         <Panel style={{ padding: "1.25rem" }}>
           <div className="stack">
@@ -1252,6 +1200,15 @@ export function SettingsPanel({
               >
                 Categories
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={posSubTab === "features"}
+                className={posSubTab === "features" ? "settings-subtab active" : "settings-subtab"}
+                onClick={() => selectPosSub("features")}
+              >
+                Features
+              </button>
             </div>
 
             {posSubTab === "registers" ? (
@@ -1524,6 +1481,63 @@ export function SettingsPanel({
                   </button>
                 </form>
               </div>
+            ) : null}
+
+            {posSubTab === "features" ? (
+              <form className="stack" onSubmit={onFeatures}>
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                  Turn optional POS and inventory behaviours on or off for your business.
+                </p>
+
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="featureOpenTickets"
+                    defaultChecked={featureOpenTickets}
+                  />
+                  <span>
+                    <strong>Open Ticket</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Save and edit orders before completing payment. Shows a Saved Tickets tab on
+                      POS.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="featureLowStockEmail"
+                    defaultChecked={featureLowStockEmail}
+                  />
+                  <span>
+                    <strong>Low stock notification</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Weekly email of items at or below minimum stock, plus alerts when stock drops
+                      after a sale. Sent to your account email (requires RESEND_API_KEY on the
+                      server).
+                    </span>
+                  </span>
+                </label>
+
+                <label className="choice-card">
+                  <input
+                    type="checkbox"
+                    name="featureOutOfStockWarn"
+                    defaultChecked={featureOutOfStockWarn}
+                  />
+                  <span>
+                    <strong>Out of stock</strong>
+                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                      Warn cashiers when they try to sell unavailable stock, and email your account.
+                    </span>
+                  </span>
+                </label>
+
+                <button className="btn btn-primary" type="submit" disabled={pending}>
+                  {pending ? "Saving…" : "Save features"}
+                </button>
+              </form>
             ) : null}
           </div>
         </Panel>

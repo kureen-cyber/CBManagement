@@ -12,6 +12,7 @@ import {
   voidOpenTicket,
 } from "@/app/actions";
 import { formatTTD, toCents } from "@/lib/money";
+import { formatAppDateTime } from "@/lib/timezone";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
@@ -544,7 +545,7 @@ export function PosTerminal({
                   <strong>{t.number}</strong>
                   <div className="muted" style={{ fontSize: "0.8rem" }}>
                     {t.customerName || "Walk-in"} · {formatTTD(t.total)} ·{" "}
-                    {new Date(t.updatedAt).toLocaleString("en-TT")}
+                    {formatAppDateTime(new Date(t.updatedAt))}
                   </div>
                   <div className="muted" style={{ fontSize: "0.78rem" }}>
                     {t.lines.map((l) => `${l.quantity}× ${l.description}`).join(", ")}

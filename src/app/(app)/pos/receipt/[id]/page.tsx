@@ -20,6 +20,7 @@ import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { RefundButton } from "@/components/RefundButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
+import { formatAppDateTimeInZone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -137,7 +138,7 @@ export default async function ReceiptPage({
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>{labels.date}</span>
-            <span>{sale.soldAt.toLocaleString(locale)}</span>
+            <span>{formatAppDateTimeInZone(sale.soldAt, {}, locale)}</span>
           </div>
           {sale.posRegister ? (
             <div className="row" style={{ justifyContent: "space-between" }}>

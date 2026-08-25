@@ -5,6 +5,7 @@ import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { parsePlanTier, receiptVisibleSince } from "@/lib/tier";
 import { PageHeader, Panel } from "@/components/ui";
+import { formatAppDateTime } from "@/lib/timezone";
 
 export async function RetailDashboard() {
   const { companyId, company } = await requireCompany();
@@ -120,7 +121,7 @@ export async function RetailDashboard() {
                   <td>
                     <strong>{s.number}</strong>
                     <div className="muted" style={{ fontSize: "0.78rem" }}>
-                      {s.soldAt.toLocaleString("en-TT")}
+                      {formatAppDateTime(s.soldAt)}
                     </div>
                   </td>
                   <td>{s.customer?.name ?? "Walk-in"}</td>

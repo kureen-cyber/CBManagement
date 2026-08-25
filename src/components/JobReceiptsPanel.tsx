@@ -4,6 +4,7 @@ import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addJobReceipt, deleteJobReceipt } from "@/app/actions";
 import { Panel } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 type ReceiptRow = {
   id: string;
@@ -88,11 +89,7 @@ export function JobReceiptsPanel({
             {receipts.map((r) => (
               <tr key={r.id}>
                 <td className="muted">
-                  {new Date(r.createdAt).toLocaleDateString("en-TT", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {formatAppDate(r.createdAt)}
                 </td>
                 <td>{r.label || "—"}</td>
                 <td>

@@ -9,6 +9,7 @@ import { syncJobStatus } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
 import { JobDetailTabs } from "@/components/JobDetailTabs";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           </div>
         ) : (
           <span className="muted" style={{ fontSize: "0.9rem" }}>
-            {job.startDate?.toLocaleDateString("en-TT")} → {job.endDate?.toLocaleDateString("en-TT")}
+            {formatAppDate(job.startDate)} → {formatAppDate(job.endDate)}
             {outstanding > 0 ? ` · ${formatTTD(outstanding)} outstanding` : " · Paid in full"}
           </span>
         )}

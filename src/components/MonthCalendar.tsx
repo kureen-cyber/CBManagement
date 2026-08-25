@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { parseIsoDate, toIsoDate } from "@/lib/date-range";
+import { formatAppMonthYear } from "@/lib/timezone";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -49,10 +50,7 @@ export function MonthCalendar({
     return out;
   }, [viewYear, viewMonth]);
 
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-TT", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = formatAppMonthYear(new Date(viewYear, viewMonth, 1));
 
   const start = rangeStart ? parseIsoDate(rangeStart) : null;
   const end = rangeEnd ? parseIsoDate(rangeEnd) : null;

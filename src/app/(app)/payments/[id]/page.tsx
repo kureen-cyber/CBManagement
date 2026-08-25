@@ -7,6 +7,7 @@ import { receiptFooterText, receiptHeaderText } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
+import { formatAppDateTime } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function PaymentReceiptPage({
         <div className="stack" style={{ marginTop: "1rem", fontSize: "0.92rem" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Date</span>
-            <span>{payment.paidAt.toLocaleString("en-TT")}</span>
+            <span>{formatAppDateTime(payment.paidAt)}</span>
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Customer</span>

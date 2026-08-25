@@ -11,6 +11,7 @@ import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
 import { DeleteQuotationButton } from "@/components/DeleteQuotationButton";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function QuotationViewPage({
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Date</span>
-            <span>{quote.createdAt.toLocaleDateString("en-TT")}</span>
+            <span>{formatAppDate(quote.createdAt)}</span>
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span>Customer</span>

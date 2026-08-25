@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { sendEmail } from "@/lib/email";
 import { receiptFooterText, receiptHeaderText, resolveBusinessLogo } from "@/lib/settings";
+import { formatAppDate, formatAppDateTime } from "@/lib/timezone";
 import {
   buildInvoiceEmail,
   buildPaymentEmail,
@@ -43,7 +44,7 @@ export async function emailPosReceipt(input: { saleId: string; toEmail: string }
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
     number: sale.number,
-    dateLabel: sale.soldAt.toLocaleString("en-TT"),
+    dateLabel: formatAppDateTime(sale.soldAt),
     customerName: sale.customer?.name ?? "Walk-in",
     method: sale.method,
     lines: sale.lines.map((l) => ({
@@ -94,7 +95,7 @@ export async function emailQuotation(input: {
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
     number: quote.number,
-    dateLabel: quote.createdAt.toLocaleDateString("en-TT"),
+    dateLabel: formatAppDate(quote.createdAt),
     customerName: quote.customer.name,
     title: quote.title,
     lines: quotationClientLines(quote),
@@ -130,8 +131,8 @@ export async function emailInvoice(input: { invoiceId: string; toEmail: string }
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
     number: invoice.number,
-    issueDate: invoice.issueDate.toLocaleDateString("en-TT"),
-    dueDate: invoice.dueDate?.toLocaleDateString("en-TT") ?? null,
+    issueDate: formatAppDate(invoice.issueDate),
+    dueDate: invoice.dueDate ? formatAppDate(invoice.dueDate) : null,
     customerName: invoice.customer.name,
     jobNumber: invoice.job?.number ?? null,
     lines: invoice.lines.map((l) => ({
@@ -174,7 +175,7 @@ export async function emailPaymentReceipt(input: { paymentId: string; toEmail: s
   const payload = buildPaymentEmail({
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
-    dateLabel: payment.paidAt.toLocaleString("en-TT"),
+    dateLabel: formatAppDateTime(payment.paidAt),
     customerName: payment.customer.name,
     invoiceNumber: payment.invoice?.number ?? null,
     method: payment.method,

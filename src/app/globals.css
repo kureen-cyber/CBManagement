@@ -1460,6 +1460,26 @@ input:focus, select:focus, textarea:focus {
   border-color: rgba(14, 124, 192, 0.28);
 }
 
+.report-expand-btn {
+  min-width: 1.85rem;
+  padding: 0.15rem 0.35rem;
+  line-height: 1;
+}
+.report-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  font-size: 0.85rem;
+}
+.report-chevron.open {
+  transform: rotate(90deg);
+}
+.category-item-row td {
+  background: rgba(230, 244, 244, 0.35);
+}
+.category-row-summary td {
+  vertical-align: middle;
+}
+
 @media (max-width: 900px) {
   .report-metric-strip,
   .reports-diagrams {

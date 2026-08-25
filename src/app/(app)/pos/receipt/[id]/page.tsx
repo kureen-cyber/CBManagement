@@ -83,7 +83,7 @@ export default async function ReceiptPage({
     !sale.isRefund &&
     !alreadyRefunded;
   const canVoid =
-    access.canVoidTickets &&
+    access.canRefund &&
     sale.status === "COMPLETED" &&
     !sale.isRefund &&
     !alreadyRefunded;

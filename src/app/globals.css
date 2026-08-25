@@ -725,13 +725,75 @@ input:focus, select:focus, textarea:focus {
 }
 
 .inventory-list-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto auto auto;
-  gap: 0.85rem;
-  align-items: center;
+  display: block;
   padding: 0.75rem 1rem;
   padding-right: 2.4rem;
   position: relative;
+}
+
+.inventory-list-row-main {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1.4fr) auto auto auto auto;
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.inventory-list-row-main-compact {
+  grid-template-columns: auto 1fr auto;
+}
+
+.inventory-list-identity {
+  min-width: 0;
+}
+
+.inventory-variant-expanded {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--line);
+}
+
+.inventory-variant-expanded-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.inventory-variant-table {
+  margin-top: 0.15rem;
+}
+
+.inventory-variant-data thead th {
+  background: var(--sea-soft);
+  color: var(--sea-deep);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inventory-variant-data tbody tr.variant-row td {
+  background: rgba(10, 107, 110, 0.04);
+  border-bottom: 1px solid var(--line);
+}
+
+.inventory-variant-data tbody tr.variant-row-low td {
+  background: rgba(196, 92, 38, 0.1);
+}
+
+.inventory-variant-data tbody tr.variant-row-negative td {
+  background: rgba(180, 35, 24, 0.1);
+}
+
+.inventory-variant-data tbody tr.variant-row td:first-child {
+  border-left: 3px solid var(--sea);
+}
+
+.inventory-variant-data tbody tr.variant-row-low td:first-child {
+  border-left-color: #c45c26;
+}
+
+.inventory-variant-data tbody tr.variant-row-negative td:first-child {
+  border-left-color: var(--danger);
 }
 
 .inventory-list-row .inventory-thumb,
@@ -1801,12 +1863,18 @@ input:focus, select:focus, textarea:focus {
   .inventory-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
-  .inventory-list-row {
+  .inventory-list-row-main {
     grid-template-columns: auto 1fr;
     gap: 0.65rem;
   }
-  .inventory-list-row > :nth-child(n+3) {
+  .inventory-list-row-main > :nth-child(n + 3) {
     grid-column: 2;
+  }
+  .inventory-list-row-main-compact {
+    grid-template-columns: auto 1fr auto;
+  }
+  .inventory-list-row-main-compact > :nth-child(n + 3) {
+    grid-column: auto;
   }
   .main {
     padding: 1.25rem 1.15rem 2.5rem;

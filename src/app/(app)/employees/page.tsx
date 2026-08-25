@@ -16,7 +16,10 @@ export default async function EmployeesPage() {
 
   return (
     <div className="stack">
-      <PageHeader title="Employees" description="Hourly rates and hours worked." />
+      <PageHeader
+        title="Employees"
+        description="Staff registry for your business — rates and hours. This list is not linked to jobs or invoices."
+      />
       <Panel style={{ padding: "1.25rem" }}>
         <form action={createEmployee} className="form-grid" autoComplete="off">
           <label className="field">First name<input name="firstName" required autoComplete="off" /></label>

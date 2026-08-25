@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   completePosSale,
@@ -30,6 +30,22 @@ function variantLabelFromSelections(
   selections: Record<string, string>,
 ): string {
   return vars.map((v) => `${v.name}: ${selections[v.name]}`).join(", ");
+}
+
+function categoryAccent(
+  colors: Record<string, string | null | undefined>,
+  category: string,
+): string {
+  return colors[category.toLowerCase()] || "";
+}
+
+/** Soft category-tinted background so POS tiles stay readable. */
+function categoryTileStyle(color: string): CSSProperties | undefined {
+  if (!color) return undefined;
+  return {
+    background: `color-mix(in srgb, ${color} 48%, var(--tile-bg, #fff))`,
+    borderColor: color,
+  };
 }
 
 function priceDollarsForSelections(p: Product, selections: Record<string, string>): string {
@@ -112,6 +128,7 @@ export function PosTerminal({
   outOfStockWarn = false,
   paymentTypes = [],
   categories = [],
+  categoryColors = {},
   openTickets: initialTickets = [],
   discounts = [],
   canVoidTickets = true,
@@ -130,6 +147,7 @@ export function PosTerminal({
   outOfStockWarn?: boolean;
   paymentTypes?: PaymentTypeOption[];
   categories?: string[];
+  categoryColors?: Record<string, string | null | undefined>;
   openTickets?: OpenTicket[];
   discounts?: DiscountOption[];
   canVoidTickets?: boolean;
@@ -757,6 +775,7 @@ export function PosTerminal({
                   ]
                     .filter(Boolean)
                     .join(" · ");
+                  const tileStyle = categoryTileStyle(categoryAccent(categoryColors, p.category));
 
                   if (viewMode === "list") {
                     return (
@@ -764,6 +783,7 @@ export function PosTerminal({
                         <button
                           type="button"
                           className="product-list-btn"
+                          style={tileStyle}
                           onClick={() => addProduct(p)}
                         >
                           <div>
@@ -791,7 +811,12 @@ export function PosTerminal({
 
                   return (
                     <div key={p.id} className="product-tile-wrap">
-                      <button type="button" className="product-tile" onClick={() => addProduct(p)}>
+                      <button
+                        type="button"
+                        className="product-tile"
+                        style={tileStyle}
+                        onClick={() => addProduct(p)}
+                      >
                         <strong>{p.name}</strong>
                         <div className="muted" style={{ fontSize: "0.78rem" }}>
                           {meta}

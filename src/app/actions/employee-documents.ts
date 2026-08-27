@@ -10,7 +10,7 @@ import {
   buildPayslipHtml,
   type PayslipLine,
 } from "@/lib/employee-documents";
-import { formatAppDate, formatAppDateTimeInZone } from "@/lib/timezone";
+import { formatAppDate } from "@/lib/timezone";
 import type { EmploymentBasis, EmployeePronoun, PayFrequency } from "@/lib/employee-banks";
 import { DEFAULT_RECEIPT_FOOTER } from "@/lib/settings";
 
@@ -150,12 +150,6 @@ export async function createEmployeePayslip(input: {
     );
     return {
       date: formatAppDate(entry.clockInAt || entry.date),
-      clockIn: entry.clockInAt
-        ? formatAppDateTimeInZone(entry.clockInAt, { hour: "numeric", minute: "2-digit" })
-        : "—",
-      clockOut: entry.clockOutAt
-        ? formatAppDateTimeInZone(entry.clockOutAt, { hour: "numeric", minute: "2-digit" })
-        : "—",
       hours: entry.hours,
       payCents,
     };
@@ -268,12 +262,6 @@ export async function previewEmployeePayslip(input: {
 
   const lines: PayslipLine[] = entries.map((entry) => ({
     date: formatAppDate(entry.clockInAt || entry.date),
-    clockIn: entry.clockInAt
-      ? formatAppDateTimeInZone(entry.clockInAt, { hour: "numeric", minute: "2-digit" })
-      : "—",
-    clockOut: entry.clockOutAt
-      ? formatAppDateTimeInZone(entry.clockOutAt, { hour: "numeric", minute: "2-digit" })
-      : "—",
     hours: entry.hours,
     payCents: payForEntry(
       entry.hours,

@@ -530,6 +530,81 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
   font-size: 0.72rem;
 }
 
+.income-statement-header {
+  text-align: center;
+  margin-bottom: 0.35rem;
+}
+
+.income-statement-business {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.income-statement-scroll {
+  overflow-x: auto;
+}
+
+.income-statement-table {
+  min-width: 1100px;
+  font-size: 0.78rem;
+}
+
+.income-statement-table th,
+.income-statement-table td {
+  white-space: nowrap;
+}
+
+.income-statement-label-col {
+  min-width: 220px;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.income-statement-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
+.income-statement-month {
+  text-align: right !important;
+  min-width: 72px;
+}
+
+.income-statement-table td.money {
+  text-align: right;
+}
+
+.income-statement-section td {
+  background: var(--sea-soft);
+  font-size: 0.8rem;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+}
+
+.income-statement-total td,
+.income-statement-total td:first-child {
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+}
+
+.income-statement-result td,
+.income-statement-result td:first-child {
+  font-weight: 800;
+  background: rgba(230, 244, 244, 0.65);
+  border-top: 2px solid var(--sea);
+}
+
+.income-statement-formula {
+  display: block;
+  font-weight: 500;
+  font-size: 0.68rem;
+  white-space: normal;
+}
+
 .badge {
   display: inline-flex; align-items: center; padding: 0.2rem 0.55rem;
   border-radius: 999px; font-size: 0.72rem; font-weight: 700;

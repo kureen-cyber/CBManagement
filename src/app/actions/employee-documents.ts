@@ -11,7 +11,7 @@ import {
   type PayslipLine,
 } from "@/lib/employee-documents";
 import { formatAppDate, formatAppDateTimeInZone } from "@/lib/timezone";
-import type { PayFrequency } from "@/lib/employee-banks";
+import type { EmploymentBasis, EmployeePronoun, PayFrequency } from "@/lib/employee-banks";
 import { DEFAULT_RECEIPT_FOOTER } from "@/lib/settings";
 
 function parseDateOnly(value: string): Date {
@@ -47,6 +47,9 @@ async function loadCompanyBranding(companyId: string) {
       receiptFooter: true,
       businessLogoData: true,
       letterheadData: true,
+      companyStampData: true,
+      businessContactNumber: true,
+      businessEmail: true,
     },
   });
   if (!company) throw new Error("Company not found");
@@ -55,7 +58,53 @@ async function loadCompanyBranding(companyId: string) {
     footer: company.receiptFooter?.trim() || DEFAULT_RECEIPT_FOOTER,
     businessLogoData: company.businessLogoData,
     letterheadData: company.letterheadData,
+    companyStampData: company.companyStampData,
+    companyPhone: company.businessContactNumber,
+    companyEmail: company.businessEmail,
   };
+}
+
+type JobLetterInput = {
+  employeeId: string;
+  salary: number;
+  frequency: PayFrequency;
+  idNumber?: string;
+  employmentBasis: EmploymentBasis;
+  pronoun: EmployeePronoun;
+  employerName?: string;
+  employerTitle?: string;
+  jobTitle?: string;
+  startDate?: string;
+  companyPhone?: string;
+  companyEmail?: string;
+};
+
+async function buildJobLetterForEmployee(input: JobLetterInput, companyId: string) {
+  const employee = await loadEmployee(input.employeeId, companyId);
+  const branding = await loadCompanyBranding(companyId);
+  const startDate = input.startDate?.trim()
+    ? parseDateOnly(input.startDate.trim())
+    : employee.dateOfEngagement;
+
+  return buildJobLetterHtml({
+    companyName: branding.companyName,
+    letterheadData: branding.letterheadData,
+    businessLogoData: branding.businessLogoData,
+    companyStampData: branding.companyStampData,
+    footer: branding.footer,
+    employeeName: `${employee.firstName} ${employee.lastName}`,
+    role: input.jobTitle?.trim() || employee.role,
+    idNumber: input.idNumber?.trim() || null,
+    dateOfEngagement: startDate,
+    employmentBasis: input.employmentBasis,
+    pronoun: input.pronoun,
+    salaryCents: toCents(Number(input.salary) || 0),
+    frequency: input.frequency,
+    employerName: input.employerName?.trim() || null,
+    employerTitle: input.employerTitle?.trim() || null,
+    companyPhone: input.companyPhone?.trim() || branding.companyPhone,
+    companyEmail: input.companyEmail?.trim() || branding.companyEmail,
+  });
 }
 
 function payForEntry(
@@ -147,38 +196,13 @@ export async function createEmployeePayslip(input: {
   return { id: payslip.id, documentHtml, hoursWorked, grossPayCents };
 }
 
-export async function emailEmployeeJobLetter(input: {
-  employeeId: string;
-  toEmail: string;
-  salary: number;
-  frequency: PayFrequency;
-}) {
+export async function emailEmployeeJobLetter(input: JobLetterInput & { toEmail: string }) {
   const { companyId } = await requireCompany();
   const to = input.toEmail.trim().toLowerCase();
   if (!isValidEmail(to)) return { error: "Enter a valid email address" };
 
   const employee = await loadEmployee(input.employeeId, companyId);
-  const branding = await loadCompanyBranding(companyId);
-  const salaryCents = toCents(Number(input.salary) || 0);
-
-  const html = buildJobLetterHtml({
-    companyName: branding.companyName,
-    letterheadData: branding.letterheadData,
-    businessLogoData: branding.businessLogoData,
-    footer: branding.footer,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    role: employee.role,
-    email: employee.email,
-    phone: employee.phone,
-    dateOfEngagement: employee.dateOfEngagement,
-    nisNumber: employee.nisNumber,
-    payeNumber: employee.payeNumber,
-    bankName: employee.bankName,
-    bankBranch: employee.bankBranch,
-    bankAccountNumber: employee.bankAccountNumber,
-    salaryCents,
-    frequency: input.frequency,
-  });
+  const html = await buildJobLetterForEmployee(input, companyId);
 
   const result = await sendEmail({
     to,
@@ -213,34 +237,9 @@ export async function emailEmployeePayslip(input: { payslipId: string; toEmail: 
   return { ok: true as const, to };
 }
 
-export async function previewEmployeeJobLetter(input: {
-  employeeId: string;
-  salary: number;
-  frequency: PayFrequency;
-}) {
+export async function previewEmployeeJobLetter(input: JobLetterInput) {
   const { companyId } = await requireCompany();
-  const employee = await loadEmployee(input.employeeId, companyId);
-  const branding = await loadCompanyBranding(companyId);
-
-  const html = buildJobLetterHtml({
-    companyName: branding.companyName,
-    letterheadData: branding.letterheadData,
-    businessLogoData: branding.businessLogoData,
-    footer: branding.footer,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    role: employee.role,
-    email: employee.email,
-    phone: employee.phone,
-    dateOfEngagement: employee.dateOfEngagement,
-    nisNumber: employee.nisNumber,
-    payeNumber: employee.payeNumber,
-    bankName: employee.bankName,
-    bankBranch: employee.bankBranch,
-    bankAccountNumber: employee.bankAccountNumber,
-    salaryCents: toCents(Number(input.salary) || 0),
-    frequency: input.frequency,
-  });
-
+  const html = await buildJobLetterForEmployee(input, companyId);
   return { html };
 }
 

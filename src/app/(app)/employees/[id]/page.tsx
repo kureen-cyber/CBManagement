@@ -8,6 +8,7 @@ import { EmployeePayslipRecords } from "@/components/EmployeePayslipRecords";
 import { EmployeeTimeClock } from "@/components/EmployeeTimeClock";
 import { PageHeader, Panel } from "@/components/ui";
 import { formatAppDate } from "@/lib/timezone";
+import { receiptHeaderText } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { companyId } = await requireCompany();
+  const { companyId, company } = await requireCompany();
   const employee = await prisma.employee.findFirst({
     where: { id, companyId },
     include: {
@@ -75,6 +76,14 @@ export default async function EmployeeDetailPage({
           bankName: employee.bankName || "",
           bankBranch: employee.bankBranch || "",
           active: employee.active,
+        }}
+        jobLetterDefaults={{
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          jobTitle: employee.role || "",
+          startDate: employee.dateOfEngagement?.toISOString().slice(0, 10) || "",
+          companyName: receiptHeaderText(company),
+          companyPhone: company.businessContactNumber || "",
+          companyEmail: company.businessEmail || "",
         }}
       />
 

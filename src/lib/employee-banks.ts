@@ -18,3 +18,19 @@ export const PAY_FREQUENCIES = [
 ] as const;
 
 export type PayFrequency = (typeof PAY_FREQUENCIES)[number]["value"];
+
+export const EMPLOYMENT_BASIS_OPTIONS = [
+  { value: "full-time", label: "Full-time" },
+  { value: "part-time", label: "Part-time" },
+  { value: "contract", label: "Contract" },
+] as const;
+
+export type EmploymentBasis = (typeof EMPLOYMENT_BASIS_OPTIONS)[number]["value"];
+
+export const PRONOUN_OPTIONS = [
+  { value: "he", label: "He / Him" },
+  { value: "she", label: "She / Her" },
+  { value: "they", label: "They / Them" },
+] as const;
+
+export type EmployeePronoun = (typeof PRONOUN_OPTIONS)[number]["value"];

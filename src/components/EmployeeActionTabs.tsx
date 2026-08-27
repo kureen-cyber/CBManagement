@@ -12,7 +12,7 @@ import {
 } from "@/app/actions/employee-documents";
 import { EmployeeFormFields, type EmployeeFormValues } from "@/components/EmployeeFormFields";
 import { formatTTD, fromCents } from "@/lib/money";
-import { PAY_FREQUENCIES, type PayFrequency } from "@/lib/employee-banks";
+import { PAY_FREQUENCIES, EMPLOYMENT_BASIS_OPTIONS, PRONOUN_OPTIONS, type EmploymentBasis, type EmployeePronoun, type PayFrequency } from "@/lib/employee-banks";
 
 type TabId = "profile" | "job-letter" | "payslip";
 
@@ -39,11 +39,20 @@ export function EmployeeActionTabs({
   defaultEmail,
   profileValues,
   suggestedMonthlySalary,
+  jobLetterDefaults,
 }: {
   employeeId: string;
   defaultEmail?: string | null;
   profileValues: EmployeeFormValues;
   suggestedMonthlySalary?: number;
+  jobLetterDefaults: {
+    employeeName: string;
+    jobTitle: string;
+    startDate: string;
+    companyName: string;
+    companyPhone: string;
+    companyEmail: string;
+  };
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId | null>(null);
@@ -55,6 +64,15 @@ export function EmployeeActionTabs({
     suggestedMonthlySalary ? String(fromCents(suggestedMonthlySalary)) : "",
   );
   const [frequency, setFrequency] = useState<PayFrequency>("monthly");
+  const [jobTitle, setJobTitle] = useState(jobLetterDefaults.jobTitle);
+  const [startDate, setStartDate] = useState(jobLetterDefaults.startDate);
+  const [idNumber, setIdNumber] = useState("");
+  const [employmentBasis, setEmploymentBasis] = useState<EmploymentBasis>("full-time");
+  const [pronoun, setPronoun] = useState<EmployeePronoun>("they");
+  const [employerName, setEmployerName] = useState("");
+  const [employerTitle, setEmployerTitle] = useState("");
+  const [companyPhone, setCompanyPhone] = useState(jobLetterDefaults.companyPhone);
+  const [companyEmail, setCompanyEmail] = useState(jobLetterDefaults.companyEmail);
   const [jobLetterHtml, setJobLetterHtml] = useState<string | null>(null);
 
   const bounds = useMemo(() => monthBounds(), []);
@@ -89,15 +107,28 @@ export function EmployeeActionTabs({
     });
   }
 
+  function jobLetterInput() {
+    return {
+      employeeId,
+      salary: Number(salary) || 0,
+      frequency,
+      idNumber,
+      employmentBasis,
+      pronoun,
+      employerName,
+      employerTitle,
+      jobTitle,
+      startDate,
+      companyPhone,
+      companyEmail,
+    };
+  }
+
   function loadJobLetterPreview() {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await previewEmployeeJobLetter({
-          employeeId,
-          salary: Number(salary) || 0,
-          frequency,
-        });
+        const result = await previewEmployeeJobLetter(jobLetterInput());
         setJobLetterHtml(result.html);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not build job letter");
@@ -110,10 +141,8 @@ export function EmployeeActionTabs({
     setMessage(null);
     startTransition(async () => {
       const result = await emailEmployeeJobLetter({
-        employeeId,
+        ...jobLetterInput(),
         toEmail: emailTo,
-        salary: Number(salary) || 0,
-        frequency,
       });
       if (result && "error" in result && result.error) {
         setError(result.error);
@@ -283,10 +312,68 @@ export function EmployeeActionTabs({
             {tab === "job-letter" ? (
               <div className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.88rem" }}>
-                  Review the letter pulled from this employee&apos;s profile, then set salary and pay
-                  frequency before printing or emailing.
+                  Pre-filled fields come from the employee profile and business settings. Edit any
+                  value below before printing or emailing — changes apply to this letter only.
                 </p>
                 <div className="form-grid">
+                  <label className="field">
+                    Employee name
+                    <input value={jobLetterDefaults.employeeName} readOnly />
+                  </label>
+                  <label className="field">
+                    Company / business name
+                    <input value={jobLetterDefaults.companyName} readOnly />
+                  </label>
+                  <label className="field">
+                    Job title
+                    <input
+                      value={jobTitle}
+                      onChange={(e) => setJobTitle(e.target.value)}
+                      placeholder="Position on the letter"
+                    />
+                  </label>
+                  <label className="field">
+                    Start date
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    National ID / Passport
+                    <input
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      placeholder="Optional — leave blank if not required"
+                    />
+                  </label>
+                  <label className="field">
+                    Employment basis
+                    <select
+                      value={employmentBasis}
+                      onChange={(e) => setEmploymentBasis(e.target.value as EmploymentBasis)}
+                    >
+                      {EMPLOYMENT_BASIS_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    Pronoun
+                    <select
+                      value={pronoun}
+                      onChange={(e) => setPronoun(e.target.value as EmployeePronoun)}
+                    >
+                      {PRONOUN_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="field">
                     Salary (TT$)
                     <input
@@ -311,7 +398,40 @@ export function EmployeeActionTabs({
                     </select>
                   </label>
                   <label className="field">
-                    Email to
+                    Employer / manager name
+                    <input
+                      value={employerName}
+                      onChange={(e) => setEmployerName(e.target.value)}
+                      placeholder="Signatory full name"
+                    />
+                  </label>
+                  <label className="field">
+                    Signatory title
+                    <input
+                      value={employerTitle}
+                      onChange={(e) => setEmployerTitle(e.target.value)}
+                      placeholder="e.g. Managing Director"
+                    />
+                  </label>
+                  <label className="field">
+                    Company telephone
+                    <input
+                      value={companyPhone}
+                      onChange={(e) => setCompanyPhone(e.target.value)}
+                      placeholder="From business settings"
+                    />
+                  </label>
+                  <label className="field">
+                    Company email
+                    <input
+                      type="email"
+                      value={companyEmail}
+                      onChange={(e) => setCompanyEmail(e.target.value)}
+                      placeholder="From business settings"
+                    />
+                  </label>
+                  <label className="field">
+                    Email letter to
                     <input
                       type="email"
                       value={emailTo}

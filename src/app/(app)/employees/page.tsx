@@ -4,7 +4,9 @@ import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { createEmployee } from "@/app/actions";
 import { AddEntityTab } from "@/components/AddEntityTab";
+import { EmployeeFormFields } from "@/components/EmployeeFormFields";
 import { PageHeader, Panel } from "@/components/ui";
+import { formatAppDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -22,32 +24,9 @@ export default async function EmployeesPage() {
         title="Employees"
         description="Staff registry — open an employee to clock in/out and review working records."
       />
-      <AddEntityTab label="Add employee">
+      <AddEntityTab label="Add employee" wide>
         <form action={createEmployee} className="form-grid" autoComplete="off">
-          <label className="field">
-            First name
-            <input name="firstName" required autoComplete="off" />
-          </label>
-          <label className="field">
-            Last name
-            <input name="lastName" required autoComplete="off" />
-          </label>
-          <label className="field">
-            Role
-            <input name="role" placeholder="Electrician" autoComplete="off" />
-          </label>
-          <label className="field">
-            Hourly rate (TT$)
-            <input name="hourlyRate" type="number" step="0.01" defaultValue="40" />
-          </label>
-          <label className="field">
-            Phone
-            <input name="phone" autoComplete="off" />
-          </label>
-          <label className="field">
-            Email
-            <input name="email" type="email" autoComplete="off" />
-          </label>
+          <EmployeeFormFields />
           <div className="full">
             <button className="btn btn-primary" type="submit">
               Save employee
@@ -61,6 +40,7 @@ export default async function EmployeesPage() {
             <tr>
               <th>Employee</th>
               <th>Role</th>
+              <th>Engaged</th>
               <th>Rate</th>
               <th>Recent hours</th>
             </tr>
@@ -76,6 +56,9 @@ export default async function EmployeesPage() {
                   </Link>
                 </td>
                 <td>{e.role ?? "—"}</td>
+                <td className="muted">
+                  {e.dateOfEngagement ? formatAppDate(e.dateOfEngagement) : "—"}
+                </td>
                 <td className="money">
                   {e.hourlyRate > 0 ? `${formatTTD(e.hourlyRate)}/hr` : "No rate"}
                 </td>
@@ -88,7 +71,7 @@ export default async function EmployeesPage() {
             ))}
             {employees.length === 0 ? (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={5} className="muted">
                   No employees yet — use Add employee.
                 </td>
               </tr>

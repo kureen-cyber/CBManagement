@@ -1,3 +1,5 @@
+import { EMPLOYEE_BANKS } from "@/lib/employee-banks";
+
 export type EmployeeFormValues = {
   firstName?: string;
   lastName?: string;
@@ -123,7 +125,18 @@ export function EmployeeFormFields({
       </label>
       <label className="field">
         Bank
-        <input name="bankName" defaultValue={values?.bankName || ""} autoComplete="off" />
+        <select name="bankName" defaultValue={values?.bankName || ""}>
+          <option value="">Select bank…</option>
+          {values?.bankName &&
+          !EMPLOYEE_BANKS.includes(values.bankName as (typeof EMPLOYEE_BANKS)[number]) ? (
+            <option value={values.bankName}>{values.bankName}</option>
+          ) : null}
+          {EMPLOYEE_BANKS.map((bank) => (
+            <option key={bank} value={bank}>
+              {bank}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="field">
         Branch

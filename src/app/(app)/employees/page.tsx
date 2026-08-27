@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
@@ -19,7 +20,7 @@ export default async function EmployeesPage() {
     <div className="stack">
       <PageHeader
         title="Employees"
-        description="Staff registry for your business — rates and hours. This list is not linked to jobs or invoices."
+        description="Staff registry — open an employee to clock in/out and review working records."
       />
       <AddEntityTab label="Add employee">
         <form action={createEmployee} className="form-grid" autoComplete="off">
@@ -68,12 +69,16 @@ export default async function EmployeesPage() {
             {employees.map((e) => (
               <tr key={e.id}>
                 <td>
-                  <strong>
-                    {e.firstName} {e.lastName}
-                  </strong>
+                  <Link href={`/employees/${e.id}`}>
+                    <strong>
+                      {e.firstName} {e.lastName}
+                    </strong>
+                  </Link>
                 </td>
                 <td>{e.role ?? "—"}</td>
-                <td className="money">{formatTTD(e.hourlyRate)}/hr</td>
+                <td className="money">
+                  {e.hourlyRate > 0 ? `${formatTTD(e.hourlyRate)}/hr` : "No rate"}
+                </td>
                 <td className="muted">
                   {e.timeEntries.length
                     ? e.timeEntries.map((t) => `${t.hours}h`).join(", ")

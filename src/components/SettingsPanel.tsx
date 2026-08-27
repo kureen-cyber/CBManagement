@@ -449,7 +449,7 @@ export function SettingsPanel({
   });
 
   return (
-    <div className="stack">
+    <div className="stack settings-compact">
       <div className="settings-tabs" role="tablist">
         {TABS.map((t) => (
           <button
@@ -469,248 +469,261 @@ export function SettingsPanel({
       {error ? <div className="badge badge-danger">{error}</div> : null}
 
       {tab === "general" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" encType="multipart/form-data" onSubmit={onGeneral}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Business</h2>
-            <label className="field">
-              Business name
-              <input
-                name="businessName"
-                type="text"
-                defaultValue={businessName}
-                required
-                placeholder="Your business name"
-              />
-            </label>
-            <div className="info-banner">
-              Plan: <strong>{PLAN_TIER_LABELS[planTier]}</strong>
-              {planTier === "FREE_RETAIL"
-                ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
-                : null}
-            </div>
-
-            <label className="field full">
-              Business address
-              <textarea
-                name="businessAddress"
-                rows={2}
-                defaultValue={businessAddress || ""}
-                placeholder="Street, city, country"
-              />
-            </label>
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="receiptShowBusinessAddress"
-                defaultChecked={receiptShowBusinessAddress}
-              />
-              <span>
-                <strong>Show address on POS receipts</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Print the business address under the header on sales receipts
-                </span>
-              </span>
-            </label>
-
-            <label className="field">
-              Contact number
-              <input
-                name="businessContactNumber"
-                type="tel"
-                defaultValue={businessContactNumber || ""}
-                placeholder="+1 868 555 0100"
-              />
-            </label>
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="receiptShowContactNumber"
-                defaultChecked={receiptShowContactNumber}
-              />
-              <span>
-                <strong>Show contact number on POS receipts</strong>
-              </span>
-            </label>
-
-            <label className="field">
-              Email address
-              <input
-                name="businessEmail"
-                type="email"
-                defaultValue={businessEmail || ""}
-                placeholder="info@yourbusiness.com"
-              />
-            </label>
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="receiptShowBusinessEmail"
-                defaultChecked={receiptShowBusinessEmail}
-              />
-              <span>
-                <strong>Show email on POS receipts</strong>
-              </span>
-            </label>
-
-            <label className="field">
-              Company registration number
-              <input
-                name="companyRegistrationNumber"
-                defaultValue={companyRegistrationNumber || ""}
-                placeholder="Registration / incorporation #"
-              />
-            </label>
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="receiptShowRegistrationNumber"
-                defaultChecked={receiptShowRegistrationNumber}
-              />
-              <span>
-                <strong>Show registration number on POS receipts</strong>
-              </span>
-            </label>
-
-            <div className="panel" style={{ padding: "1rem" }}>
-              <strong>Company stamp</strong>
-              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
-                Optional stamp image for receipts and documents.
-              </p>
+        <Panel className="settings-panel">
+          <form className="stack settings-compact" encType="multipart/form-data" onSubmit={onGeneral}>
+            <h2 className="settings-section-title">Business</h2>
+            <div className="form-grid">
               <label className="field">
-                Upload stamp
+                Business name
                 <input
-                  name="companyStamp"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setRemoveCompanyStamp(false);
-                    setStampPreview(URL.createObjectURL(file));
-                  }}
+                  name="businessName"
+                  type="text"
+                  defaultValue={businessName}
+                  required
+                  placeholder="Your business name"
                 />
-                <span className="muted" style={{ fontSize: "0.8rem" }}>
-                  PNG, JPEG, WebP, or GIF · max 300KB
-                </span>
               </label>
-              {stampPreview && !removeCompanyStamp ? (
-                <div className="receipt-logo-preview">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={stampPreview} alt="Company stamp preview" className="receipt-company-stamp" />
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setRemoveCompanyStamp(true);
-                      setStampPreview(null);
+              <label className="field">
+                Display language
+                <select name="language" defaultValue={language}>
+                  {LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="info-banner full">
+                Plan: <strong>{PLAN_TIER_LABELS[planTier]}</strong>
+                {planTier === "FREE_RETAIL"
+                  ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
+                  : null}
+              </div>
+
+              <div className="settings-field-cell full">
+                <label className="field">
+                  Business address
+                  <textarea
+                    name="businessAddress"
+                    rows={2}
+                    defaultValue={businessAddress || ""}
+                    placeholder="Street, city, country"
+                  />
+                </label>
+                <label className="choice-card choice-card-inline">
+                  <input
+                    type="checkbox"
+                    name="receiptShowBusinessAddress"
+                    defaultChecked={receiptShowBusinessAddress}
+                  />
+                  <span>
+                    <strong>Show on POS receipts</strong>
+                  </span>
+                </label>
+              </div>
+
+              <div className="settings-field-cell">
+                <label className="field">
+                  Contact number
+                  <input
+                    name="businessContactNumber"
+                    type="tel"
+                    defaultValue={businessContactNumber || ""}
+                    placeholder="+1 868 555 0100"
+                  />
+                </label>
+                <label className="choice-card choice-card-inline">
+                  <input
+                    type="checkbox"
+                    name="receiptShowContactNumber"
+                    defaultChecked={receiptShowContactNumber}
+                  />
+                  <span>
+                    <strong>Show on POS receipts</strong>
+                  </span>
+                </label>
+              </div>
+
+              <div className="settings-field-cell">
+                <label className="field">
+                  Email address
+                  <input
+                    name="businessEmail"
+                    type="email"
+                    defaultValue={businessEmail || ""}
+                    placeholder="info@yourbusiness.com"
+                  />
+                </label>
+                <label className="choice-card choice-card-inline">
+                  <input
+                    type="checkbox"
+                    name="receiptShowBusinessEmail"
+                    defaultChecked={receiptShowBusinessEmail}
+                  />
+                  <span>
+                    <strong>Show on POS receipts</strong>
+                  </span>
+                </label>
+              </div>
+
+              <div className="settings-field-cell">
+                <label className="field">
+                  Company registration number
+                  <input
+                    name="companyRegistrationNumber"
+                    defaultValue={companyRegistrationNumber || ""}
+                    placeholder="Registration / incorporation #"
+                  />
+                </label>
+                <label className="choice-card choice-card-inline">
+                  <input
+                    type="checkbox"
+                    name="receiptShowRegistrationNumber"
+                    defaultChecked={receiptShowRegistrationNumber}
+                  />
+                  <span>
+                    <strong>Show on POS receipts</strong>
+                  </span>
+                </label>
+              </div>
+
+              <div className="settings-upload-card">
+                <strong>Company stamp</strong>
+                <p className="muted">Optional stamp for receipts and documents.</p>
+                <label className="field">
+                  Upload stamp
+                  <input
+                    name="companyStamp"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setRemoveCompanyStamp(false);
+                      setStampPreview(URL.createObjectURL(file));
                     }}
-                  >
-                    Remove stamp
-                  </button>
-                </div>
-              ) : null}
-              <label className="choice-card" style={{ marginTop: "0.75rem" }}>
-                <input
-                  type="checkbox"
-                  name="receiptShowCompanyStamp"
-                  defaultChecked={receiptShowCompanyStamp}
-                />
-                <span>
-                  <strong>Show company stamp on POS receipts</strong>
-                </span>
-              </label>
+                  />
+                  <span className="muted" style={{ fontSize: "0.72rem" }}>
+                    PNG, JPEG, WebP, or GIF · max 300KB
+                  </span>
+                </label>
+                {stampPreview && !removeCompanyStamp ? (
+                  <div className="receipt-logo-preview">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={stampPreview} alt="Company stamp preview" className="receipt-company-stamp" />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setRemoveCompanyStamp(true);
+                        setStampPreview(null);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+                <label className="choice-card choice-card-inline" style={{ marginTop: "0.35rem" }}>
+                  <input
+                    type="checkbox"
+                    name="receiptShowCompanyStamp"
+                    defaultChecked={receiptShowCompanyStamp}
+                  />
+                  <span>
+                    <strong>Show on POS receipts</strong>
+                  </span>
+                </label>
+              </div>
             </div>
 
-            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Branding</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+            <h2 className="settings-section-title">Branding</h2>
+            <p className="settings-desc muted">
               Logo and letterhead appear on invoices, quotations, and reports automatically.
             </p>
 
-            <div className="panel" style={{ padding: "1rem" }}>
-              <strong>Business logo</strong>
-              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
-                Shown on invoices, quotations, reports, and POS receipts.
-              </p>
-              <label className="field">
-                Upload logo
-                <input
-                  name="businessLogo"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setRemoveBusinessLogo(false);
-                    setBusinessLogoPreview(URL.createObjectURL(file));
-                  }}
-                />
-                <span className="muted" style={{ fontSize: "0.8rem" }}>
-                  PNG, JPEG, WebP, or GIF · max 300KB
-                </span>
-              </label>
-              {businessLogoPreview && !removeBusinessLogo ? (
-                <div className="receipt-logo-preview">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={businessLogoPreview} alt="Business logo preview" />
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setRemoveBusinessLogo(true);
-                      setBusinessLogoPreview(null);
+            <div className="form-grid">
+              <div className="settings-upload-card">
+                <strong>Business logo</strong>
+                <p className="muted">Invoices, quotations, reports, and POS receipts.</p>
+                <label className="field">
+                  Upload logo
+                  <input
+                    name="businessLogo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setRemoveBusinessLogo(false);
+                      setBusinessLogoPreview(URL.createObjectURL(file));
                     }}
-                  >
-                    Remove logo
-                  </button>
-                </div>
-              ) : null}
+                  />
+                  <span className="muted" style={{ fontSize: "0.72rem" }}>
+                    PNG, JPEG, WebP, or GIF · max 300KB
+                  </span>
+                </label>
+                {businessLogoPreview && !removeBusinessLogo ? (
+                  <div className="receipt-logo-preview">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={businessLogoPreview} alt="Business logo preview" />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setRemoveBusinessLogo(true);
+                        setBusinessLogoPreview(null);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="settings-upload-card">
+                <strong>Letterhead</strong>
+                <p className="muted">Wide header for branded documents and reports.</p>
+                <label className="field">
+                  Upload letterhead
+                  <input
+                    name="letterhead"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setRemoveLetterhead(false);
+                      setLetterheadPreview(URL.createObjectURL(file));
+                    }}
+                  />
+                  <span className="muted" style={{ fontSize: "0.72rem" }}>
+                    PNG, JPEG, WebP, or GIF · max 800KB
+                  </span>
+                </label>
+                {letterheadPreview && !removeLetterhead ? (
+                  <div className="receipt-logo-preview">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={letterheadPreview} alt="Letterhead preview" className="document-letterhead" />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setRemoveLetterhead(true);
+                        setLetterheadPreview(null);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
-            <div className="panel" style={{ padding: "1rem" }}>
-              <strong>Letterhead</strong>
-              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
-                Wide header image for branded documents and report printouts.
-              </p>
-              <label className="field">
-                Upload letterhead
-                <input
-                  name="letterhead"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setRemoveLetterhead(false);
-                    setLetterheadPreview(URL.createObjectURL(file));
-                  }}
-                />
-                <span className="muted" style={{ fontSize: "0.8rem" }}>
-                  PNG, JPEG, WebP, or GIF · max 800KB
-                </span>
-              </label>
-              {letterheadPreview && !removeLetterhead ? (
-                <div className="receipt-logo-preview">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={letterheadPreview} alt="Letterhead preview" className="document-letterhead" />
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setRemoveLetterhead(true);
-                      setLetterheadPreview(null);
-                    }}
-                  >
-                    Remove letterhead
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Appearance</h2>
+            <h2 className="settings-section-title">Appearance</h2>
             <fieldset className="settings-fieldset">
               <legend>Colour scheme</legend>
               <input type="hidden" name="theme" value={composedTheme} />
-              <div className="stack" style={{ gap: "0.65rem" }}>
+              <div className="settings-choice-grid">
                 {THEME_FAMILIES.map((family) => (
                   <label key={family} className="choice-card">
                     <input
@@ -722,7 +735,7 @@ export function SettingsPanel({
                     />
                     <span>
                       <strong>{THEME_FAMILY_LABELS[family]}</strong>
-                      <span className="row" style={{ gap: "0.35rem", marginTop: "0.35rem" }}>
+                      <span className="row" style={{ gap: "0.35rem", marginTop: "0.25rem" }}>
                         {family === "red-white-black" ? (
                           <>
                             <span className="theme-swatch" style={{ background: "#C41E3A" }} />
@@ -745,62 +758,47 @@ export function SettingsPanel({
                 ))}
               </div>
             </fieldset>
-            <fieldset className="settings-fieldset">
-              <legend>Mode</legend>
-              <div className="theme-mode-toggle" role="group" aria-label="Light or dark mode">
-                {THEME_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    className={`btn btn-sm ${appearanceMode === mode ? "btn-primary" : "btn-secondary"}`}
-                    onClick={() => setAppearanceMode(mode)}
-                    aria-pressed={appearanceMode === mode}
-                  >
-                    {mode === "light" ? "Light" : "Dark"}
-                  </button>
-                ))}
-              </div>
-              <p className="muted" style={{ margin: "0.65rem 0 0", fontSize: "0.85rem" }}>
-                Light and dark apply to the colour scheme selected above.
-              </p>
-            </fieldset>
-
-            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Home screen</h2>
-            <fieldset className="settings-fieldset">
-              <legend>Item layout</legend>
-              <div className="stack" style={{ gap: "0.65rem" }}>
-                {HOME_LAYOUTS.map((layout) => (
-                  <label key={layout.value} className="choice-card">
-                    <input
-                      type="radio"
-                      name="homeLayout"
-                      value={layout.value}
-                      defaultChecked={homeLayout === layout.value}
-                    />
-                    <span>
-                      <strong>{layout.label}</strong>
-                      <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                        {layout.description}
+            <div className="form-grid">
+              <fieldset className="settings-fieldset">
+                <legend>Mode</legend>
+                <div className="theme-mode-toggle" role="group" aria-label="Light or dark mode">
+                  {THEME_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`btn btn-sm ${appearanceMode === mode ? "btn-primary" : "btn-secondary"}`}
+                      onClick={() => setAppearanceMode(mode)}
+                      aria-pressed={appearanceMode === mode}
+                    >
+                      {mode === "light" ? "Light" : "Dark"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <fieldset className="settings-fieldset">
+                <legend>Home screen layout</legend>
+                <div className="settings-choice-grid">
+                  {HOME_LAYOUTS.map((layout) => (
+                    <label key={layout.value} className="choice-card">
+                      <input
+                        type="radio"
+                        name="homeLayout"
+                        value={layout.value}
+                        defaultChecked={homeLayout === layout.value}
+                      />
+                      <span>
+                        <strong>{layout.label}</strong>
+                        <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                          {layout.description}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
 
-            <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Language</h2>
-            <label className="field">
-              Display language
-              <select name="language" defaultValue={language}>
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button className="btn btn-primary" type="submit" disabled={pending}>
+            <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save general"}
             </button>
           </form>
@@ -808,35 +806,37 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "taxes" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onTaxes}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>VAT</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+        <Panel className="settings-panel">
+          <form className="stack settings-compact" onSubmit={onTaxes}>
+            <h2 className="settings-section-title">VAT</h2>
+            <p className="settings-desc muted">
               Turn tax on or off for sales. When enabled, VAT is applied at the rate below
               (Trinidad & Tobago standard is 12.5%).
             </p>
-            <label className="choice-card">
-              <input type="checkbox" name="taxEnabled" defaultChecked={taxEnabled} />
-              <span>
-                <strong>Enable tax / VAT</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  When off, receipts and POS totals exclude VAT
+            <div className="form-grid">
+              <label className="choice-card">
+                <input type="checkbox" name="taxEnabled" defaultChecked={taxEnabled} />
+                <span>
+                  <strong>Enable tax / VAT</strong>
+                  <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                    When off, receipts and POS totals exclude VAT
+                  </span>
                 </span>
-              </span>
-            </label>
-            <label className="field" style={{ maxWidth: 220 }}>
-              VAT rate (%)
-              <input
-                name="vatPercent"
-                type="number"
-                min={0}
-                max={100}
-                step={0.1}
-                defaultValue={(vatRate * 100).toFixed(1)}
-                required
-              />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={pending}>
+              </label>
+              <label className="field">
+                VAT rate (%)
+                <input
+                  name="vatPercent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  defaultValue={(vatRate * 100).toFixed(1)}
+                  required
+                />
+              </label>
+            </div>
+            <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save taxes"}
             </button>
           </form>
@@ -844,36 +844,38 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "printers" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onPrinters}>
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Receipt printing</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+        <Panel className="settings-panel">
+          <form className="stack settings-compact" onSubmit={onPrinters}>
+            <h2 className="settings-section-title">Receipt printing</h2>
+            <p className="settings-desc muted">
               Enable printing receipts from the POS receipt screen. Uses your device’s print dialog
               (browser or connected printer).
             </p>
-            <label className="choice-card">
-              <input
-                type="checkbox"
-                name="receiptPrinting"
-                defaultChecked={receiptPrinting}
-              />
-              <span>
-                <strong>Allow printing receipts</strong>
-                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                  Show the Print receipt button on sale receipts
+            <div className="form-grid">
+              <label className="choice-card">
+                <input
+                  type="checkbox"
+                  name="receiptPrinting"
+                  defaultChecked={receiptPrinting}
+                />
+                <span>
+                  <strong>Allow printing receipts</strong>
+                  <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                    Show the Print receipt button on sale receipts
+                  </span>
                 </span>
-              </span>
-            </label>
-            <label className="field">
-              Preferred printer name (optional)
-              <input
-                name="printerName"
-                type="text"
-                defaultValue={printerName ?? ""}
-                placeholder="e.g. Front counter receipt printer"
-              />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={pending}>
+              </label>
+              <label className="field">
+                Preferred printer name (optional)
+                <input
+                  name="printerName"
+                  type="text"
+                  defaultValue={printerName ?? ""}
+                  placeholder="e.g. Front counter receipt printer"
+                />
+              </label>
+            </div>
+            <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save printers"}
             </button>
           </form>
@@ -881,80 +883,85 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "receipts" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <form className="stack" onSubmit={onReceipts} encType="multipart/form-data">
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Receipts</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+        <Panel className="settings-panel">
+          <form className="stack settings-compact" onSubmit={onReceipts} encType="multipart/form-data">
+            <h2 className="settings-section-title">Receipts</h2>
+            <p className="settings-desc muted">
               Control how your POS receipts look — logo, header, footer, and what details to include.
             </p>
 
-            <label className="field">
-              Business logo
-              <input
-                name="receiptLogo"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setRemoveLogo(false);
-                  const url = URL.createObjectURL(file);
-                  setLogoPreview(url);
-                }}
-              />
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                PNG, JPEG, WebP, or GIF · max 300KB
-              </span>
-            </label>
-
-            {logoPreview && !removeLogo ? (
-              <div className="receipt-logo-preview">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoPreview} alt="Receipt logo preview" />
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    setRemoveLogo(true);
-                    setLogoPreview(null);
+            <div className="settings-upload-card">
+              <strong>Business logo</strong>
+              <label className="field">
+                Upload logo
+                <input
+                  name="receiptLogo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveLogo(false);
+                    const url = URL.createObjectURL(file);
+                    setLogoPreview(url);
                   }}
-                >
-                  Remove logo
-                </button>
-              </div>
-            ) : null}
+                />
+                <span className="muted" style={{ fontSize: "0.72rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 300KB
+                </span>
+              </label>
 
-            <label className="field">
-              Header
-              <input
-                name="receiptHeader"
-                type="text"
-                defaultValue={headerDefault}
-                placeholder={businessName || "Your business name"}
-                maxLength={120}
-              />
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                Defaults to your business name
-              </span>
-            </label>
+              {logoPreview && !removeLogo ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoPreview} alt="Receipt logo preview" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveLogo(true);
+                      setLogoPreview(null);
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+            </div>
 
-            <label className="field">
-              Footer
-              <input
-                name="receiptFooter"
-                type="text"
-                defaultValue={footerDefault}
-                placeholder={DEFAULT_RECEIPT_FOOTER}
-                maxLength={200}
-              />
-              <span className="muted" style={{ fontSize: "0.8rem" }}>
-                Defaults to “{DEFAULT_RECEIPT_FOOTER}”
-              </span>
-            </label>
+            <div className="form-grid">
+              <label className="field">
+                Header
+                <input
+                  name="receiptHeader"
+                  type="text"
+                  defaultValue={headerDefault}
+                  placeholder={businessName || "Your business name"}
+                  maxLength={120}
+                />
+                <span className="muted" style={{ fontSize: "0.72rem" }}>
+                  Defaults to your business name
+                </span>
+              </label>
+
+              <label className="field">
+                Footer
+                <input
+                  name="receiptFooter"
+                  type="text"
+                  defaultValue={footerDefault}
+                  placeholder={DEFAULT_RECEIPT_FOOTER}
+                  maxLength={200}
+                />
+                <span className="muted" style={{ fontSize: "0.72rem" }}>
+                  Defaults to “{DEFAULT_RECEIPT_FOOTER}”
+                </span>
+              </label>
+            </div>
 
             <fieldset className="settings-fieldset">
               <legend>Show on receipt</legend>
-              <div className="stack" style={{ gap: "0.65rem" }}>
+              <div className="settings-choice-grid">
                 <label className="choice-card">
                   <input
                     type="checkbox"
@@ -963,7 +970,7 @@ export function SettingsPanel({
                   />
                   <span>
                     <strong>Show customer info</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
                       Include the customer name (or Walk-in) on the receipt
                     </span>
                   </span>
@@ -976,7 +983,7 @@ export function SettingsPanel({
                   />
                   <span>
                     <strong>Show comments</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
                       Include sale notes / comments when present
                     </span>
                   </span>
@@ -989,7 +996,7 @@ export function SettingsPanel({
                   />
                   <span>
                     <strong>Persons involved (honey sales)</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
                       Enable a field on POS to record persons involved in the sale of honey
                     </span>
                   </span>
@@ -1002,7 +1009,7 @@ export function SettingsPanel({
                   />
                   <span>
                     <strong>Apiary Number</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
                       Print the Apiary Number on receipts
                     </span>
                   </span>
@@ -1015,7 +1022,7 @@ export function SettingsPanel({
                   />
                   <span>
                     <strong>OPR #</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                    <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
                       Print the OPR number on receipts
                     </span>
                   </span>
@@ -1044,20 +1051,19 @@ export function SettingsPanel({
                   maxLength={80}
                 />
               </label>
+              <label className="field">
+                Receipt language
+                <select name="receiptLanguage" defaultValue={receiptLanguage}>
+                  {LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
-            <label className="field">
-              Receipt language
-              <select name="receiptLanguage" defaultValue={receiptLanguage}>
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <button className="btn btn-primary" type="submit" disabled={pending}>
+            <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save receipts"}
             </button>
           </form>
@@ -1065,10 +1071,10 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "payments" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <div className="stack">
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Payment types</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+        <Panel className="settings-panel">
+          <div className="stack settings-compact">
+            <h2 className="settings-section-title">Payment types</h2>
+            <p className="settings-desc muted">
               Add the payment methods available at checkout (cash, debit card, credit card, cheque,
               and more).
             </p>
@@ -1146,10 +1152,10 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "discounts" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <div className="stack">
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>Percentage discounts</h2>
-            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+        <Panel className="settings-panel">
+          <div className="stack settings-compact">
+            <h2 className="settings-section-title">Percentage discounts</h2>
+            <p className="settings-desc muted">
               Presets appear in the POS discount dropdown. Only POS register 1 can add or edit
               these.
             </p>
@@ -1159,7 +1165,7 @@ export function SettingsPanel({
                 existing discounts at checkout.
               </div>
             ) : null}
-            <div className="stack" style={{ gap: "0.65rem" }}>
+            <div className="stack settings-compact" style={{ gap: "0.45rem" }}>
               {discountPresets.map((d) => (
                 <div key={d.id} className="settings-list-row">
                   {canEditDiscounts ? (
@@ -1254,9 +1260,9 @@ export function SettingsPanel({
       ) : null}
 
       {tab === "pos" ? (
-        <Panel style={{ padding: "1.25rem" }}>
-          <div className="stack">
-            <h2 style={{ margin: 0, fontSize: "1.15rem" }}>POS</h2>
+        <Panel className="settings-panel">
+          <div className="stack settings-compact">
+            <h2 className="settings-section-title">POS</h2>
 
             <div className="store-bar">
               <label className="field" style={{ margin: 0, flex: "1 1 200px" }}>
@@ -1294,7 +1300,7 @@ export function SettingsPanel({
                 </button>
               ) : null}
             </div>
-            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+            <p className="settings-desc muted">
               Your first store is the pilot. New stores start with its inventory view, registers,
               and category list so you don’t re-enter setup — then each store’s changes stay
               local.
@@ -1379,10 +1385,10 @@ export function SettingsPanel({
             {posSubTab === "registers" ? (
               <form
                 key={`registers-${activeStore?.id || "none"}`}
-                className="stack"
+                className="stack settings-compact"
                 onSubmit={onPosRegisters}
               >
-                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                <p className="settings-desc muted">
                   {planTier === "FREE_RETAIL"
                     ? `Free Retail includes up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS sign-ins.`
                     : `Standard plan supports up to ${STANDARD_MAX_POS_REGISTERS} named POS sign-ins.`}{" "}
@@ -1394,19 +1400,21 @@ export function SettingsPanel({
                   edit discounts). <strong>Register 2+</strong> — POS + stock levels only; can save
                   and edit tickets and issue refunds, but cannot delete tickets.
                 </div>
-                {registerDefaults.map((name, i) => (
-                  <label key={i} className="field">
-                    POS register {i + 1} name{i === 0 ? " (full access)" : " (POS + stock only)"}
-                    <input
-                      name={`register${i + 1}`}
-                      type="text"
-                      required={i === 0}
-                      defaultValue={name}
-                      placeholder={i === 0 ? "Front counter" : "Side till"}
-                      autoComplete="off"
-                    />
-                  </label>
-                ))}
+                <div className="form-grid">
+                  {registerDefaults.map((name, i) => (
+                    <label key={i} className="field">
+                      POS register {i + 1}{i === 0 ? " (full)" : ""}
+                      <input
+                        name={`register${i + 1}`}
+                        type="text"
+                        required={i === 0}
+                        defaultValue={name}
+                        placeholder={i === 0 ? "Front counter" : "Side till"}
+                        autoComplete="off"
+                      />
+                    </label>
+                  ))}
+                </div>
                 {registerCount < maxRegisters ? (
                   <button
                     type="button"
@@ -1417,7 +1425,7 @@ export function SettingsPanel({
                     + Add register
                   </button>
                 ) : null}
-                <button className="btn btn-primary" type="submit" disabled={pending}>
+                <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
                   {pending ? "Saving…" : "Save registers"}
                 </button>
               </form>
@@ -1426,10 +1434,10 @@ export function SettingsPanel({
             {posSubTab === "inventory-view" ? (
               <form
                 key={`view-${activeStore?.id || "none"}-${inventoryViewMode}`}
-                className="stack"
+                className="stack settings-compact"
                 onSubmit={onInventoryViewMode}
               >
-                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                <p className="settings-desc muted">
                   Choose how items appear on both Inventory and POS
                   {activeStore ? ` for ${activeStore.name}` : ""}.
                 </p>
@@ -1456,15 +1464,15 @@ export function SettingsPanel({
                     </label>
                   </div>
                 </fieldset>
-                <button className="btn btn-primary" type="submit" disabled={pending}>
+                <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
                   {pending ? "Saving…" : "Save inventory view"}
                 </button>
               </form>
             ) : null}
 
             {posSubTab === "categories" ? (
-              <div key={`cats-${activeStore?.id || "none"}`} className="stack">
-                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              <div key={`cats-${activeStore?.id || "none"}`} className="stack settings-compact">
+                <p className="settings-desc muted">
                   Category list for{" "}
                   {activeStore ? <strong>{activeStore.name}</strong> : "this store"}. New
                   stores inherit the pilot store’s list; changes here stay local. Click a
@@ -1651,57 +1659,59 @@ export function SettingsPanel({
             ) : null}
 
             {posSubTab === "features" ? (
-              <form className="stack" onSubmit={onFeatures}>
-                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              <form className="stack settings-compact" onSubmit={onFeatures}>
+                <p className="settings-desc muted">
                   Turn optional POS and inventory behaviours on or off for your business.
                 </p>
 
-                <label className="choice-card">
-                  <input
-                    type="checkbox"
-                    name="featureOpenTickets"
-                    defaultChecked={featureOpenTickets}
-                  />
-                  <span>
-                    <strong>Open Ticket</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                      Save and edit orders before completing payment. Shows a Saved Tickets tab on
-                      POS.
+                <div className="settings-choice-grid">
+                  <label className="choice-card">
+                    <input
+                      type="checkbox"
+                      name="featureOpenTickets"
+                      defaultChecked={featureOpenTickets}
+                    />
+                    <span>
+                      <strong>Open Ticket</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                        Save and edit orders before completing payment. Shows a Saved Tickets tab on
+                        POS.
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
 
-                <label className="choice-card">
-                  <input
-                    type="checkbox"
-                    name="featureLowStockEmail"
-                    defaultChecked={featureLowStockEmail}
-                  />
-                  <span>
-                    <strong>Low stock notification</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                      Weekly email of items at or below minimum stock, plus alerts when stock drops
-                      after a sale. Sent to your account email (requires RESEND_API_KEY on the
-                      server).
+                  <label className="choice-card">
+                    <input
+                      type="checkbox"
+                      name="featureLowStockEmail"
+                      defaultChecked={featureLowStockEmail}
+                    />
+                    <span>
+                      <strong>Low stock notification</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                        Weekly email of items at or below minimum stock, plus alerts when stock drops
+                        after a sale. Sent to your account email (requires RESEND_API_KEY on the
+                        server).
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
 
-                <label className="choice-card">
-                  <input
-                    type="checkbox"
-                    name="featureOutOfStockWarn"
-                    defaultChecked={featureOutOfStockWarn}
-                  />
-                  <span>
-                    <strong>Out of stock</strong>
-                    <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
-                      Warn cashiers when they try to sell unavailable stock, and email your account.
+                  <label className="choice-card">
+                    <input
+                      type="checkbox"
+                      name="featureOutOfStockWarn"
+                      defaultChecked={featureOutOfStockWarn}
+                    />
+                    <span>
+                      <strong>Out of stock</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.72rem" }}>
+                        Warn cashiers when they try to sell unavailable stock, and email your account.
+                      </span>
                     </span>
-                  </span>
-                </label>
+                  </label>
+                </div>
 
-                <button className="btn btn-primary" type="submit" disabled={pending}>
+                <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
                   {pending ? "Saving…" : "Save features"}
                 </button>
               </form>

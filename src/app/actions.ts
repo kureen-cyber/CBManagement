@@ -61,6 +61,36 @@ function dollarsToCents(value: FormDataEntryValue | null): number {
   return toCents(Number.isFinite(n) ? n : 0);
 }
 
+function optionalFormDate(value: FormDataEntryValue | null): Date | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const d = new Date(`${raw}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function optionalFormString(value: FormDataEntryValue | null): string | null {
+  const raw = String(value || "").trim();
+  return raw || null;
+}
+
+function employeeProfileFromForm(formData: FormData) {
+  return {
+    firstName: String(formData.get("firstName") || "").trim(),
+    lastName: String(formData.get("lastName") || "").trim(),
+    email: optionalFormString(formData.get("email")),
+    phone: optionalFormString(formData.get("phone")),
+    role: optionalFormString(formData.get("role")),
+    hourlyRate: dollarsToCents(formData.get("hourlyRate")),
+    dateOfEngagement: optionalFormDate(formData.get("dateOfEngagement")),
+    dateOfTermination: optionalFormDate(formData.get("dateOfTermination")),
+    nisNumber: optionalFormString(formData.get("nisNumber")),
+    payeNumber: optionalFormString(formData.get("payeNumber")),
+    bankAccountNumber: optionalFormString(formData.get("bankAccountNumber")),
+    bankName: optionalFormString(formData.get("bankName")),
+    bankBranch: optionalFormString(formData.get("bankBranch")),
+  };
+}
+
 /** Recompute and persist job status from engagement dates + invoice payments. */
 export async function syncJobStatus(jobId: string, companyId: string) {
   const job = await prisma.job.findFirst({
@@ -861,15 +891,15 @@ export async function deleteProduct(productId: string) {
 
 export async function createEmployee(formData: FormData) {
   const { companyId } = await requireCompany();
+  const profile = employeeProfileFromForm(formData);
+  if (!profile.firstName || !profile.lastName) {
+    throw new Error("First and last name are required");
+  }
+
   await prisma.employee.create({
     data: {
       companyId,
-      firstName: String(formData.get("firstName") || "").trim(),
-      lastName: String(formData.get("lastName") || "").trim(),
-      email: String(formData.get("email") || "") || null,
-      phone: String(formData.get("phone") || "") || null,
-      role: String(formData.get("role") || "") || null,
-      hourlyRate: dollarsToCents(formData.get("hourlyRate")),
+      ...profile,
     },
   });
   revalidatePath("/employees");
@@ -885,19 +915,15 @@ export async function updateEmployee(formData: FormData) {
   });
   if (!existing) throw new Error("Employee not found");
 
-  const firstName = String(formData.get("firstName") || "").trim();
-  const lastName = String(formData.get("lastName") || "").trim();
-  if (!firstName || !lastName) throw new Error("First and last name are required");
+  const profile = employeeProfileFromForm(formData);
+  if (!profile.firstName || !profile.lastName) {
+    throw new Error("First and last name are required");
+  }
 
   await prisma.employee.update({
     where: { id },
     data: {
-      firstName,
-      lastName,
-      email: String(formData.get("email") || "").trim() || null,
-      phone: String(formData.get("phone") || "").trim() || null,
-      role: String(formData.get("role") || "").trim() || null,
-      hourlyRate: dollarsToCents(formData.get("hourlyRate")),
+      ...profile,
       active: formData.get("active") === "on",
     },
   });

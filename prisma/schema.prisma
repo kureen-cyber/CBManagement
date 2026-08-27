@@ -76,6 +76,7 @@ model Company {
   supplierPurchases   SupplierPurchase[]
   products            Product[]
   employees           Employee[]
+  employeePayslips    EmployeePayslip[]
   quotations          Quotation[]
   jobs                Job[]
   invoices            Invoice[]
@@ -379,7 +380,26 @@ model Employee {
   timeEntries TimeEntry[]
   invoiceAssignments InvoiceEmployee[]
   jobAssignments     JobEmployee[]
+  payslips           EmployeePayslip[]
 
+  @@index([companyId])
+}
+
+model EmployeePayslip {
+  id           String   @id @default(cuid())
+  companyId    String
+  employeeId   String
+  periodStart  DateTime
+  periodEnd    DateTime
+  hoursWorked  Float    @default(0)
+  grossPay     Int      @default(0)
+  documentHtml String   @db.Text
+  createdAt    DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
   @@index([companyId])
 }
 

@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatTTD, fromCents } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
-import { updateEmployee } from "@/app/actions";
-import { AddEntityTab } from "@/components/AddEntityTab";
-import { EmployeeFormFields } from "@/components/EmployeeFormFields";
+import { EmployeeActionTabs } from "@/components/EmployeeActionTabs";
+import { EmployeePayslipRecords } from "@/components/EmployeePayslipRecords";
 import { EmployeeTimeClock } from "@/components/EmployeeTimeClock";
 import { PageHeader, Panel } from "@/components/ui";
 import { formatAppDate } from "@/lib/timezone";
@@ -23,6 +22,7 @@ export default async function EmployeeDetailPage({
     where: { id, companyId },
     include: {
       timeEntries: { orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+      payslips: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!employee) notFound();
@@ -30,6 +30,9 @@ export default async function EmployeeDetailPage({
   const hasOpenShift = employee.timeEntries.some(
     (t) => t.clockInAt && !t.clockOutAt,
   );
+
+  const suggestedMonthlySalary =
+    employee.hourlyRate > 0 ? Math.round(employee.hourlyRate * 160) : undefined;
 
   return (
     <div className="stack">
@@ -53,35 +56,39 @@ export default async function EmployeeDetailPage({
         </Link>
       </div>
 
-      <AddEntityTab label="Edit profile" title="Edit employee profile" wide>
-        <form action={updateEmployee} className="form-grid" autoComplete="off">
-          <input type="hidden" name="id" value={employee.id} />
-          <EmployeeFormFields
-            showActive
-            values={{
-              firstName: employee.firstName,
-              lastName: employee.lastName,
-              role: employee.role || "",
-              hourlyRate: fromCents(employee.hourlyRate),
-              phone: employee.phone || "",
-              email: employee.email || "",
-              dateOfEngagement: employee.dateOfEngagement?.toISOString(),
-              dateOfTermination: employee.dateOfTermination?.toISOString(),
-              nisNumber: employee.nisNumber || "",
-              payeNumber: employee.payeNumber || "",
-              bankAccountNumber: employee.bankAccountNumber || "",
-              bankName: employee.bankName || "",
-              bankBranch: employee.bankBranch || "",
-              active: employee.active,
-            }}
-          />
-          <div className="full">
-            <button className="btn btn-primary" type="submit">
-              Save profile
-            </button>
-          </div>
-        </form>
-      </AddEntityTab>
+      <EmployeeActionTabs
+        employeeId={employee.id}
+        defaultEmail={employee.email}
+        suggestedMonthlySalary={suggestedMonthlySalary}
+        profileValues={{
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          role: employee.role || "",
+          hourlyRate: fromCents(employee.hourlyRate),
+          phone: employee.phone || "",
+          email: employee.email || "",
+          dateOfEngagement: employee.dateOfEngagement?.toISOString(),
+          dateOfTermination: employee.dateOfTermination?.toISOString(),
+          nisNumber: employee.nisNumber || "",
+          payeNumber: employee.payeNumber || "",
+          bankAccountNumber: employee.bankAccountNumber || "",
+          bankName: employee.bankName || "",
+          bankBranch: employee.bankBranch || "",
+          active: employee.active,
+        }}
+      />
+
+      <EmployeePayslipRecords
+        payslips={employee.payslips.map((p) => ({
+          id: p.id,
+          periodStart: p.periodStart.toISOString(),
+          periodEnd: p.periodEnd.toISOString(),
+          hoursWorked: p.hoursWorked,
+          grossPay: p.grossPay,
+          documentHtml: p.documentHtml,
+          createdAt: p.createdAt.toISOString(),
+        }))}
+      />
 
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.15rem" }}>Time clock</h2>

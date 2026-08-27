@@ -875,6 +875,37 @@ export async function createEmployee(formData: FormData) {
   revalidatePath("/employees");
 }
 
+export async function updateEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing employee");
+
+  const existing = await prisma.employee.findFirst({
+    where: { id, companyId },
+  });
+  if (!existing) throw new Error("Employee not found");
+
+  const firstName = String(formData.get("firstName") || "").trim();
+  const lastName = String(formData.get("lastName") || "").trim();
+  if (!firstName || !lastName) throw new Error("First and last name are required");
+
+  await prisma.employee.update({
+    where: { id },
+    data: {
+      firstName,
+      lastName,
+      email: String(formData.get("email") || "").trim() || null,
+      phone: String(formData.get("phone") || "").trim() || null,
+      role: String(formData.get("role") || "").trim() || null,
+      hourlyRate: dollarsToCents(formData.get("hourlyRate")),
+      active: formData.get("active") === "on",
+    },
+  });
+
+  revalidatePath("/employees");
+  revalidatePath(`/employees/${id}`);
+}
+
 export async function createExpense(formData: FormData) {
   const { companyId } = await requireCompany();
   const jobId = String(formData.get("jobId") || "") || null;

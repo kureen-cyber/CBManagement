@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatTTD } from "@/lib/money";
+import { formatTTD, fromCents } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { updateEmployee } from "@/app/actions";
+import { AddEntityTab } from "@/components/AddEntityTab";
 import { EmployeeTimeClock } from "@/components/EmployeeTimeClock";
 import { PageHeader, Panel } from "@/components/ui";
 
@@ -35,6 +37,8 @@ export default async function EmployeeDetailPage({
           description={[
             employee.role || null,
             employee.hourlyRate > 0 ? `${formatTTD(employee.hourlyRate)}/hr` : "No hourly rate set",
+            employee.email || null,
+            employee.active ? null : "Inactive",
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -43,6 +47,64 @@ export default async function EmployeeDetailPage({
           Back to employees
         </Link>
       </div>
+
+      <AddEntityTab label="Edit profile" title="Edit employee profile">
+        <form action={updateEmployee} className="form-grid" autoComplete="off">
+          <input type="hidden" name="id" value={employee.id} />
+          <label className="field">
+            First name
+            <input name="firstName" required defaultValue={employee.firstName} autoComplete="off" />
+          </label>
+          <label className="field">
+            Last name
+            <input name="lastName" required defaultValue={employee.lastName} autoComplete="off" />
+          </label>
+          <label className="field">
+            Role
+            <input
+              name="role"
+              defaultValue={employee.role || ""}
+              placeholder="Electrician"
+              autoComplete="off"
+            />
+          </label>
+          <label className="field">
+            Hourly rate (TT$)
+            <input
+              name="hourlyRate"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={fromCents(employee.hourlyRate)}
+            />
+          </label>
+          <label className="field">
+            Phone
+            <input name="phone" defaultValue={employee.phone || ""} autoComplete="off" />
+          </label>
+          <label className="field">
+            Email
+            <input
+              name="email"
+              type="email"
+              defaultValue={employee.email || ""}
+              autoComplete="off"
+            />
+          </label>
+          <label
+            className="field full"
+            style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}
+          >
+            <input name="active" type="checkbox" defaultChecked={employee.active} />
+            Active employee
+          </label>
+          <div className="full">
+            <button className="btn btn-primary" type="submit">
+              Save profile
+            </button>
+          </div>
+        </form>
+      </AddEntityTab>
 
       <Panel style={{ padding: "1.25rem" }}>
         <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.15rem" }}>Time clock</h2>

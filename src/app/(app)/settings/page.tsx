@@ -65,6 +65,16 @@ export default async function SettingsPage() {
       <Suspense fallback={<div className="muted">Loading settings…</div>}>
         <SettingsPanel
           businessName={company.name}
+          businessAddress={company.businessAddress}
+          businessContactNumber={company.businessContactNumber}
+          businessEmail={company.businessEmail}
+          companyRegistrationNumber={company.companyRegistrationNumber}
+          companyStampData={company.companyStampData}
+          receiptShowBusinessAddress={company.receiptShowBusinessAddress}
+          receiptShowContactNumber={company.receiptShowContactNumber}
+          receiptShowBusinessEmail={company.receiptShowBusinessEmail}
+          receiptShowRegistrationNumber={company.receiptShowRegistrationNumber}
+          receiptShowCompanyStamp={company.receiptShowCompanyStamp}
           theme={parseTheme(company.theme)}
           language={parseLanguage(company.language)}
           homeLayout={parseHomeLayout(company.homeLayout)}

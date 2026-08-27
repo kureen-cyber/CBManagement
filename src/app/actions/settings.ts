@@ -13,6 +13,7 @@ import {
   nextCategoryColor,
   RECEIPT_LOGO_MAX_BYTES,
   LETTERHEAD_MAX_BYTES,
+  COMPANY_STAMP_MAX_BYTES,
 } from "@/lib/settings";
 import {
   maxPosRegistersForTier,
@@ -47,16 +48,41 @@ export async function updateGeneralSettings(formData: FormData) {
   const businessName = String(formData.get("businessName") || "").trim();
   const removeBusinessLogo = formData.get("removeBusinessLogo") === "on";
   const removeLetterhead = formData.get("removeLetterhead") === "on";
+  const removeCompanyStamp = formData.get("removeCompanyStamp") === "on";
 
   const data: {
     theme: string;
     language: string;
     homeLayout: string;
     name?: string;
+    businessAddress?: string | null;
+    businessContactNumber?: string | null;
+    businessEmail?: string | null;
+    companyRegistrationNumber?: string | null;
     businessLogoData?: string | null;
     letterheadData?: string | null;
+    companyStampData?: string | null;
     receiptLogoData?: string | null;
-  } = { theme, language, homeLayout };
+    receiptShowBusinessAddress: boolean;
+    receiptShowContactNumber: boolean;
+    receiptShowBusinessEmail: boolean;
+    receiptShowRegistrationNumber: boolean;
+    receiptShowCompanyStamp: boolean;
+  } = {
+    theme,
+    language,
+    homeLayout,
+    businessAddress: String(formData.get("businessAddress") || "").trim() || null,
+    businessContactNumber: String(formData.get("businessContactNumber") || "").trim() || null,
+    businessEmail: String(formData.get("businessEmail") || "").trim() || null,
+    companyRegistrationNumber:
+      String(formData.get("companyRegistrationNumber") || "").trim() || null,
+    receiptShowBusinessAddress: formData.get("receiptShowBusinessAddress") === "on",
+    receiptShowContactNumber: formData.get("receiptShowContactNumber") === "on",
+    receiptShowBusinessEmail: formData.get("receiptShowBusinessEmail") === "on",
+    receiptShowRegistrationNumber: formData.get("receiptShowRegistrationNumber") === "on",
+    receiptShowCompanyStamp: formData.get("receiptShowCompanyStamp") === "on",
+  };
   if (businessName) data.name = businessName;
 
   if (removeBusinessLogo) {
@@ -92,6 +118,22 @@ export async function updateGeneralSettings(formData: FormData) {
     }
   }
 
+  if (removeCompanyStamp) {
+    data.companyStampData = null;
+  } else {
+    const stamp = formData.get("companyStamp");
+    if (stamp instanceof File && stamp.size > 0) {
+      try {
+        data.companyStampData = await fileToDataUrl(stamp, {
+          label: "Company stamp",
+          maxBytes: COMPANY_STAMP_MAX_BYTES,
+        });
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "Could not upload company stamp" };
+      }
+    }
+  }
+
   await prisma.company.update({
     where: { id: companyId },
     data,
@@ -109,6 +151,7 @@ export async function updateGeneralSettings(formData: FormData) {
   revalidatePath("/quotations");
   revalidatePath("/reports");
   revalidatePath("/payments");
+  revalidatePath("/pos/receipt");
   return { ok: true as const };
 }
 

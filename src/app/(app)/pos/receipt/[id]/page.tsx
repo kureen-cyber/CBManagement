@@ -7,7 +7,9 @@ import {
   receiptFooterText,
   receiptHeaderText,
   receiptLabels,
+  visibleReceiptBusinessDetails,
 } from "@/lib/settings";
+import { ReceiptBusinessDetailsBlock } from "@/components/ReceiptBusinessDetails";
 import {
   FREE_TIER_MAX_TRANSACTION_DAYS,
   isFreeRetailTier,
@@ -42,6 +44,7 @@ export default async function ReceiptPage({
   const showHoneyPersons = company.receiptHoneyPersons === true;
   const showApiary = company.receiptShowApiaryNumber === true;
   const showOpr = company.receiptShowOprNumber === true;
+  const businessDetails = visibleReceiptBusinessDetails(company);
 
   const sale = await prisma.sale.findFirst({
     where: { id, companyId },
@@ -139,7 +142,8 @@ export default async function ReceiptPage({
           <div className="brand-mark" style={{ fontSize: "1.35rem" }}>
             {header}
           </div>
-          <div className="muted" style={{ fontSize: "0.85rem" }}>
+          <ReceiptBusinessDetailsBlock details={businessDetails} />
+          <div className="muted" style={{ fontSize: "0.85rem", marginTop: "0.35rem" }}>
             {sale.isRefund ? "Refund" : isVoided ? "Voided" : labels.salesReceipt}
             {isFreeRetailTier(planTier) ? ` · ${FREE_TIER_MAX_TRANSACTION_DAYS}-day visibility` : ""}
           </div>

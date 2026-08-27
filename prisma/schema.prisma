@@ -38,6 +38,19 @@ model Company {
   receiptHeader   String?
   /// Receipt footer text; blank falls back to thank-you default
   receiptFooter   String?
+  /// Business contact and registration (General → Business)
+  businessAddress String?
+  businessContactNumber String?
+  businessEmail String?
+  companyRegistrationNumber String?
+  /// Company stamp image for receipts and documents
+  companyStampData String?
+  /// Show business fields on POS receipts
+  receiptShowBusinessAddress Boolean @default(false)
+  receiptShowContactNumber Boolean @default(false)
+  receiptShowBusinessEmail Boolean @default(false)
+  receiptShowRegistrationNumber Boolean @default(false)
+  receiptShowCompanyStamp Boolean @default(false)
   /// Show customer name on printed/viewed receipts
   receiptShowCustomer Boolean @default(true)
   /// Show sale notes/comments on receipts

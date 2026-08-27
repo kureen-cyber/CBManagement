@@ -87,6 +87,16 @@ function parsePosSubTab(value: string | null): PosSubTab {
 
 export function SettingsPanel({
   businessName,
+  businessAddress,
+  businessContactNumber,
+  businessEmail,
+  companyRegistrationNumber,
+  companyStampData,
+  receiptShowBusinessAddress,
+  receiptShowContactNumber,
+  receiptShowBusinessEmail,
+  receiptShowRegistrationNumber,
+  receiptShowCompanyStamp,
   theme,
   language,
   homeLayout,
@@ -120,6 +130,16 @@ export function SettingsPanel({
   canEditDiscounts = true,
 }: {
   businessName: string;
+  businessAddress: string | null;
+  businessContactNumber: string | null;
+  businessEmail: string | null;
+  companyRegistrationNumber: string | null;
+  companyStampData: string | null;
+  receiptShowBusinessAddress: boolean;
+  receiptShowContactNumber: boolean;
+  receiptShowBusinessEmail: boolean;
+  receiptShowRegistrationNumber: boolean;
+  receiptShowCompanyStamp: boolean;
   theme: Theme;
   language: LanguageCode;
   homeLayout: HomeLayout;
@@ -177,6 +197,8 @@ export function SettingsPanel({
   const [removeBusinessLogo, setRemoveBusinessLogo] = useState(false);
   const [letterheadPreview, setLetterheadPreview] = useState<string | null>(letterheadData);
   const [removeLetterhead, setRemoveLetterhead] = useState(false);
+  const [stampPreview, setStampPreview] = useState<string | null>(companyStampData);
+  const [removeCompanyStamp, setRemoveCompanyStamp] = useState(false);
   const initialPosSub =
     rawTab === "categories"
       ? "categories"
@@ -217,6 +239,10 @@ export function SettingsPanel({
   }, [letterheadData, removeLetterhead]);
 
   useEffect(() => {
+    if (!removeCompanyStamp) setStampPreview(companyStampData);
+  }, [companyStampData, removeCompanyStamp]);
+
+  useEffect(() => {
     setRegisterCount(Math.max(storeRegisters.length || 1, 1));
   }, [storeRegisters.length, selectedStoreId]);
 
@@ -251,6 +277,7 @@ export function SettingsPanel({
     const fd = new FormData(e.currentTarget);
     if (removeBusinessLogo) fd.set("removeBusinessLogo", "on");
     if (removeLetterhead) fd.set("removeLetterhead", "on");
+    if (removeCompanyStamp) fd.set("removeCompanyStamp", "on");
     startTransition(async () => {
       setError(null);
       const result = await updateGeneralSettings(fd);
@@ -261,6 +288,7 @@ export function SettingsPanel({
       setSaved("General settings saved");
       setRemoveBusinessLogo(false);
       setRemoveLetterhead(false);
+      setRemoveCompanyStamp(false);
       router.refresh();
     });
   }
@@ -459,6 +487,138 @@ export function SettingsPanel({
               {planTier === "FREE_RETAIL"
                 ? ` · up to ${FREE_RETAIL_MAX_POS_REGISTERS} named POS registers · transactions visible ${FREE_TIER_MAX_TRANSACTION_DAYS} days`
                 : null}
+            </div>
+
+            <label className="field full">
+              Business address
+              <textarea
+                name="businessAddress"
+                rows={2}
+                defaultValue={businessAddress || ""}
+                placeholder="Street, city, country"
+              />
+            </label>
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="receiptShowBusinessAddress"
+                defaultChecked={receiptShowBusinessAddress}
+              />
+              <span>
+                <strong>Show address on POS receipts</strong>
+                <span className="muted" style={{ display: "block", fontSize: "0.82rem" }}>
+                  Print the business address under the header on sales receipts
+                </span>
+              </span>
+            </label>
+
+            <label className="field">
+              Contact number
+              <input
+                name="businessContactNumber"
+                type="tel"
+                defaultValue={businessContactNumber || ""}
+                placeholder="+1 868 555 0100"
+              />
+            </label>
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="receiptShowContactNumber"
+                defaultChecked={receiptShowContactNumber}
+              />
+              <span>
+                <strong>Show contact number on POS receipts</strong>
+              </span>
+            </label>
+
+            <label className="field">
+              Email address
+              <input
+                name="businessEmail"
+                type="email"
+                defaultValue={businessEmail || ""}
+                placeholder="info@yourbusiness.com"
+              />
+            </label>
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="receiptShowBusinessEmail"
+                defaultChecked={receiptShowBusinessEmail}
+              />
+              <span>
+                <strong>Show email on POS receipts</strong>
+              </span>
+            </label>
+
+            <label className="field">
+              Company registration number
+              <input
+                name="companyRegistrationNumber"
+                defaultValue={companyRegistrationNumber || ""}
+                placeholder="Registration / incorporation #"
+              />
+            </label>
+            <label className="choice-card">
+              <input
+                type="checkbox"
+                name="receiptShowRegistrationNumber"
+                defaultChecked={receiptShowRegistrationNumber}
+              />
+              <span>
+                <strong>Show registration number on POS receipts</strong>
+              </span>
+            </label>
+
+            <div className="panel" style={{ padding: "1rem" }}>
+              <strong>Company stamp</strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0.75rem", fontSize: "0.85rem" }}>
+                Optional stamp image for receipts and documents.
+              </p>
+              <label className="field">
+                Upload stamp
+                <input
+                  name="companyStamp"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setRemoveCompanyStamp(false);
+                    setStampPreview(URL.createObjectURL(file));
+                  }}
+                />
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  PNG, JPEG, WebP, or GIF · max 300KB
+                </span>
+              </label>
+              {stampPreview && !removeCompanyStamp ? (
+                <div className="receipt-logo-preview">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={stampPreview} alt="Company stamp preview" className="receipt-company-stamp" />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setRemoveCompanyStamp(true);
+                      setStampPreview(null);
+                    }}
+                  >
+                    Remove stamp
+                  </button>
+                </div>
+              ) : null}
+              <label className="choice-card" style={{ marginTop: "0.75rem" }}>
+                <input
+                  type="checkbox"
+                  name="receiptShowCompanyStamp"
+                  defaultChecked={receiptShowCompanyStamp}
+                />
+                <span>
+                  <strong>Show company stamp on POS receipts</strong>
+                </span>
+              </label>
             </div>
 
             <h2 style={{ margin: "0.5rem 0 0", fontSize: "1.15rem" }}>Branding</h2>

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import { sendEmail } from "@/lib/email";
-import { receiptFooterText, receiptHeaderText, resolveBusinessLogo } from "@/lib/settings";
+import { receiptFooterText, receiptHeaderText, resolveBusinessLogo, visibleReceiptBusinessDetails } from "@/lib/settings";
 import { formatAppDate, formatAppDateTime } from "@/lib/timezone";
 import {
   buildInvoiceEmail,
@@ -40,6 +40,14 @@ export async function emailPosReceipt(input: { saleId: string; toEmail: string }
     };
   }
 
+  const businessDetails = visibleReceiptBusinessDetails(company);
+  const headerLines = [
+    businessDetails.address,
+    businessDetails.contactNumber ? `Tel: ${businessDetails.contactNumber}` : undefined,
+    businessDetails.email,
+    businessDetails.registrationNumber ? `Reg. #${businessDetails.registrationNumber}` : undefined,
+  ].filter((line): line is string => Boolean(line));
+
   const payload = buildSaleReceiptEmail({
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
@@ -61,6 +69,8 @@ export async function emailPosReceipt(input: { saleId: string; toEmail: string }
     honeyPersons: company.receiptHoneyPersons ? sale.honeyPersons : null,
     apiaryNumber: company.receiptShowApiaryNumber ? company.receiptApiaryNumber : null,
     oprNumber: company.receiptShowOprNumber ? company.receiptOprNumber : null,
+    headerLines,
+    stampData: businessDetails.stampData,
     isRefund: sale.isRefund,
   });
 

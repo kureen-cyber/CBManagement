@@ -46,6 +46,8 @@ export const DEFAULT_RECEIPT_FOOTER = "Thank you for your business";
 export const RECEIPT_LOGO_MAX_BYTES = 300_000;
 /** Max letterhead payload size (~800KB raw). */
 export const LETTERHEAD_MAX_BYTES = 800_000;
+/** Max company stamp payload size (~300KB raw). */
+export const COMPANY_STAMP_MAX_BYTES = 300_000;
 /** Max product photo payload size (~500KB raw). */
 export const PRODUCT_IMAGE_MAX_BYTES = 500_000;
 /** Max expense / job receipt upload (~800KB raw). */
@@ -220,4 +222,43 @@ const RECEIPT_LABELS: Record<LanguageCode, ReceiptLabels> = {
 
 export function receiptLabels(language: unknown): ReceiptLabels {
   return RECEIPT_LABELS[parseLanguage(language)];
+}
+
+export type ReceiptBusinessDetails = {
+  address?: string;
+  contactNumber?: string;
+  email?: string;
+  registrationNumber?: string;
+  stampData?: string;
+};
+
+export function visibleReceiptBusinessDetails(company: {
+  businessAddress?: string | null;
+  businessContactNumber?: string | null;
+  businessEmail?: string | null;
+  companyRegistrationNumber?: string | null;
+  companyStampData?: string | null;
+  receiptShowBusinessAddress?: boolean;
+  receiptShowContactNumber?: boolean;
+  receiptShowBusinessEmail?: boolean;
+  receiptShowRegistrationNumber?: boolean;
+  receiptShowCompanyStamp?: boolean;
+}): ReceiptBusinessDetails {
+  const details: ReceiptBusinessDetails = {};
+  if (company.receiptShowBusinessAddress && company.businessAddress?.trim()) {
+    details.address = company.businessAddress.trim();
+  }
+  if (company.receiptShowContactNumber && company.businessContactNumber?.trim()) {
+    details.contactNumber = company.businessContactNumber.trim();
+  }
+  if (company.receiptShowBusinessEmail && company.businessEmail?.trim()) {
+    details.email = company.businessEmail.trim();
+  }
+  if (company.receiptShowRegistrationNumber && company.companyRegistrationNumber?.trim()) {
+    details.registrationNumber = company.companyRegistrationNumber.trim();
+  }
+  if (company.receiptShowCompanyStamp && company.companyStampData) {
+    details.stampData = company.companyStampData;
+  }
+  return details;
 }

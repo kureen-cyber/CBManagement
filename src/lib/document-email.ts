@@ -34,6 +34,8 @@ function wrapDocument(opts: {
   footer: string;
   logoData?: string | null;
   letterheadData?: string | null;
+  headerLines?: string[];
+  stampData?: string | null;
 }) {
   const meta = opts.metaRows
     .map(
@@ -48,6 +50,12 @@ function wrapDocument(opts: {
   const logo = opts.logoData
     ? `<img src="${opts.logoData}" alt="" style="display:block;max-width:160px;max-height:80px;margin:0 auto 10px" />`
     : "";
+  const headerLines = (opts.headerLines || [])
+    .map((line) => `<div style="color:#6b7280;font-size:12px;line-height:1.45">${esc(line)}</div>`)
+    .join("");
+  const stamp = opts.stampData
+    ? `<img src="${opts.stampData}" alt="" style="display:block;max-width:120px;max-height:80px;margin:8px auto 0;object-fit:contain" />`
+    : "";
 
   return `<!DOCTYPE html>
 <html><body style="margin:0;padding:24px;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827">
@@ -56,6 +64,8 @@ function wrapDocument(opts: {
       ${letterhead}
       ${logo}
       <div style="font-size:22px;font-weight:700;color:#0a6b6e">${esc(opts.header)}</div>
+      ${headerLines}
+      ${stamp}
       <div style="color:#6b7280;font-size:13px;margin-top:4px">${esc(opts.title)}</div>
     </div>
     <table style="width:100%;font-size:14px;border-collapse:collapse">${meta}</table>
@@ -82,6 +92,8 @@ export function buildSaleReceiptEmail(opts: {
   honeyPersons?: string | null;
   apiaryNumber?: string | null;
   oprNumber?: string | null;
+  headerLines?: string[];
+  stampData?: string | null;
   isRefund?: boolean;
 }) {
   const metaRows = [
@@ -136,6 +148,8 @@ export function buildSaleReceiptEmail(opts: {
     metaRows,
     bodyHtml,
     footer: opts.footer,
+    headerLines: opts.headerLines,
+    stampData: opts.stampData,
   });
 
   const text = [

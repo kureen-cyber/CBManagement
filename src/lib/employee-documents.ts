@@ -46,8 +46,6 @@ export type EmployeeLetterData = {
 
 export type PayslipLine = {
   date: string;
-  clockIn: string;
-  clockOut: string;
   hours: number;
   payCents: number;
 };
@@ -198,8 +196,6 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       (line) =>
         `<tr>
           <td>${esc(line.date)}</td>
-          <td>${esc(line.clockIn)}</td>
-          <td>${esc(line.clockOut)}</td>
           <td>${line.hours.toFixed(2)}</td>
           <td style="text-align:right">${esc(formatTTD(line.payCents))}</td>
         </tr>`,
@@ -211,8 +207,8 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       <p><strong>Employee:</strong> ${esc(data.employeeName)}</p>
       ${data.role ? `<p><strong>Role:</strong> ${esc(data.role)}</p>` : ""}
       <p><strong>Pay period:</strong> ${esc(formatAppDate(data.periodStart))} – ${esc(formatAppDate(data.periodEnd))}</p>
-      ${data.nisNumber ? `<p><strong>NIS:</strong> ${esc(data.nisNumber)}</p>` : ""}
-      ${data.payeNumber ? `<p><strong>PAYE:</strong> ${esc(data.payeNumber)}</p>` : ""}
+      <p><strong>NIS:</strong> ${esc(data.nisNumber?.trim() || "—")}</p>
+      <p><strong>PAYE:</strong> ${esc(data.payeNumber?.trim() || "—")}</p>
       ${
         data.bankName
           ? `<p><strong>Bank:</strong> ${esc(data.bankName)}${data.bankAccountNumber ? ` — ${esc(data.bankAccountNumber)}` : ""}</p>`
@@ -223,14 +219,12 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       <thead>
         <tr>
           <th>Date</th>
-          <th>Clocked in</th>
-          <th>Clocked out</th>
           <th>Hours</th>
           <th style="text-align:right">Pay</th>
         </tr>
       </thead>
       <tbody>
-        ${rows || `<tr><td colspan="5">No completed shifts in this period.</td></tr>`}
+        ${rows || `<tr><td colspan="3">No completed shifts in this period.</td></tr>`}
       </tbody>
     </table>
     <div class="meta" style="margin-top:1.25rem">

@@ -80,9 +80,19 @@ export function EmployeeActionTabs({
   const [periodEnd, setPeriodEnd] = useState(bounds.end);
   const [nisDeduction, setNisDeduction] = useState("");
   const [payeDeduction, setPayeDeduction] = useState("");
+  const [payslipHours, setPayslipHours] = useState(0);
+  const [payslipGrossCents, setPayslipGrossCents] = useState(0);
+  const [payslipLoaded, setPayslipLoaded] = useState(false);
   const [payslipHtml, setPayslipHtml] = useState<string | null>(null);
   const [savedPayslipId, setSavedPayslipId] = useState<string | null>(null);
   const [emailTo, setEmailTo] = useState(defaultEmail || "");
+
+  const payslipPeriodLabel =
+    periodStart && periodEnd ? `${periodStart} – ${periodEnd}` : "—";
+  const payslipNetCents = Math.max(
+    0,
+    payslipGrossCents - Math.round((Number(nisDeduction) || 0) * 100) - Math.round((Number(payeDeduction) || 0) * 100),
+  );
 
   function closeModal() {
     setTab(null);
@@ -164,6 +174,22 @@ export function EmployeeActionTabs({
     };
   }
 
+  function loadPayslipPeriod() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await previewEmployeePayslip(payslipInput());
+        setPayslipHours(result.hoursWorked);
+        setPayslipGrossCents(result.grossPayCents);
+        setPayslipLoaded(true);
+        setPayslipHtml(result.html);
+        setSavedPayslipId(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not load period");
+      }
+    });
+  }
+
   function onGeneratePayslip() {
     setError(null);
     setMessage(null);
@@ -171,6 +197,9 @@ export function EmployeeActionTabs({
       try {
         const result = await createEmployeePayslip(payslipInput());
         setPayslipHtml(result.documentHtml);
+        setPayslipHours(result.hoursWorked);
+        setPayslipGrossCents(result.grossPayCents);
+        setPayslipLoaded(true);
         setSavedPayslipId(result.id);
         setMessage(
           `Payslip saved — ${result.hoursWorked.toFixed(2)} h, ${formatTTD(result.grossPayCents)} gross, ${formatTTD(result.netPayCents)} net`,
@@ -187,6 +216,9 @@ export function EmployeeActionTabs({
     startTransition(async () => {
       try {
         const result = await previewEmployeePayslip(payslipInput());
+        setPayslipHours(result.hoursWorked);
+        setPayslipGrossCents(result.grossPayCents);
+        setPayslipLoaded(true);
         setPayslipHtml(result.html);
         setSavedPayslipId(null);
       } catch (err) {
@@ -491,9 +523,8 @@ export function EmployeeActionTabs({
             {tab === "payslip" ? (
               <div className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.88rem" }}>
-                  Choose the pay period and enter NIS/PAYE deduction amounts. Gross pay comes from
-                  clock records; net pay is gross minus NIS and PAYE. Profile NIS/PAYE numbers appear
-                  on the second table row.
+                  Choose the pay period, then load clock records into the table. Enter NIS and PAYE
+                  amounts in the values row — net pay is gross minus those deductions.
                 </p>
                 <div className="form-grid">
                   <label className="field">
@@ -501,7 +532,10 @@ export function EmployeeActionTabs({
                     <input
                       type="date"
                       value={periodStart}
-                      onChange={(e) => setPeriodStart(e.target.value)}
+                      onChange={(e) => {
+                        setPeriodStart(e.target.value);
+                        setPayslipLoaded(false);
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -509,29 +543,10 @@ export function EmployeeActionTabs({
                     <input
                       type="date"
                       value={periodEnd}
-                      onChange={(e) => setPeriodEnd(e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    NIS deduction (TT$)
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={nisDeduction}
-                      onChange={(e) => setNisDeduction(e.target.value)}
-                      placeholder="0.00"
-                    />
-                  </label>
-                  <label className="field">
-                    PAYE deduction (TT$)
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={payeDeduction}
-                      onChange={(e) => setPayeDeduction(e.target.value)}
-                      placeholder="0.00"
+                      onChange={(e) => {
+                        setPeriodEnd(e.target.value);
+                        setPayslipLoaded(false);
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -544,7 +559,75 @@ export function EmployeeActionTabs({
                     />
                   </label>
                 </div>
+
+                <div className="table-wrap list-dense">
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Hours</th>
+                        <th style={{ textAlign: "right" }}>Gross Pay</th>
+                        <th>NIS</th>
+                        <th>PAYE</th>
+                        <th style={{ textAlign: "right" }}>Net Pay</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td />
+                        <td />
+                        <td />
+                        <td>{profileValues.nisNumber?.trim() || "—"}</td>
+                        <td>{profileValues.payeNumber?.trim() || "—"}</td>
+                        <td />
+                      </tr>
+                      <tr>
+                        <td>{payslipPeriodLabel}</td>
+                        <td>{payslipLoaded ? payslipHours.toFixed(2) : "—"}</td>
+                        <td className="money" style={{ textAlign: "right" }}>
+                          {payslipLoaded ? formatTTD(payslipGrossCents) : "—"}
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={nisDeduction}
+                            onChange={(e) => setNisDeduction(e.target.value)}
+                            placeholder="0.00"
+                            style={{ width: "100%", maxWidth: 110 }}
+                            aria-label="NIS deduction amount"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={payeDeduction}
+                            onChange={(e) => setPayeDeduction(e.target.value)}
+                            placeholder="0.00"
+                            style={{ width: "100%", maxWidth: 110 }}
+                            aria-label="PAYE deduction amount"
+                          />
+                        </td>
+                        <td className="money" style={{ textAlign: "right" }}>
+                          {payslipLoaded ? formatTTD(payslipNetCents) : "—"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
                 <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={pending}
+                    onClick={loadPayslipPeriod}
+                  >
+                    Load period
+                  </button>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -584,7 +667,7 @@ export function EmployeeActionTabs({
                     srcDoc={payslipHtml}
                     style={{
                       width: "100%",
-                      minHeight: "420px",
+                      minHeight: "320px",
                       border: "1px solid var(--line)",
                       borderRadius: "12px",
                       background: "#fff",

@@ -206,7 +206,6 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
     <div class="meta">
       <p><strong>Employee:</strong> ${esc(data.employeeName)}</p>
       ${data.role ? `<p><strong>Role:</strong> ${esc(data.role)}</p>` : ""}
-      <p><strong>Pay period:</strong> ${esc(periodLabel)}</p>
       ${
         data.bankName
           ? `<p><strong>Bank:</strong> ${esc(data.bankName)}${data.bankAccountNumber ? ` — ${esc(data.bankAccountNumber)}` : ""}</p>`
@@ -243,13 +242,6 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
         </tr>
       </tbody>
     </table>
-    <div class="meta" style="margin-top:1.25rem">
-      <p><strong>Total hours:</strong> ${data.hoursWorked.toFixed(2)}</p>
-      <p><strong>Gross pay:</strong> ${esc(formatTTD(data.grossPayCents))}</p>
-      <p><strong>NIS deduction:</strong> ${esc(formatTTD(nisDeduction))}</p>
-      <p><strong>PAYE deduction:</strong> ${esc(formatTTD(payeDeduction))}</p>
-      <p><strong>Net pay:</strong> ${esc(formatTTD(netPayCents))}</p>
-    </div>
   `;
 
   return documentShell({

@@ -77,6 +77,17 @@ export function resolveBusinessLogo(company: CompanyBranding): string | null {
   return company.businessLogoData ?? company.receiptLogoData ?? null;
 }
 
+/** Letterhead takes precedence — when present, logo is omitted (letterhead may already include it). */
+export function resolveDocumentHeaderImages(company: CompanyBranding): {
+  letterheadData: string | null;
+  logoData: string | null;
+} {
+  if (company.letterheadData) {
+    return { letterheadData: company.letterheadData, logoData: null };
+  }
+  return { letterheadData: null, logoData: resolveBusinessLogo(company) };
+}
+
 export function themeFamily(theme: Theme): ThemeFamily {
   return theme.startsWith("yellow-parrot") ? "yellow-parrot" : "red-white-black";
 }

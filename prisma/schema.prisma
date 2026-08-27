@@ -502,18 +502,25 @@ model JobMaterial {
 }
 
 model TimeEntry {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   employeeId    String
   jobId         String?
   date          DateTime
-  hours         Float
-  overtimeHours Float    @default(0)
+  /// When set, this entry is a clock punch (open until clockOutAt)
+  clockInAt     DateTime?
+  clockOutAt    DateTime?
+  hours         Float     @default(0)
+  overtimeHours Float     @default(0)
   hourlyRate    Int
+  /// Manual payment in cents when employee has no hourly rate
+  paymentAmount Int?
   notes         String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   employee Employee @relation(fields: [employeeId], references: [id])
   job      Job?     @relation(fields: [jobId], references: [id])
+
+  @@index([employeeId])
 }
 
 model Invoice {

@@ -1527,6 +1527,100 @@ export async function addTimeEntry(formData: FormData) {
 
   revalidatePath("/jobs");
   revalidatePath("/employees");
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+export async function clockInEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const employeeId = String(formData.get("employeeId") || "").trim();
+  if (!employeeId) throw new Error("Missing employee");
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, companyId },
+  });
+  if (!employee) throw new Error("Employee not found");
+
+  const open = await prisma.timeEntry.findFirst({
+    where: { employeeId, clockInAt: { not: null }, clockOutAt: null },
+  });
+  if (open) throw new Error("Already clocked in — clock out first");
+
+  const now = new Date();
+  await prisma.timeEntry.create({
+    data: {
+      employeeId,
+      date: now,
+      clockInAt: now,
+      clockOutAt: null,
+      hours: 0,
+      overtimeHours: 0,
+      hourlyRate: employee.hourlyRate,
+    },
+  });
+
+  revalidatePath("/employees");
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+export async function clockOutEmployee(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const employeeId = String(formData.get("employeeId") || "").trim();
+  if (!employeeId) throw new Error("Missing employee");
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, companyId },
+  });
+  if (!employee) throw new Error("Employee not found");
+
+  const open = await prisma.timeEntry.findFirst({
+    where: { employeeId, clockInAt: { not: null }, clockOutAt: null },
+    orderBy: { clockInAt: "desc" },
+  });
+  if (!open || !open.clockInAt) throw new Error("Not clocked in");
+
+  const now = new Date();
+  const ms = now.getTime() - open.clockInAt.getTime();
+  const hours = Math.max(0, Math.round((ms / 3_600_000) * 100) / 100);
+
+  await prisma.timeEntry.update({
+    where: { id: open.id },
+    data: {
+      clockOutAt: now,
+      hours,
+      hourlyRate: employee.hourlyRate,
+    },
+  });
+
+  revalidatePath("/employees");
+  revalidatePath(`/employees/${employeeId}`);
+}
+
+export async function updateTimeEntryPayment(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("id") || "").trim();
+  if (!id) throw new Error("Missing time entry");
+
+  const entry = await prisma.timeEntry.findFirst({
+    where: { id },
+    include: { employee: { select: { id: true, companyId: true, hourlyRate: true } } },
+  });
+  if (!entry || entry.employee.companyId !== companyId) {
+    throw new Error("Time entry not found");
+  }
+  if (entry.employee.hourlyRate > 0 || entry.hourlyRate > 0) {
+    throw new Error("Payment is calculated from the hourly rate");
+  }
+
+  const raw = String(formData.get("paymentAmount") || "").trim();
+  const paymentAmount = raw === "" ? null : dollarsToCents(formData.get("paymentAmount"));
+
+  await prisma.timeEntry.update({
+    where: { id },
+    data: { paymentAmount },
+  });
+
+  revalidatePath("/employees");
+  revalidatePath(`/employees/${entry.employeeId}`);
 }
 
 export async function assignEmployeeToJob(formData: FormData) {

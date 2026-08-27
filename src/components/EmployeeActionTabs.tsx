@@ -78,6 +78,8 @@ export function EmployeeActionTabs({
   const bounds = useMemo(() => monthBounds(), []);
   const [periodStart, setPeriodStart] = useState(bounds.start);
   const [periodEnd, setPeriodEnd] = useState(bounds.end);
+  const [nisDeduction, setNisDeduction] = useState("");
+  const [payeDeduction, setPayeDeduction] = useState("");
   const [payslipHtml, setPayslipHtml] = useState<string | null>(null);
   const [savedPayslipId, setSavedPayslipId] = useState<string | null>(null);
   const [emailTo, setEmailTo] = useState(defaultEmail || "");
@@ -152,20 +154,26 @@ export function EmployeeActionTabs({
     });
   }
 
+  function payslipInput() {
+    return {
+      employeeId,
+      periodStart,
+      periodEnd,
+      nisDeduction: Number(nisDeduction) || 0,
+      payeDeduction: Number(payeDeduction) || 0,
+    };
+  }
+
   function onGeneratePayslip() {
     setError(null);
     setMessage(null);
     startTransition(async () => {
       try {
-        const result = await createEmployeePayslip({
-          employeeId,
-          periodStart,
-          periodEnd,
-        });
+        const result = await createEmployeePayslip(payslipInput());
         setPayslipHtml(result.documentHtml);
         setSavedPayslipId(result.id);
         setMessage(
-          `Payslip saved — ${result.hoursWorked.toFixed(2)} h, ${formatTTD(result.grossPayCents)} gross`,
+          `Payslip saved — ${result.hoursWorked.toFixed(2)} h, ${formatTTD(result.grossPayCents)} gross, ${formatTTD(result.netPayCents)} net`,
         );
         refresh();
       } catch (err) {
@@ -178,11 +186,7 @@ export function EmployeeActionTabs({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await previewEmployeePayslip({
-          employeeId,
-          periodStart,
-          periodEnd,
-        });
+        const result = await previewEmployeePayslip(payslipInput());
         setPayslipHtml(result.html);
         setSavedPayslipId(null);
       } catch (err) {
@@ -487,8 +491,9 @@ export function EmployeeActionTabs({
             {tab === "payslip" ? (
               <div className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.88rem" }}>
-                  Choose the pay period, then generate a payslip from clock records. Saved payslips
-                  appear under this employee&apos;s records.
+                  Choose the pay period and enter NIS/PAYE deduction amounts. Gross pay comes from
+                  clock records; net pay is gross minus NIS and PAYE. Profile NIS/PAYE numbers appear
+                  on the second table row.
                 </p>
                 <div className="form-grid">
                   <label className="field">
@@ -505,6 +510,28 @@ export function EmployeeActionTabs({
                       type="date"
                       value={periodEnd}
                       onChange={(e) => setPeriodEnd(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    NIS deduction (TT$)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={nisDeduction}
+                      onChange={(e) => setNisDeduction(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </label>
+                  <label className="field">
+                    PAYE deduction (TT$)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={payeDeduction}
+                      onChange={(e) => setPayeDeduction(e.target.value)}
+                      placeholder="0.00"
                     />
                   </label>
                   <label className="field">

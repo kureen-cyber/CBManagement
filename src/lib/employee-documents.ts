@@ -66,6 +66,10 @@ export type EmployeePayslipData = {
   lines: PayslipLine[];
   hoursWorked: number;
   grossPayCents: number;
+  /** NIS deduction amount for the period (cents) */
+  nisDeductionCents?: number;
+  /** PAYE deduction amount for the period (cents) */
+  payeDeductionCents?: number;
 };
 
 function documentShell(opts: {
@@ -191,28 +195,18 @@ export function buildJobLetterHtml(data: EmployeeLetterData) {
 }
 
 export function buildPayslipHtml(data: EmployeePayslipData) {
-  const nis = data.nisNumber?.trim() || "—";
-  const paye = data.payeNumber?.trim() || "—";
-  const rows = data.lines
-    .map(
-      (line) =>
-        `<tr>
-          <td>${esc(line.date)}</td>
-          <td>${esc(nis)}</td>
-          <td>${esc(paye)}</td>
-          <td>${line.hours.toFixed(2)}</td>
-          <td style="text-align:right">${esc(formatTTD(line.payCents))}</td>
-        </tr>`,
-    )
-    .join("");
+  const nisId = data.nisNumber?.trim() || "—";
+  const payeId = data.payeNumber?.trim() || "—";
+  const nisDeduction = Math.max(0, Math.round(data.nisDeductionCents || 0));
+  const payeDeduction = Math.max(0, Math.round(data.payeDeductionCents || 0));
+  const netPayCents = Math.max(0, data.grossPayCents - nisDeduction - payeDeduction);
+  const periodLabel = `${formatAppDate(data.periodStart)} – ${formatAppDate(data.periodEnd)}`;
 
   const body = `
     <div class="meta">
       <p><strong>Employee:</strong> ${esc(data.employeeName)}</p>
       ${data.role ? `<p><strong>Role:</strong> ${esc(data.role)}</p>` : ""}
-      <p><strong>Pay period:</strong> ${esc(formatAppDate(data.periodStart))} – ${esc(formatAppDate(data.periodEnd))}</p>
-      <p><strong>NIS:</strong> ${esc(nis)}</p>
-      <p><strong>PAYE:</strong> ${esc(paye)}</p>
+      <p><strong>Pay period:</strong> ${esc(periodLabel)}</p>
       ${
         data.bankName
           ? `<p><strong>Bank:</strong> ${esc(data.bankName)}${data.bankAccountNumber ? ` — ${esc(data.bankAccountNumber)}` : ""}</p>`
@@ -223,21 +217,38 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       <thead>
         <tr>
           <th>Date</th>
+          <th>Hours</th>
+          <th style="text-align:right">Gross Pay</th>
           <th>NIS</th>
           <th>PAYE</th>
-          <th>Hours</th>
-          <th style="text-align:right">Pay</th>
+          <th style="text-align:right">Net Pay</th>
         </tr>
       </thead>
       <tbody>
-        ${rows || `<tr><td colspan="5">No completed shifts in this period.</td></tr>`}
+        <tr>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td>${esc(nisId)}</td>
+          <td>${esc(payeId)}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>${esc(periodLabel)}</td>
+          <td>${data.hoursWorked.toFixed(2)}</td>
+          <td style="text-align:right">${esc(formatTTD(data.grossPayCents))}</td>
+          <td style="text-align:right">${esc(formatTTD(nisDeduction))}</td>
+          <td style="text-align:right">${esc(formatTTD(payeDeduction))}</td>
+          <td style="text-align:right">${esc(formatTTD(netPayCents))}</td>
+        </tr>
       </tbody>
     </table>
     <div class="meta" style="margin-top:1.25rem">
       <p><strong>Total hours:</strong> ${data.hoursWorked.toFixed(2)}</p>
       <p><strong>Gross pay:</strong> ${esc(formatTTD(data.grossPayCents))}</p>
-      <p><strong>NIS:</strong> ${esc(nis)}</p>
-      <p><strong>PAYE:</strong> ${esc(paye)}</p>
+      <p><strong>NIS deduction:</strong> ${esc(formatTTD(nisDeduction))}</p>
+      <p><strong>PAYE deduction:</strong> ${esc(formatTTD(payeDeduction))}</p>
+      <p><strong>Net pay:</strong> ${esc(formatTTD(netPayCents))}</p>
     </div>
   `;
 

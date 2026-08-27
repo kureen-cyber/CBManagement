@@ -120,12 +120,15 @@ function payForEntry(
   return paymentAmount ?? 0;
 }
 
-export async function createEmployeePayslip(input: {
+type PayslipPeriodInput = {
   employeeId: string;
   periodStart: string;
   periodEnd: string;
-}) {
-  const { companyId } = await requireCompany();
+  nisDeduction?: number;
+  payeDeduction?: number;
+};
+
+async function buildPayslipForPeriod(input: PayslipPeriodInput, companyId: string) {
   const employee = await loadEmployee(input.employeeId, companyId);
   const branding = await loadCompanyBranding(companyId);
 
@@ -141,22 +144,22 @@ export async function createEmployeePayslip(input: {
     orderBy: [{ clockInAt: "asc" }],
   });
 
-  const lines: PayslipLine[] = entries.map((entry) => {
-    const payCents = payForEntry(
+  const lines: PayslipLine[] = entries.map((entry) => ({
+    date: formatAppDate(entry.clockInAt || entry.date),
+    hours: entry.hours,
+    payCents: payForEntry(
       entry.hours,
       entry.hourlyRate,
       employee.hourlyRate,
       entry.paymentAmount,
-    );
-    return {
-      date: formatAppDate(entry.clockInAt || entry.date),
-      hours: entry.hours,
-      payCents,
-    };
-  });
+    ),
+  }));
 
   const hoursWorked = lines.reduce((s, l) => s + l.hours, 0);
   const grossPayCents = lines.reduce((s, l) => s + l.payCents, 0);
+  const nisDeductionCents = toCents(Number(input.nisDeduction) || 0);
+  const payeDeductionCents = toCents(Number(input.payeDeduction) || 0);
+  const netPayCents = Math.max(0, grossPayCents - nisDeductionCents - payeDeductionCents);
 
   const documentHtml = buildPayslipHtml({
     companyName: branding.companyName,
@@ -173,22 +176,47 @@ export async function createEmployeePayslip(input: {
     lines,
     hoursWorked,
     grossPayCents,
+    nisDeductionCents,
+    payeDeductionCents,
   });
+
+  return {
+    employee,
+    periodStart,
+    periodEnd,
+    documentHtml,
+    hoursWorked,
+    grossPayCents,
+    nisDeductionCents,
+    payeDeductionCents,
+    netPayCents,
+  };
+}
+
+export async function createEmployeePayslip(input: PayslipPeriodInput) {
+  const { companyId } = await requireCompany();
+  const built = await buildPayslipForPeriod(input, companyId);
 
   const payslip = await prisma.employeePayslip.create({
     data: {
       companyId,
-      employeeId: employee.id,
-      periodStart,
-      periodEnd,
-      hoursWorked,
-      grossPay: grossPayCents,
-      documentHtml,
+      employeeId: built.employee.id,
+      periodStart: built.periodStart,
+      periodEnd: built.periodEnd,
+      hoursWorked: built.hoursWorked,
+      grossPay: built.grossPayCents,
+      documentHtml: built.documentHtml,
     },
   });
 
-  revalidatePath(`/employees/${employee.id}`);
-  return { id: payslip.id, documentHtml, hoursWorked, grossPayCents };
+  revalidatePath(`/employees/${built.employee.id}`);
+  return {
+    id: payslip.id,
+    documentHtml: built.documentHtml,
+    hoursWorked: built.hoursWorked,
+    grossPayCents: built.grossPayCents,
+    netPayCents: built.netPayCents,
+  };
 }
 
 export async function emailEmployeeJobLetter(input: JobLetterInput & { toEmail: string }) {
@@ -238,57 +266,13 @@ export async function previewEmployeeJobLetter(input: JobLetterInput) {
   return { html };
 }
 
-export async function previewEmployeePayslip(input: {
-  employeeId: string;
-  periodStart: string;
-  periodEnd: string;
-}) {
+export async function previewEmployeePayslip(input: PayslipPeriodInput) {
   const { companyId } = await requireCompany();
-  const employee = await loadEmployee(input.employeeId, companyId);
-  const branding = await loadCompanyBranding(companyId);
-
-  const periodStart = parseDateOnly(input.periodStart);
-  const periodEnd = endOfDay(parseDateOnly(input.periodEnd));
-  if (periodEnd < periodStart) throw new Error("Period end must be on or after period start");
-
-  const entries = await prisma.timeEntry.findMany({
-    where: {
-      employeeId: employee.id,
-      clockOutAt: { not: null, gte: periodStart, lte: periodEnd },
-    },
-    orderBy: [{ clockInAt: "asc" }],
-  });
-
-  const lines: PayslipLine[] = entries.map((entry) => ({
-    date: formatAppDate(entry.clockInAt || entry.date),
-    hours: entry.hours,
-    payCents: payForEntry(
-      entry.hours,
-      entry.hourlyRate,
-      employee.hourlyRate,
-      entry.paymentAmount,
-    ),
-  }));
-
-  const hoursWorked = lines.reduce((s, l) => s + l.hours, 0);
-  const grossPayCents = lines.reduce((s, l) => s + l.payCents, 0);
-
-  const html = buildPayslipHtml({
-    companyName: branding.companyName,
-    letterheadData: branding.letterheadData,
-    businessLogoData: branding.businessLogoData,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    role: employee.role,
-    nisNumber: employee.nisNumber,
-    payeNumber: employee.payeNumber,
-    bankName: employee.bankName,
-    bankAccountNumber: employee.bankAccountNumber,
-    periodStart,
-    periodEnd,
-    lines,
-    hoursWorked,
-    grossPayCents,
-  });
-
-  return { html, hoursWorked, grossPayCents };
+  const built = await buildPayslipForPeriod(input, companyId);
+  return {
+    html: built.documentHtml,
+    hoursWorked: built.hoursWorked,
+    grossPayCents: built.grossPayCents,
+    netPayCents: built.netPayCents,
+  };
 }

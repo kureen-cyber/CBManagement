@@ -1,6 +1,7 @@
 import { formatTTD } from "@/lib/money";
 import { formatAppDate } from "@/lib/timezone";
 import type { EmploymentBasis, EmployeePronoun, PayFrequency } from "@/lib/employee-banks";
+import { resolveDocumentHeaderImages } from "@/lib/settings";
 
 function esc(s: string) {
   return s
@@ -26,6 +27,7 @@ export type EmployeeLetterData = {
   companyName: string;
   letterheadData?: string | null;
   businessLogoData?: string | null;
+  receiptLogoData?: string | null;
   companyStampData?: string | null;
   footer?: string | null;
   employeeName: string;
@@ -74,6 +76,8 @@ function documentShell(opts: {
   letterheadData?: string | null;
   businessLogoData?: string | null;
   footer?: string | null;
+  showFooter?: boolean;
+  showCompanyName?: boolean;
   body: string;
 }) {
   const letterhead = opts.letterheadData
@@ -82,6 +86,9 @@ function documentShell(opts: {
   const logo = opts.businessLogoData
     ? `<img src="${opts.businessLogoData}" alt="" class="receipt-logo" />`
     : "";
+  const showCompanyName = opts.showCompanyName !== false;
+  const showFooter = opts.showFooter !== false;
+  const footerText = opts.footer || "Confidential — for the employee's records.";
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8" />
@@ -109,10 +116,10 @@ function documentShell(opts: {
 <div class="sheet employee-document-print">
   ${letterhead}
   ${logo}
-  <div style="text-align:center;font-weight:700;font-size:1.1rem;margin-bottom:0.35rem">${esc(opts.companyName)}</div>
+  ${showCompanyName ? `<div style="text-align:center;font-weight:700;font-size:1.1rem;margin-bottom:0.35rem">${esc(opts.companyName)}</div>` : ""}
   ${opts.title ? `<h1>${esc(opts.title)}</h1>` : ""}
   ${opts.body}
-  <div class="footer">${esc(opts.footer || "Confidential — for the employee's records.")}</div>
+  ${showFooter ? `<div class="footer">${esc(footerText)}</div>` : ""}
 </div>
 </body></html>`;
 }
@@ -167,12 +174,20 @@ export function buildJobLetterHtml(data: EmployeeLetterData) {
     </div>
   `;
 
+  const headerImages = resolveDocumentHeaderImages({
+    name: data.companyName,
+    letterheadData: data.letterheadData,
+    businessLogoData: data.businessLogoData,
+    receiptLogoData: data.receiptLogoData,
+  });
+
   return documentShell({
     companyName: data.companyName,
     title: "",
-    letterheadData: data.letterheadData,
-    businessLogoData: data.businessLogoData,
-    footer: data.footer,
+    letterheadData: headerImages.letterheadData,
+    businessLogoData: headerImages.logoData,
+    showFooter: false,
+    showCompanyName: !headerImages.letterheadData,
     body,
   });
 }

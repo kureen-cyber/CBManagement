@@ -191,11 +191,15 @@ export function buildJobLetterHtml(data: EmployeeLetterData) {
 }
 
 export function buildPayslipHtml(data: EmployeePayslipData) {
+  const nis = data.nisNumber?.trim() || "—";
+  const paye = data.payeNumber?.trim() || "—";
   const rows = data.lines
     .map(
       (line) =>
         `<tr>
           <td>${esc(line.date)}</td>
+          <td>${esc(nis)}</td>
+          <td>${esc(paye)}</td>
           <td>${line.hours.toFixed(2)}</td>
           <td style="text-align:right">${esc(formatTTD(line.payCents))}</td>
         </tr>`,
@@ -207,8 +211,8 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       <p><strong>Employee:</strong> ${esc(data.employeeName)}</p>
       ${data.role ? `<p><strong>Role:</strong> ${esc(data.role)}</p>` : ""}
       <p><strong>Pay period:</strong> ${esc(formatAppDate(data.periodStart))} – ${esc(formatAppDate(data.periodEnd))}</p>
-      <p><strong>NIS:</strong> ${esc(data.nisNumber?.trim() || "—")}</p>
-      <p><strong>PAYE:</strong> ${esc(data.payeNumber?.trim() || "—")}</p>
+      <p><strong>NIS:</strong> ${esc(nis)}</p>
+      <p><strong>PAYE:</strong> ${esc(paye)}</p>
       ${
         data.bankName
           ? `<p><strong>Bank:</strong> ${esc(data.bankName)}${data.bankAccountNumber ? ` — ${esc(data.bankAccountNumber)}` : ""}</p>`
@@ -219,17 +223,21 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
       <thead>
         <tr>
           <th>Date</th>
+          <th>NIS</th>
+          <th>PAYE</th>
           <th>Hours</th>
           <th style="text-align:right">Pay</th>
         </tr>
       </thead>
       <tbody>
-        ${rows || `<tr><td colspan="3">No completed shifts in this period.</td></tr>`}
+        ${rows || `<tr><td colspan="5">No completed shifts in this period.</td></tr>`}
       </tbody>
     </table>
     <div class="meta" style="margin-top:1.25rem">
       <p><strong>Total hours:</strong> ${data.hoursWorked.toFixed(2)}</p>
       <p><strong>Gross pay:</strong> ${esc(formatTTD(data.grossPayCents))}</p>
+      <p><strong>NIS:</strong> ${esc(nis)}</p>
+      <p><strong>PAYE:</strong> ${esc(paye)}</p>
     </div>
   `;
 
@@ -238,7 +246,7 @@ export function buildPayslipHtml(data: EmployeePayslipData) {
     title: "Payslip",
     letterheadData: data.letterheadData,
     businessLogoData: data.businessLogoData,
-    footer: data.footer,
+    showFooter: false,
     body,
   });
 }

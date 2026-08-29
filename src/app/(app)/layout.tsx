@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { ThemeScript } from "@/components/ThemeScript";
+import { TrialWelcomeModal } from "@/components/TrialWelcomeModal";
 import { createClient } from "@/lib/supabase/server";
 import { getBusinessType } from "@/lib/session-business";
 import { syncCompanyFromUser } from "@/lib/company";
@@ -9,6 +11,12 @@ import { isLocalhostDemoHost, parsePlanTier } from "@/lib/tier";
 import { isDemoModeEnabled } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { resolveRegisterAccess } from "@/lib/register-access";
+import {
+  ensureTrialForCompany,
+  isTrialExpired,
+  shouldShowTrialWelcome,
+  trialBlockedPathAllowed,
+} from "@/lib/trial";
 import {
   readActiveRegisterIdFromCookies,
   readActiveStoreIdFromCookies,
@@ -23,11 +31,22 @@ export default async function AppLayout({
 }) {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  const company = await syncCompanyFromUser(user);
+  let company = await syncCompanyFromUser(user);
+  const hdrs = await headers();
+  const pathname = hdrs.get("x-pathname") || "";
+  const trialEnforced = !!user && !isDemoModeEnabled();
+
+  if (trialEnforced) {
+    company = await ensureTrialForCompany(company.id);
+    if (isTrialExpired(company) && !trialBlockedPathAllowed(pathname)) {
+      redirect("/trial-expired");
+    }
+  }
+
   const businessType = await getBusinessType();
   const theme = parseTheme(company.theme);
   const planTier = parsePlanTier(company.planTier);
-  const hdrs = await headers();
+  const showTrialWelcome = trialEnforced && shouldShowTrialWelcome(company);
   const showDemoNav =
     isDemoModeEnabled() || isLocalhostDemoHost(hdrs.get("host"));
 
@@ -53,6 +72,9 @@ export default async function AppLayout({
   return (
     <div className="app-shell">
       <ThemeScript theme={theme} />
+      {showTrialWelcome && company.trialEndsAt ? (
+        <TrialWelcomeModal trialEndsAt={company.trialEndsAt} />
+      ) : null}
       <RegisterAccessGate limited={access.isLimitedCashier} />
       <Sidebar
         email={user?.email ?? (isDemoModeEnabled() ? "demo@localhost" : undefined)}

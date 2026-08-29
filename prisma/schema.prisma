@@ -73,6 +73,12 @@ model Company {
   featureOutOfStockWarn Boolean @default(false)
   /// FREE_RETAIL | STANDARD
   planTier        String   @default("STANDARD")
+  /// When the 30-day free trial started (null = not started yet for legacy accounts)
+  trialStartedAt  DateTime?
+  /// Trial end; full app access until this instant
+  trialEndsAt     DateTime?
+  /// User dismissed the trial welcome popup
+  trialWelcomeAcknowledgedAt DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

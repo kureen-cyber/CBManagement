@@ -24,7 +24,7 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const { company, companyId } = await requireCompany();
+  const { company, companyId } = await requireCompany({ allowExpiredTrial: true });
   await ensureDefaultPaymentTypes(companyId);
   const stores = await ensureStoresForCompany(companyId);
   const cookieStoreId = await readActiveStoreIdFromCookies();

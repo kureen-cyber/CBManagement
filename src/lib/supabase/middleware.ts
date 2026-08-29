@@ -21,6 +21,7 @@ export async function updateSession(request: NextRequest) {
       url.search = "";
       return NextResponse.redirect(url);
     }
+    supabaseResponse.headers.set("x-pathname", path);
     return supabaseResponse;
   }
 
@@ -79,5 +80,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  supabaseResponse.headers.set("x-pathname", path);
   return supabaseResponse;
 }

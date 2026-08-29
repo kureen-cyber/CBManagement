@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { parseBusinessType, type BusinessType } from "@/lib/business-type";
 import { createClient } from "@/lib/supabase/server";
 import { tierFromBusinessType, type PlanTier } from "@/lib/tier";
+import { trialEndsAtFrom } from "@/lib/trial";
 
 type AuthUser = {
   id: string;
@@ -78,6 +79,9 @@ export async function ensureCompanyForUser(user: AuthUser) {
       language: "en",
       homeLayout: businessType === "RETAIL" ? "RETAIL" : "RETAIL_SERVICE",
       receiptPrinting: true,
+      trialStartedAt: new Date(),
+      trialEndsAt: trialEndsAtFrom(new Date()),
+      trialWelcomeAcknowledgedAt: new Date(),
     },
   });
 
@@ -98,7 +102,7 @@ export async function ensureCompanyForUser(user: AuthUser) {
  * Current signed-in company. Prefer this over findFirst.
  * In local demo mode, falls back to a demo company when there is no session.
  */
-export async function requireCompany() {
+export async function requireCompany(opts?: { allowExpiredTrial?: boolean }) {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   if (!user) {
@@ -114,6 +118,11 @@ export async function requireCompany() {
     throw new Error("Unauthorized");
   }
   const company = await ensureCompanyForUser(user);
+  const { isDemoModeEnabled } = await import("@/lib/constants");
+  const { isTrialExpired } = await import("@/lib/trial");
+  if (!opts?.allowExpiredTrial && !isDemoModeEnabled() && isTrialExpired(company)) {
+    throw new Error("Your free trial has ended. Subscribe to continue.");
+  }
   return { user, company, companyId: company.id };
 }
 
@@ -139,6 +148,9 @@ export async function syncCompanyFromUser(user: AuthUser | null) {
         language: "en",
         homeLayout: "RETAIL",
         receiptPrinting: true,
+        trialStartedAt: new Date(),
+        trialEndsAt: trialEndsAtFrom(new Date()),
+        trialWelcomeAcknowledgedAt: new Date(),
       },
     });
   }

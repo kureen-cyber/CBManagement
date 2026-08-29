@@ -2524,3 +2524,95 @@ input:focus, select:focus, textarea:focus {
   color: #fff;
   font-weight: 700;
 }
+
+.financial-reports-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.money-mix-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.money-mix-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.money-mix-inputs label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.money-mix-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.money-mix-diagram {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--input-bg);
+}
+
+.money-mix-chart-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.money-mix-chart {
+  width: min(240px, 100%);
+  height: auto;
+}
+
+.money-mix-legend {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.money-mix-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.money-mix-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .money-mix-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .app-shell .sidebar,
+  .app-shell .mobile-topbar,
+  .no-print,
+  .financial-reports-nav,
+  .settings-subtab {
+    display: none !important;
+  }
+
+  .app-shell .main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+}

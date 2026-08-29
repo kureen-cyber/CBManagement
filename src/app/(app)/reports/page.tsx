@@ -9,6 +9,7 @@ import {
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
+import { payablesTotal, fetchOutstandingPayables } from "@/lib/payables";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function ReportsPage({
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
-  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales] =
+  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales, payablesRows] =
     await Promise.all([
       prisma.payment.aggregate({
         _sum: { amount: true },
@@ -87,6 +88,7 @@ export default async function ReportsPage({
         where: { companyId, status: "COMPLETED", isRefund: false },
         select: { total: true, amountPaid: true },
       }),
+      fetchOutstandingPayables(companyId),
     ]);
 
   const expenseTotal = expenses._sum.amount ?? 0;
@@ -98,6 +100,7 @@ export default async function ReportsPage({
     0,
   );
   const ar = serviceReceivables + posReceivables;
+  const ap = payablesTotal(payablesRows);
 
   let grossSales = 0;
   let refundsTotal = 0;
@@ -310,6 +313,7 @@ export default async function ReportsPage({
           income,
           expenses: expenseTotal,
           receivables: ar,
+          payables: ap,
           pos,
           posRetail,
           posService,

@@ -1,0 +1,134 @@
+import { prisma } from "@/lib/prisma";
+
+export type BankMovement = {
+  id: string;
+  date: Date;
+  description: string;
+  reference: string;
+  type: "in" | "out";
+  amount: number;
+  category: string;
+  runningBalance: number;
+};
+
+export type BankLedger = {
+  movements: BankMovement[];
+  balance: number;
+  totalIn: number;
+  totalOut: number;
+};
+
+function matchCategory(category: string, patterns: RegExp[]) {
+  const c = category.trim().toLowerCase();
+  return patterns.some((p) => p.test(c));
+}
+
+/** Categorize outflows for money-mix actual comparison. */
+export function categorizeOutflow(category: string, source: "expense" | "purchase"): string {
+  if (source === "purchase") return "materials";
+  const c = category.toLowerCase();
+  if (matchCategory(c, [/material/i])) return "materials";
+  if (matchCategory(c, [/salary|wage|payroll|draw/i])) return "drawings";
+  if (matchCategory(c, [/market|advert/i])) return "growth";
+  if (matchCategory(c, [/rent|utilit|office|transport|maint|insur|fuel|subcontract|equip/i])) {
+    return "expenses";
+  }
+  return "expenses";
+}
+
+export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
+  const [payments, expenses, purchases, posSales] = await Promise.all([
+    prisma.payment.findMany({
+      where: { companyId },
+      include: { customer: true, invoice: true, sale: true },
+      orderBy: { paidAt: "asc" },
+    }),
+    prisma.expense.findMany({
+      where: { companyId },
+      orderBy: { date: "asc" },
+    }),
+    prisma.supplierPurchase.findMany({
+      where: { companyId },
+      include: { supplier: true },
+      orderBy: { purchasedAt: "asc" },
+    }),
+    prisma.sale.findMany({
+      where: { companyId, status: "COMPLETED", isRefund: false },
+      orderBy: { soldAt: "asc" },
+    }),
+  ]);
+
+  type Raw = { id: string; date: Date; description: string; reference: string; type: "in" | "out"; amount: number; category: string };
+  const raw: Raw[] = [];
+
+  for (const p of payments) {
+    raw.push({
+      id: `pay-${p.id}`,
+      date: p.paidAt,
+      description: p.invoice
+        ? `Payment — invoice ${p.invoice.number}`
+        : p.sale
+          ? `Payment — receipt ${p.sale.number}`
+          : `Payment — ${p.customer?.name || "Customer"}`,
+      reference: p.reference || p.id.slice(-8).toUpperCase(),
+      type: "in",
+      amount: p.amount,
+      category: "Payment received",
+    });
+  }
+
+  for (const s of posSales) {
+    if (payments.some((p) => p.saleId === s.id)) continue;
+    raw.push({
+      id: `sale-${s.id}`,
+      date: s.soldAt,
+      description: `POS sale ${s.number}`,
+      reference: s.number,
+      type: "in",
+      amount: s.total,
+      category: "POS sales",
+    });
+  }
+
+  for (const e of expenses) {
+    raw.push({
+      id: `exp-${e.id}`,
+      date: e.date,
+      description: e.description || e.category,
+      reference: e.id.slice(-8).toUpperCase(),
+      type: "out",
+      amount: e.amount,
+      category: categorizeOutflow(e.category, "expense"),
+    });
+  }
+
+  for (const p of purchases) {
+    raw.push({
+      id: `pur-${p.id}`,
+      date: p.purchasedAt,
+      description: `${p.name} — ${p.supplier.name}`,
+      reference: p.id.slice(-8).toUpperCase(),
+      type: "out",
+      amount: p.totalCost,
+      category: "materials",
+    });
+  }
+
+  raw.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  let balance = 0;
+  let totalIn = 0;
+  let totalOut = 0;
+  const movements: BankMovement[] = raw.map((row) => {
+    if (row.type === "in") {
+      balance += row.amount;
+      totalIn += row.amount;
+    } else {
+      balance -= row.amount;
+      totalOut += row.amount;
+    }
+    return { ...row, runningBalance: balance };
+  });
+
+  return { movements: movements.reverse(), balance, totalIn, totalOut };
+}

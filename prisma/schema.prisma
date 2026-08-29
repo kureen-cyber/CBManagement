@@ -73,6 +73,12 @@ model Company {
   featureOutOfStockWarn Boolean @default(false)
   /// FREE_RETAIL | STANDARD
   planTier        String   @default("STANDARD")
+  /// Personal money mix plan (% of bank balance) — should sum to 100
+  moneyMixExpensesPct  Float @default(20)
+  moneyMixMaterialsPct Float @default(20)
+  moneyMixGrowthPct    Float @default(20)
+  moneyMixReservePct   Float @default(20)
+  moneyMixDrawingsPct  Float @default(20)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

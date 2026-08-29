@@ -422,3 +422,41 @@ export async function fetchMonthlyIncomeStatement(
     rows,
   };
 }
+
+export type SingleMonthIncomeStatement = {
+  businessName: string;
+  year: number;
+  month: number;
+  monthLabel: string;
+  rows: {
+    id: string;
+    label: string;
+    kind: IncomeStatementRowKind;
+    amount: number;
+    formula?: string;
+  }[];
+};
+
+export function extractSingleMonth(
+  statement: MonthlyIncomeStatement,
+  monthIndex: number,
+): SingleMonthIncomeStatement {
+  const monthLabel = statement.monthLabels[monthIndex] ?? `Month ${monthIndex + 1}`;
+  const rows = statement.rows
+    .filter((row) => row.kind !== "section")
+    .map((row) => ({
+      id: row.id,
+      label: row.label,
+      kind: row.kind,
+      amount: row.months?.[monthIndex] ?? 0,
+      formula: row.formula,
+    }));
+
+  return {
+    businessName: statement.businessName,
+    year: statement.year,
+    month: monthIndex + 1,
+    monthLabel,
+    rows,
+  };
+}

@@ -26,6 +26,7 @@ export type ReportsData = {
   income: number;
   expenses: number;
   receivables: number;
+  payables: number;
   pos: number;
   posRetail: number;
   posService: number;
@@ -82,6 +83,7 @@ type TabId =
   | "income"
   | "expenses"
   | "receivables"
+  | "payables"
   | "pos"
   | "by-item"
   | "by-category"
@@ -95,6 +97,7 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "income", label: "Income", color: "#1f7a4d" },
   { id: "expenses", label: "Expenses", color: "#c45c26" },
   { id: "receivables", label: "Receivables", color: "#5b4db8" },
+  { id: "payables", label: "Payables", color: "#9333ea" },
   { id: "pos", label: "POS", color: "#0e7cc0" },
   { id: "by-item", label: "By item", color: "#db2777" },
   { id: "by-category", label: "By category", color: "#b45309" },
@@ -685,6 +688,17 @@ export function ReportsDashboard({
           <div className="report-stat purple" style={{ maxWidth: 320, marginTop: "0.75rem" }}>
             <div className="label">Outstanding</div>
             <div className="value money">{formatTTD(data.receivables)}</div>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "payables" ? (
+        <Panel className="report-tab-panel">
+          <h3>Accounts payable</h3>
+          <p className="muted">Amounts owed to suppliers from purchase records.</p>
+          <div className="report-stat purple" style={{ maxWidth: 320, marginTop: "0.75rem" }}>
+            <div className="label">Outstanding</div>
+            <div className="value money">{formatTTD(data.payables)}</div>
           </div>
         </Panel>
       ) : null}

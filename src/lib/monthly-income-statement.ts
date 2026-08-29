@@ -41,7 +41,9 @@ export type IncomeStatementLineId =
   | "loanPrincipalPayment"
   | "capitalPurchase"
   | "reserveEscrow"
-  | "ownersWithdrawal";
+  | "ownersWithdrawal"
+  | "totalCashPaidOut"
+  | "cashPosition";
 
 export type IncomeStatementRowKind = "section" | "line" | "total" | "result";
 
@@ -108,7 +110,8 @@ function inventoryValueAt(
  * - Total Operating Expenses = sum of operating expense lines
  * - Net Profit = Gross Profit − Total Operating Expenses
  * - Below net profit (not in net): Loan Principal Payment, Capital Purchase,
- *   Reserve and/or Escrow, Owner's Withdrawal (Manager/Owner drawings)
+ *   Reserve and/or Escrow (from bank money-mix %), Owner's Withdrawal,
+ *   Total Cash Paid Out, Cash Position
  */
 export async function fetchMonthlyIncomeStatement(
   companyId: string,
@@ -123,6 +126,8 @@ export async function fetchMonthlyIncomeStatement(
     (_, m) => new Date(year, m + 1, 0, 23, 59, 59, 999),
   );
 
+  const { fetchMonthEndCashBalances } = await import("@/lib/bank-ledger");
+
   const [
     companyProducts,
     stockMoves,
@@ -132,6 +137,8 @@ export async function fetchMonthlyIncomeStatement(
     timeEntries,
     expenses,
     payslips,
+    company,
+    cashPosition,
   ] = await Promise.all([
     prisma.product.findMany({
       where: { companyId, isService: false, trackStock: true },
@@ -207,7 +214,14 @@ export async function fetchMonthlyIncomeStatement(
       },
       select: { grossPay: true, periodEnd: true },
     }),
+    prisma.company.findUniqueOrThrow({
+      where: { id: companyId },
+      select: { moneyMixReservePct: true },
+    }),
+    fetchMonthEndCashBalances(companyId, year),
   ]);
+
+  const reservePct = Number(company.moneyMixReservePct) || 0;
 
   const salesRevenue = emptyMonths();
   const serviceIncome = emptyMonths();
@@ -284,7 +298,9 @@ export async function fetchMonthlyIncomeStatement(
     } else if (matchCategory(cat, [/capital\s*purchase|capital\s*expend|capex/i])) {
       addToMonth(capitalPurchase, expense.date, amount);
     } else if (matchCategory(cat, [/reserve|escrow/i])) {
-      addToMonth(reserveEscrow, expense.date, amount);
+      // Reserve/escrow expense cash-outs stay in miscellaneous; the Reserve line is
+      // computed from bank money-mix % × cash position (compounded monthly).
+      addToMonth(miscellaneousExpenses, expense.date, amount);
     } else if (matchCategory(cat, [/owner.?s?\s*withdraw|owner.?s?\s*draw|drawings?/i])) {
       addToMonth(ownersWithdrawal, expense.date, amount);
     } else if (matchCategory(cat, [/^rent\b/i, /lease/i])) {
@@ -339,6 +355,11 @@ export async function fetchMonthlyIncomeStatement(
   const grossProfit = emptyMonths();
   const totalOperatingExpenses = emptyMonths();
   const netProfit = emptyMonths();
+  const reserveEscrowCalc = emptyMonths();
+  const totalCashPaidOut = emptyMonths();
+
+  let cumPlannedReserve = 0;
+  let cumRecognizedReserve = 0;
 
   for (let m = 0; m < 12; m++) {
     totalRevenue[m] =
@@ -361,6 +382,31 @@ export async function fetchMonthlyIncomeStatement(
       insurance[m]! +
       miscellaneousExpenses[m]!;
     netProfit[m] = grossProfit[m]! - totalOperatingExpenses[m]!;
+
+    // Compounded reserves from bank money-mix % of month-end cash.
+    // Planned monthly = cash × reserve%. Record that month in full only when
+    // cash covers the cumulative planned target; otherwise record none (no partials).
+    const monthEndCash = Math.max(0, cashPosition[m] ?? 0);
+    const plannedThisMonth = Math.round(monthEndCash * (reservePct / 100));
+    cumPlannedReserve += plannedThisMonth;
+    if (plannedThisMonth > 0 && monthEndCash >= cumPlannedReserve) {
+      reserveEscrowCalc[m] = plannedThisMonth;
+      cumRecognizedReserve += plannedThisMonth;
+    } else {
+      reserveEscrowCalc[m] = 0;
+    }
+
+    totalCashPaidOut[m] =
+      totalOperatingExpenses[m]! +
+      loanPrincipalPayment[m]! +
+      capitalPurchase[m]! +
+      reserveEscrowCalc[m]! +
+      ownersWithdrawal[m]!;
+  }
+
+  // Expose calculated reserves on the existing reserveEscrow series
+  for (let m = 0; m < 12; m++) {
+    reserveEscrow[m] = reserveEscrowCalc[m]!;
   }
 
   const yy = String(year).slice(-2);
@@ -451,13 +497,33 @@ export async function fetchMonthlyIncomeStatement(
     section("sec-below-net", "Below net profit"),
     line("loanPrincipalPayment", "Loan Principal Payment", loanPrincipalPayment),
     line("capitalPurchase", "Capital Purchase", capitalPurchase),
-    line("reserveEscrow", "Reserve and/or Escrow", reserveEscrow),
+    line(
+      "reserveEscrow",
+      "Reserve and/or Escrow",
+      reserveEscrow,
+      "line",
+      `${reservePct}% of month-end bank cash from money mix, compounded — recorded in full only when cash covers the cumulative reserve target; otherwise none`,
+    ),
     line(
       "ownersWithdrawal",
       "Owner's Withdrawal",
       ownersWithdrawal,
       "line",
       "Manager/Owner drawings and owner withdrawal expenses",
+    ),
+    line(
+      "totalCashPaidOut",
+      "Total Cash Paid Out",
+      totalCashPaidOut,
+      "total",
+      "Total Operating Expenses + Loan Principal + Capital Purchase + Reserve + Owner's Withdrawal",
+    ),
+    line(
+      "cashPosition",
+      "Cash Position",
+      cashPosition,
+      "result",
+      "Remaining funds in the bank at month end",
     ),
   ];
 

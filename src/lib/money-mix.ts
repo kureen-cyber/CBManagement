@@ -63,12 +63,19 @@ export function plannedAllocation(bankBalance: number, plan: MoneyMixPlan): Mone
 }
 
 export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlice[]> {
-  const [expenses, purchases, ownerDrawings] = await Promise.all([
+  const [expenses, purchases, salaryPayments] = await Promise.all([
     prisma.expense.findMany({ where: { companyId }, select: { category: true, amount: true } }),
     prisma.supplierPurchase.findMany({ where: { companyId }, select: { totalCost: true } }),
     prisma.payment.findMany({
       where: { companyId },
-      select: { amount: true, customer: { select: { name: true } } },
+      select: {
+        amount: true,
+        kind: true,
+        notes: true,
+        employeeId: true,
+        supplierId: true,
+        customer: { select: { name: true } },
+      },
     }),
   ]);
 
@@ -88,9 +95,13 @@ export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlic
   for (const p of purchases) {
     totals.materials += p.totalCost;
   }
-  for (const pay of ownerDrawings) {
-    if (isOwnerDrawingsCustomer(pay.customer.name)) {
+  for (const pay of salaryPayments) {
+    if (isOwnerDrawingsCustomer(pay.customer?.name) || (String(pay.kind || "").toUpperCase() === "SALARY" && !pay.employeeId && !pay.supplierId)) {
       totals.drawings += pay.amount;
+    } else if (pay.employeeId || String(pay.notes || "").toLowerCase().startsWith("salary")) {
+      totals.expenses += pay.amount;
+    } else if (pay.supplierId) {
+      totals.expenses += pay.amount;
     }
   }
 

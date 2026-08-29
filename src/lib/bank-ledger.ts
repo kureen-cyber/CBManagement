@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
+import { isSalaryPayment } from "@/lib/owner-drawings";
 
 export type BankMovement = {
   id: string;
@@ -29,9 +29,13 @@ export function categorizeOutflow(category: string, source: "expense" | "purchas
   if (source === "purchase") return "materials";
   const c = category.toLowerCase();
   if (matchCategory(c, [/material/i])) return "materials";
-  if (matchCategory(c, [/salary|wage|payroll|draw/i])) return "drawings";
+  if (matchCategory(c, [/owner.?s?\s*withdraw|owner.?s?\s*draw|drawings?/i])) return "drawings";
   if (matchCategory(c, [/market|advert/i])) return "growth";
-  if (matchCategory(c, [/rent|utilit|office|transport|maint|insur|fuel|subcontract|equip/i])) {
+  if (
+    matchCategory(c, [
+      /salary|wage|payroll|rent|utilit|office|transport|maint|insur|fuel|subcontract|equip|loan|capital|reserve|escrow/i,
+    ])
+  ) {
     return "expenses";
   }
   return "expenses";
@@ -41,7 +45,7 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
   const [payments, expenses, purchases, posSales] = await Promise.all([
     prisma.payment.findMany({
       where: { companyId },
-      include: { customer: true, invoice: true, sale: true },
+      include: { customer: true, invoice: true, sale: true, employee: true, supplier: true },
       orderBy: { paidAt: "asc" },
     }),
     prisma.expense.findMany({
@@ -59,25 +63,49 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
     }),
   ]);
 
-  type Raw = { id: string; date: Date; description: string; reference: string; type: "in" | "out"; amount: number; category: string };
+  type Raw = {
+    id: string;
+    date: Date;
+    description: string;
+    reference: string;
+    type: "in" | "out";
+    amount: number;
+    category: string;
+  };
   const raw: Raw[] = [];
 
   for (const p of payments) {
-    const isDrawing = isOwnerDrawingsCustomer(p.customer?.name || "");
+    const salary = isSalaryPayment(p);
+    const supplierOut = Boolean(p.supplierId);
+    const isOut = salary || supplierOut;
+    const employeeName = p.employee
+      ? `${p.employee.firstName} ${p.employee.lastName}`.trim()
+      : null;
+
     raw.push({
       id: `pay-${p.id}`,
       date: p.paidAt,
-      description: isDrawing
-        ? "Owner/manager drawing"
-        : p.invoice
-          ? `Payment — invoice ${p.invoice.number}`
-          : p.sale
-            ? `Payment — receipt ${p.sale.number}`
-            : `Payment — ${p.customer?.name || "Customer"}`,
+      description: salary
+        ? employeeName
+          ? `Salary — ${employeeName}`
+          : "Owner/manager drawing"
+        : supplierOut
+          ? `Supplier payment — ${p.supplier?.name || "Supplier"}`
+          : p.invoice
+            ? `Payment — invoice ${p.invoice.number}`
+            : p.sale
+              ? `Payment — receipt ${p.sale.number}`
+              : `Payment — ${p.customer?.name || "Customer"}`,
       reference: p.reference || p.id.slice(-8).toUpperCase(),
-      type: isDrawing ? "out" : "in",
+      type: isOut ? "out" : "in",
       amount: p.amount,
-      category: isDrawing ? "drawings" : "Payment received",
+      category: salary
+        ? employeeName
+          ? "expenses"
+          : "drawings"
+        : supplierOut
+          ? "expenses"
+          : "Payment received",
     });
   }
 

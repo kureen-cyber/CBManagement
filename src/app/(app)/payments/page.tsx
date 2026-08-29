@@ -5,11 +5,14 @@ import { requireCompany } from "@/lib/company";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader, Panel } from "@/components/ui";
-import { AddEntityTab } from "@/components/AddEntityTab";
-import { PaymentForm } from "@/components/PaymentForm";
+import { PaymentsAddTabs } from "@/components/PaymentsAddTabs";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
-import { ensureManagerOwnerCustomer, isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
+import {
+  ensureManagerOwnerCustomer,
+  excludeSystemCustomers,
+  isSalaryPayment,
+} from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +27,13 @@ export default async function PaymentsPage({
 
   const managerOwner = await ensureManagerOwnerCustomer(companyId);
 
-  const [customers, invoices, payments, sales] = await Promise.all([
+  const [customers, suppliers, employees, invoices, payments, sales] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+    prisma.employee.findMany({
+      where: { companyId, active: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    }),
     prisma.invoice.findMany({
       where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
       include: { customer: true },
@@ -34,7 +42,7 @@ export default async function PaymentsPage({
     prisma.payment.findMany({
       where: { companyId, paidAt: { gte: range.start, lte: range.end } },
       orderBy: { paidAt: "desc" },
-      include: { customer: true, invoice: true, sale: true },
+      include: { customer: true, invoice: true, sale: true, employee: true, supplier: true },
     }),
     prisma.sale.findMany({
       where: { companyId, status: "COMPLETED", isRefund: false },
@@ -43,11 +51,12 @@ export default async function PaymentsPage({
     }),
   ]);
 
+  const crmCustomers = excludeSystemCustomers(customers);
   const openSales = sales
     .map((sale) => ({
       id: sale.id,
       number: sale.number,
-      customerId: sale.customerId || customers.find((c) => c.name === "Walk-in Customer")?.id || "",
+      customerId: sale.customerId || crmCustomers.find((c) => c.name === "Walk-in Customer")?.id || "",
       customerName: sale.customer?.name || "Walk-in Customer",
       amountDue: Math.max(0, sale.total - sale.amountPaid),
     }))
@@ -57,7 +66,7 @@ export default async function PaymentsPage({
     <div className="stack">
       <PageHeader
         title="Payments"
-        description={`${range.label} · record money received against invoices.`}
+        description={`${range.label} · salary payments and operational customer/supplier payments.`}
       />
       <Panel style={{ padding: "1.25rem" }}>
         <PeriodSelector
@@ -66,59 +75,68 @@ export default async function PaymentsPage({
           isFree={isFreeTier(planTier)}
         />
       </Panel>
-      <AddEntityTab label="Add payment" title="Record payment">
-        <PaymentForm
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
-          managerOwnerCustomerId={managerOwner.id}
-          invoices={invoices.map((inv) => ({
+      <PaymentsAddTabs
+        managerOwnerCustomerId={managerOwner.id}
+        employees={employees.map((e) => ({
+          id: e.id,
+          name: `${e.firstName} ${e.lastName}`.trim(),
+        }))}
+        customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
+        suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
+        invoices={invoices
+          .filter((inv) => crmCustomers.some((c) => c.id === inv.customerId))
+          .map((inv) => ({
             id: inv.id,
             number: inv.number,
             customerId: inv.customerId,
             customerName: inv.customer.name,
             amountDue: Math.max(0, inv.total - inv.amountPaid),
           }))}
-          sales={openSales}
-        />
-      </AddEntityTab>
+        sales={openSales}
+      />
       <Panel className="table-wrap list-dense">
         <table className="data">
           <thead>
             <tr>
               <th>Date</th>
-              <th>Customer</th>
-              <th>Invoice</th>
+              <th>Type</th>
+              <th>Payee</th>
+              <th>Reference</th>
               <th>Method</th>
               <th>Amount</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {payments.map((p) => (
-              <tr key={p.id}>
-                <td>{formatAppDate(p.paidAt)}</td>
-                <td>
-                  {p.customer.name}
-                  {isOwnerDrawingsCustomer(p.customer.name) ? (
-                    <span className="badge" style={{ marginLeft: "0.35rem" }}>
-                      Owner drawing
-                    </span>
-                  ) : null}
-                </td>
-                <td className="muted">
-                  {p.invoice?.number ?? p.sale?.number ?? p.reference ?? "—"}
-                </td>
-                <td>{p.method}</td>
-                <td className="money">{formatTTD(p.amount)}</td>
-                <td>
-                  <Link className="btn btn-secondary btn-sm" href={`/payments/${p.id}`}>
-                    View
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {payments.map((p) => {
+              const salary = isSalaryPayment(p);
+              const payee =
+                p.employee
+                  ? `${p.employee.firstName} ${p.employee.lastName}`.trim()
+                  : p.supplier?.name || p.customer?.name || "—";
+              return (
+                <tr key={p.id}>
+                  <td>{formatAppDate(p.paidAt)}</td>
+                  <td>
+                    <span className="badge">{salary ? "Salary" : "Operational"}</span>
+                  </td>
+                  <td>{payee}</td>
+                  <td className="muted">
+                    {p.invoice?.number ?? p.sale?.number ?? p.reference ?? p.notes ?? "—"}
+                  </td>
+                  <td>{p.method}</td>
+                  <td className="money">{formatTTD(p.amount)}</td>
+                  <td>
+                    <Link className="btn btn-secondary btn-sm" href={`/payments/${p.id}`}>
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
             {payments.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   No payments in this period.
                 </td>
               </tr>

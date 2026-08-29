@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
+import { isOwnerDrawingsCustomer, isSalaryPayment } from "@/lib/owner-drawings";
 
 export const INCOME_STATEMENT_MONTHS = [
   "Jan",
@@ -37,7 +37,11 @@ export type IncomeStatementLineId =
   | "insurance"
   | "miscellaneousExpenses"
   | "totalOperatingExpenses"
-  | "netProfit";
+  | "netProfit"
+  | "loanPrincipalPayment"
+  | "capitalPurchase"
+  | "reserveEscrow"
+  | "ownersWithdrawal";
 
 export type IncomeStatementRowKind = "section" | "line" | "total" | "result";
 
@@ -103,6 +107,8 @@ function inventoryValueAt(
  * - Gross Profit = Total Revenue − Total COGS
  * - Total Operating Expenses = sum of operating expense lines
  * - Net Profit = Gross Profit − Total Operating Expenses
+ * - Below net profit (not in net): Loan Principal Payment, Capital Purchase,
+ *   Reserve and/or Escrow, Owner's Withdrawal (Manager/Owner drawings)
  */
 export async function fetchMonthlyIncomeStatement(
   companyId: string,
@@ -159,6 +165,10 @@ export async function fetchMonthlyIncomeStatement(
         amount: true,
         paidAt: true,
         invoiceId: true,
+        saleId: true,
+        employeeId: true,
+        supplierId: true,
+        kind: true,
         reference: true,
         notes: true,
         customer: { select: { name: true } },
@@ -213,6 +223,10 @@ export async function fetchMonthlyIncomeStatement(
   const maintenance = emptyMonths();
   const insurance = emptyMonths();
   const miscellaneousExpenses = emptyMonths();
+  const loanPrincipalPayment = emptyMonths();
+  const capitalPurchase = emptyMonths();
+  const reserveEscrow = emptyMonths();
+  const ownersWithdrawal = emptyMonths();
 
   for (const line of saleLines) {
     const service = Boolean(line.product?.isService);
@@ -221,8 +235,15 @@ export async function fetchMonthlyIncomeStatement(
   }
 
   for (const pay of payments) {
-    if (isOwnerDrawingsCustomer(pay.customer.name)) {
+    if (isOwnerDrawingsCustomer(pay.customer?.name) || (isSalaryPayment(pay) && !pay.employeeId)) {
+      addToMonth(ownersWithdrawal, pay.paidAt, pay.amount);
+      continue;
+    }
+    if (pay.employeeId) {
       addToMonth(salariesWages, pay.paidAt, pay.amount);
+      continue;
+    }
+    if (pay.supplierId) {
       continue;
     }
     const ref = `${pay.reference || ""} ${pay.notes || ""}`.toLowerCase();
@@ -230,7 +251,7 @@ export async function fetchMonthlyIncomeStatement(
     if (isPos) continue;
     if (pay.invoiceId) {
       addToMonth(serviceIncome, pay.paidAt, pay.amount);
-    } else {
+    } else if (!isSalaryPayment(pay)) {
       addToMonth(otherIncome, pay.paidAt, pay.amount);
     }
   }
@@ -258,7 +279,15 @@ export async function fetchMonthlyIncomeStatement(
   for (const expense of expenses) {
     const amount = expense.amount;
     const cat = expense.category || "";
-    if (matchCategory(cat, [/^rent\b/i, /lease/i])) {
+    if (matchCategory(cat, [/loan\s*principal|principal\s*payment|loan\s*payment/i])) {
+      addToMonth(loanPrincipalPayment, expense.date, amount);
+    } else if (matchCategory(cat, [/capital\s*purchase|capital\s*expend|capex/i])) {
+      addToMonth(capitalPurchase, expense.date, amount);
+    } else if (matchCategory(cat, [/reserve|escrow/i])) {
+      addToMonth(reserveEscrow, expense.date, amount);
+    } else if (matchCategory(cat, [/owner.?s?\s*withdraw|owner.?s?\s*draw|drawings?/i])) {
+      addToMonth(ownersWithdrawal, expense.date, amount);
+    } else if (matchCategory(cat, [/^rent\b/i, /lease/i])) {
       addToMonth(rentExpense, expense.date, amount);
     } else if (matchCategory(cat, [/utilit/i, /electric/i, /water/i, /internet/i])) {
       addToMonth(utilities, expense.date, amount);
@@ -418,6 +447,17 @@ export async function fetchMonthlyIncomeStatement(
       netProfit,
       "result",
       "Gross Profit − Total Operating Expenses",
+    ),
+    section("sec-below-net", "Below net profit"),
+    line("loanPrincipalPayment", "Loan Principal Payment", loanPrincipalPayment),
+    line("capitalPurchase", "Capital Purchase", capitalPurchase),
+    line("reserveEscrow", "Reserve and/or Escrow", reserveEscrow),
+    line(
+      "ownersWithdrawal",
+      "Owner's Withdrawal",
+      ownersWithdrawal,
+      "line",
+      "Manager/Owner drawings and owner withdrawal expenses",
     ),
   ];
 

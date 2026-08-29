@@ -71,6 +71,10 @@ export const EXPENSE_CATEGORIES = [
   "Fuel",
   "Subcontractor",
   "Office",
+  "Loan Principal Payment",
+  "Capital Purchase",
+  "Reserve and/or Escrow",
+  "Owner's Withdrawal",
   "Other",
 ] as const;
 

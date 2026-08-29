@@ -10,7 +10,14 @@ import { DEFERRED_PAYMENT_CODE } from "@/lib/receivables";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
-import { isOwnerDrawingsCustomer, MANAGER_OWNER_CUSTOMER_NAME } from "@/lib/owner-drawings";
+import {
+  ensureManagerOwnerCustomer,
+  isOwnerDrawingsCustomer,
+  MANAGER_OWNER_CUSTOMER_NAME,
+  MANAGER_OWNER_PAYEE_ID,
+  PAYMENT_KIND_OPERATIONAL,
+  PAYMENT_KIND_SALARY,
+} from "@/lib/owner-drawings";
 import {
   applyOptionQtyDelta,
   coerceVariableOption,
@@ -338,10 +345,15 @@ function mapProductResponse(product: {
 
 export async function createCustomer(formData: FormData) {
   const { companyId } = await requireCompany();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("Name is required");
+  if (isOwnerDrawingsCustomer(name)) {
+    throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be added as a customer`);
+  }
   await prisma.customer.create({
     data: {
       companyId,
-      name: String(formData.get("name") || "").trim(),
+      name,
       email: String(formData.get("email") || "") || null,
       phone: String(formData.get("phone") || "") || null,
       address: String(formData.get("address") || "") || null,
@@ -372,6 +384,9 @@ export async function deleteCustomer(formData: FormData) {
     },
   });
   if (!customer) return { error: "Customer not found" };
+  if (isOwnerDrawingsCustomer(customer.name)) {
+    return { error: `${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be deleted` };
+  }
 
   const blockers: string[] = [];
   if (customer._count.quotations) blockers.push(`${customer._count.quotations} quotation(s)`);
@@ -1490,84 +1505,112 @@ export async function recordPayment(formData: FormData) {
   const invoiceId = String(formData.get("invoiceId") || "") || null;
   const saleId = String(formData.get("saleId") || "") || null;
   const amount = dollarsToCents(formData.get("amount"));
-  const customerId = String(formData.get("customerId"));
+  const payeeKey = String(formData.get("payeeKey") || "");
+  const [payeeType, payeeId] = payeeKey.split(":");
 
+  if (amount <= 0) throw new Error("Amount must be greater than zero");
   if (invoiceId && saleId) {
     throw new Error("Select either an invoice or a POS sale, not both");
   }
-
-  const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
-  if (!customer) throw new Error("Customer not found");
-
-  const ownerDrawing = isOwnerDrawingsCustomer(customer.name);
-  if (ownerDrawing && (invoiceId || saleId)) {
-    throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is for owner drawings only — do not link an invoice or POS sale`);
+  if (payeeType !== "customer" && payeeType !== "supplier") {
+    throw new Error("Select a customer or supplier");
   }
 
-  if (invoiceId) {
-    const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId } });
-    if (!invoice) throw new Error("Invoice not found");
-  }
+  const method = String(formData.get("method") || "BANK");
+  const paidAt = new Date(String(formData.get("paidAt") || new Date().toISOString()));
 
-  if (saleId) {
-    const sale = await prisma.sale.findFirst({
-      where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
-    });
-    if (!sale) throw new Error("POS sale not found");
-    const balance = Math.max(0, sale.total - sale.amountPaid);
-    if (amount <= 0) throw new Error("Amount must be greater than zero");
-    if (amount > balance) throw new Error("Amount exceeds outstanding balance");
+  if (payeeType === "supplier") {
+    if (invoiceId || saleId) {
+      throw new Error("Supplier payments cannot be linked to an invoice or POS sale");
+    }
+    const supplier = await prisma.supplier.findFirst({ where: { id: payeeId, companyId } });
+    if (!supplier) throw new Error("Supplier not found");
 
     await prisma.payment.create({
       data: {
         companyId,
-        customerId,
-        saleId,
+        kind: PAYMENT_KIND_OPERATIONAL,
+        supplierId: supplier.id,
         amount,
-        method: String(formData.get("method") || "BANK"),
-        reference: sale.number,
-        paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
-        notes: String(formData.get("notes") || "") || "POS receivable payment",
+        method,
+        paidAt,
+        notes: `Supplier payment — ${supplier.name}`,
+        reference: supplier.name,
       },
-    });
-
-    await prisma.sale.update({
-      where: { id: sale.id },
-      data: { amountPaid: sale.amountPaid + amount },
     });
   } else {
-    await prisma.payment.create({
-      data: {
-        companyId,
-        customerId,
-        invoiceId,
-        amount,
-        method: String(formData.get("method") || "BANK"),
-        reference: String(formData.get("reference") || "") || null,
-        paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
-        notes: ownerDrawing
-          ? "Owner drawing"
-          : String(formData.get("notes") || "") || null,
-      },
-    });
+    const customer = await prisma.customer.findFirst({ where: { id: payeeId, companyId } });
+    if (!customer) throw new Error("Customer not found");
+    if (isOwnerDrawingsCustomer(customer.name)) {
+      throw new Error(
+        `${MANAGER_OWNER_CUSTOMER_NAME} belongs under Salary Payments — use Add Salary Payments`,
+      );
+    }
 
     if (invoiceId) {
-      const invoice = await prisma.invoice.findFirstOrThrow({
-        where: { id: invoiceId, companyId },
-      });
-      const amountPaid = invoice.amountPaid + amount;
-      const status =
-        amountPaid >= invoice.total ? "PAID" : amountPaid > 0 ? "PARTIAL" : invoice.status;
+      const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId } });
+      if (!invoice) throw new Error("Invoice not found");
+    }
 
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { amountPaid, status },
+    if (saleId) {
+      const sale = await prisma.sale.findFirst({
+        where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
+      });
+      if (!sale) throw new Error("POS sale not found");
+      const balance = Math.max(0, sale.total - sale.amountPaid);
+      if (amount > balance) throw new Error("Amount exceeds outstanding balance");
+
+      await prisma.payment.create({
+        data: {
+          companyId,
+          kind: PAYMENT_KIND_OPERATIONAL,
+          customerId: customer.id,
+          saleId,
+          amount,
+          method,
+          reference: sale.number,
+          paidAt,
+          notes: "POS receivable payment",
+        },
       });
 
-      if (invoice.jobId) {
-        await syncJobStatus(invoice.jobId, companyId);
-        revalidatePath(`/jobs/${invoice.jobId}`);
-        revalidatePath("/jobs");
+      await prisma.sale.update({
+        where: { id: sale.id },
+        data: { amountPaid: sale.amountPaid + amount },
+      });
+    } else {
+      await prisma.payment.create({
+        data: {
+          companyId,
+          kind: PAYMENT_KIND_OPERATIONAL,
+          customerId: customer.id,
+          invoiceId,
+          amount,
+          method,
+          reference: String(formData.get("reference") || "") || null,
+          paidAt,
+          notes: String(formData.get("notes") || "") || null,
+        },
+      });
+
+      if (invoiceId) {
+        const invoice = await prisma.invoice.findFirstOrThrow({
+          where: { id: invoiceId, companyId },
+        });
+        const amountPaid = invoice.amountPaid + amount;
+        const status =
+          amountPaid >= invoice.total ? "PAID" : amountPaid > 0 ? "PARTIAL" : invoice.status;
+
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { amountPaid, status },
+        });
+
+        if (invoice.jobId) {
+          await syncJobStatus(invoice.jobId, companyId);
+          revalidatePath(`/jobs/${invoice.jobId}`);
+          revalidatePath("/jobs");
+        }
       }
     }
   }
@@ -1577,6 +1620,60 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/receivables");
   revalidatePath("/financial-reports");
   revalidatePath("/pos");
+  revalidatePath("/");
+}
+
+export async function recordSalaryPayment(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const payeeId = String(formData.get("payeeId") || "");
+  const amount = dollarsToCents(formData.get("amount"));
+  const method = String(formData.get("method") || "BANK");
+  const paidAt = new Date(String(formData.get("paidAt") || new Date().toISOString()));
+  const managerOwnerCustomerId = String(formData.get("managerOwnerCustomerId") || "");
+
+  if (amount <= 0) throw new Error("Amount must be greater than zero");
+  if (!payeeId) throw new Error("Select an employee or Manager/Owner");
+
+  if (payeeId === MANAGER_OWNER_PAYEE_ID) {
+    const manager =
+      (managerOwnerCustomerId
+        ? await prisma.customer.findFirst({ where: { id: managerOwnerCustomerId, companyId } })
+        : null) || (await ensureManagerOwnerCustomer(companyId));
+
+    await prisma.payment.create({
+      data: {
+        companyId,
+        kind: PAYMENT_KIND_SALARY,
+        customerId: manager.id,
+        amount,
+        method,
+        paidAt,
+        notes: "Owner drawing",
+        reference: MANAGER_OWNER_CUSTOMER_NAME,
+      },
+    });
+  } else {
+    const employee = await prisma.employee.findFirst({ where: { id: payeeId, companyId } });
+    if (!employee) throw new Error("Employee not found");
+    const name = `${employee.firstName} ${employee.lastName}`.trim();
+
+    await prisma.payment.create({
+      data: {
+        companyId,
+        kind: PAYMENT_KIND_SALARY,
+        employeeId: employee.id,
+        amount,
+        method,
+        paidAt,
+        notes: `Salary — ${name}`,
+        reference: name,
+      },
+    });
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/employees");
+  revalidatePath("/financial-reports");
   revalidatePath("/");
 }
 
@@ -2347,6 +2444,7 @@ export async function completePosSale(input: {
     await prisma.payment.create({
       data: {
         companyId,
+        kind: PAYMENT_KIND_OPERATIONAL,
         customerId: paymentCustomerId,
         saleId: sale.id,
         amount: line.amount,

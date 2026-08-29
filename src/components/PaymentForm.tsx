@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { recordPayment } from "@/app/actions";
 import { formatTTD, fromCents } from "@/lib/money";
-import { MANAGER_OWNER_CUSTOMER_NAME } from "@/lib/owner-drawings";
 
 type InvoiceOption = {
   id: string;
@@ -21,24 +20,43 @@ type SaleOption = {
   amountDue: number;
 };
 
+type PayeeOption =
+  | { type: "customer"; id: string; name: string }
+  | { type: "supplier"; id: string; name: string };
+
 export function PaymentForm({
   customers,
+  suppliers = [],
   invoices,
   sales = [],
   initialInvoiceId = "",
   initialSaleId = "",
-  managerOwnerCustomerId = "",
 }: {
   customers: { id: string; name: string }[];
+  suppliers?: { id: string; name: string }[];
   invoices: InvoiceOption[];
   sales?: SaleOption[];
   initialInvoiceId?: string;
   initialSaleId?: string;
-  managerOwnerCustomerId?: string;
 }) {
-  const [customerId, setCustomerId] = useState("");
+  const payees = useMemo<PayeeOption[]>(() => {
+    return [
+      ...customers.map((c) => ({ type: "customer" as const, id: c.id, name: c.name })),
+      ...suppliers.map((s) => ({ type: "supplier" as const, id: s.id, name: s.name })),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  }, [customers, suppliers]);
+
+  const [payeeKey, setPayeeKey] = useState("");
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId);
   const [saleId, setSaleId] = useState(initialSaleId);
+
+  const selectedPayee = useMemo(() => {
+    if (!payeeKey) return null;
+    const [type, id] = payeeKey.split(":");
+    return payees.find((p) => p.type === type && p.id === id) || null;
+  }, [payeeKey, payees]);
+
+  const isSupplier = selectedPayee?.type === "supplier";
 
   const selectedInvoice = useMemo(
     () => invoices.find((inv) => inv.id === invoiceId) || null,
@@ -50,9 +68,7 @@ export function PaymentForm({
     [sales, saleId],
   );
 
-  const selectedReceivable = selectedInvoice || selectedSale;
-  const isOwnerDrawing =
-    !!managerOwnerCustomerId && customerId === managerOwnerCustomerId;
+  const selectedReceivable = !isSupplier ? selectedInvoice || selectedSale : null;
 
   useEffect(() => {
     if (initialInvoiceId) {
@@ -60,14 +76,14 @@ export function PaymentForm({
       if (inv) {
         setInvoiceId(inv.id);
         setSaleId("");
-        setCustomerId(inv.customerId);
+        setPayeeKey(`customer:${inv.customerId}`);
       }
     } else if (initialSaleId) {
       const sale = sales.find((s) => s.id === initialSaleId);
       if (sale) {
         setSaleId(sale.id);
         setInvoiceId("");
-        setCustomerId(sale.customerId);
+        setPayeeKey(`customer:${sale.customerId}`);
       }
     }
   }, [initialInvoiceId, initialSaleId, invoices, sales]);
@@ -76,95 +92,95 @@ export function PaymentForm({
     setInvoiceId(id);
     setSaleId("");
     const inv = invoices.find((i) => i.id === id);
-    if (inv) setCustomerId(inv.customerId);
+    if (inv) setPayeeKey(`customer:${inv.customerId}`);
   }
 
   function onSaleChange(id: string) {
     setSaleId(id);
     setInvoiceId("");
     const sale = sales.find((s) => s.id === id);
-    if (sale) setCustomerId(sale.customerId);
+    if (sale) setPayeeKey(`customer:${sale.customerId}`);
   }
 
-  function onCustomerChange(id: string) {
-    setCustomerId(id);
-    if (managerOwnerCustomerId && id === managerOwnerCustomerId) {
+  function onPayeeChange(key: string) {
+    setPayeeKey(key);
+    const [type, id] = key.split(":");
+    if (type === "supplier") {
       setInvoiceId("");
       setSaleId("");
       return;
     }
-    if (selectedInvoice && selectedInvoice.customerId !== id) {
-      setInvoiceId("");
-    }
-    if (selectedSale && selectedSale.customerId !== id) {
-      setSaleId("");
-    }
+    if (selectedInvoice && selectedInvoice.customerId !== id) setInvoiceId("");
+    if (selectedSale && selectedSale.customerId !== id) setSaleId("");
   }
 
   return (
     <form action={recordPayment} className="form-grid">
-      <label className="field">
-        Invoice (service)
-        <select
-          name="invoiceId"
-          value={invoiceId}
-          disabled={isOwnerDrawing}
-          onChange={(e) => onInvoiceChange(e.target.value)}
-        >
-          <option value="">None</option>
-          {invoices.map((inv) => (
-            <option key={inv.id} value={inv.id}>
-              {inv.number} — {inv.customerName} — {formatTTD(inv.amountDue)} due
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        POS sale
-        <select
-          name="saleId"
-          value={saleId}
-          disabled={isOwnerDrawing}
-          onChange={(e) => onSaleChange(e.target.value)}
-        >
-          <option value="">None</option>
-          {sales.map((sale) => (
-            <option key={sale.id} value={sale.id}>
-              {sale.number} — {sale.customerName} — {formatTTD(sale.amountDue)} due
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        Customer
-        <select
-          name="customerId"
-          required
-          value={customerId}
-          onChange={(e) => onCustomerChange(e.target.value)}
-        >
+      <input type="hidden" name="kind" value="OPERATIONAL" />
+      <input type="hidden" name="payeeKey" value={payeeKey} />
+
+      <label className="field full">
+        Customer / supplier
+        <select name="payeeDisplay" required value={payeeKey} onChange={(e) => onPayeeChange(e.target.value)}>
           <option value="" disabled>
             Select
           </option>
-          {managerOwnerCustomerId ? (
-            <option value={managerOwnerCustomerId}>
-              {MANAGER_OWNER_CUSTOMER_NAME} — owner drawings
-            </option>
+          {customers.length > 0 ? (
+            <optgroup label="Customers">
+              {customers.map((c) => (
+                <option key={`customer:${c.id}`} value={`customer:${c.id}`}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
           ) : null}
-          {customers
-            .filter((c) => c.id !== managerOwnerCustomerId)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+          {suppliers.length > 0 ? (
+            <optgroup label="Suppliers">
+              {suppliers.map((s) => (
+                <option key={`supplier:${s.id}`} value={`supplier:${s.id}`}>
+                  {s.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
-        {isOwnerDrawing ? (
-          <span className="muted" style={{ fontSize: "0.78rem", marginTop: "0.25rem" }}>
-            Records money taken out as owner/manager drawings (not customer income).
-          </span>
-        ) : null}
       </label>
+
+      {!isSupplier ? (
+        <>
+          <label className="field">
+            Invoice (service)
+            <select name="invoiceId" value={invoiceId} onChange={(e) => onInvoiceChange(e.target.value)}>
+              <option value="">None</option>
+              {invoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.number} — {inv.customerName} — {formatTTD(inv.amountDue)} due
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            POS sale
+            <select name="saleId" value={saleId} onChange={(e) => onSaleChange(e.target.value)}>
+              <option value="">None</option>
+              {sales.map((sale) => (
+                <option key={sale.id} value={sale.id}>
+                  {sale.number} — {sale.customerName} — {formatTTD(sale.amountDue)} due
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="invoiceId" value="" />
+          <input type="hidden" name="saleId" value="" />
+          <p className="muted full" style={{ margin: 0, fontSize: "0.85rem" }}>
+            Supplier payments are recorded as operational outflows (not customer income).
+          </p>
+        </>
+      )}
+
       <label className="field">
         Amount (TT$)
         <input
@@ -173,7 +189,7 @@ export function PaymentForm({
           step="0.01"
           min="0.01"
           required
-          key={selectedReceivable?.id ?? "unallocated"}
+          key={selectedReceivable?.id ?? payeeKey ?? "unallocated"}
           defaultValue={selectedReceivable ? fromCents(selectedReceivable.amountDue) : ""}
         />
       </label>
@@ -193,7 +209,7 @@ export function PaymentForm({
       </label>
       <div className="full">
         <button className="btn btn-primary" type="submit">
-          {isOwnerDrawing ? "Record owner drawing" : "Save payment"}
+          {isSupplier ? "Record supplier payment" : "Save payment"}
         </button>
       </div>
     </form>

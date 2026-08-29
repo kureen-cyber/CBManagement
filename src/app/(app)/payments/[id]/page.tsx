@@ -20,13 +20,22 @@ export default async function PaymentReceiptPage({
   const { companyId, company } = await requireCompany();
   const payment = await prisma.payment.findFirst({
     where: { id, companyId },
-    include: { customer: true, invoice: true },
+    include: { customer: true, invoice: true, employee: true, supplier: true },
   });
   if (!payment) notFound();
 
   const header = receiptHeaderText(company);
   const footer = receiptFooterText(company);
   const canPrint = company.receiptPrinting !== false;
+  const payeeName = payment.employee
+    ? `${payment.employee.firstName} ${payment.employee.lastName}`.trim()
+    : payment.supplier?.name || payment.customer?.name || "—";
+  const payeeLabel = payment.employee
+    ? "Employee"
+    : payment.supplier
+      ? "Supplier"
+      : "Customer";
+  const isOutflow = payment.kind === "SALARY" || Boolean(payment.supplierId);
 
   return (
     <div className="stack">
@@ -39,7 +48,7 @@ export default async function PaymentReceiptPage({
             <EmailDocumentButton
               kind="payment"
               documentId={payment.id}
-              defaultEmail={payment.customer.email}
+              defaultEmail={payment.customer?.email || payment.employee?.email || payment.supplier?.email}
             />
             <Link className="btn btn-secondary" href="/payments">
               Back
@@ -68,8 +77,8 @@ export default async function PaymentReceiptPage({
             <span>{formatAppDateTime(payment.paidAt)}</span>
           </div>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <span>Customer</span>
-            <span>{payment.customer.name}</span>
+            <span>{payeeLabel}</span>
+            <span>{payeeName}</span>
           </div>
           {payment.invoice ? (
             <div className="row" style={{ justifyContent: "space-between" }}>
@@ -92,7 +101,7 @@ export default async function PaymentReceiptPage({
         <hr style={{ border: 0, borderTop: "1px dashed var(--line)", margin: "1rem 0" }} />
 
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <strong>Amount received</strong>
+          <strong>{isOutflow ? "Amount paid" : "Amount received"}</strong>
           <strong className="money" style={{ fontSize: "1.25rem" }}>
             {formatTTD(payment.amount)}
           </strong>

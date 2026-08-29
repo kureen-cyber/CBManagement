@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { fetchOutstandingReceivables, receivableSourceLabel } from "@/lib/receivables";
-import { ensureManagerOwnerCustomer } from "@/lib/owner-drawings";
+import { excludeSystemCustomers } from "@/lib/owner-drawings";
 import { PageHeader, Panel } from "@/components/ui";
 import { AddEntityTab } from "@/components/AddEntityTab";
 import { PaymentForm } from "@/components/PaymentForm";
@@ -19,9 +19,8 @@ export default async function ReceivablesPage({
   const { companyId } = await requireCompany();
   const params = await searchParams;
   const receivables = await fetchOutstandingReceivables(companyId);
-  const managerOwner = await ensureManagerOwnerCustomer(companyId);
 
-  const [customers, invoices, sales] = await Promise.all([
+  const [customers, invoices, sales, suppliers] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.invoice.findMany({
       where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
@@ -33,13 +32,15 @@ export default async function ReceivablesPage({
       include: { customer: true },
       orderBy: { soldAt: "desc" },
     }),
+    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
   ]);
 
+  const crmCustomers = excludeSystemCustomers(customers);
   const openSales = sales
     .map((sale) => ({
       id: sale.id,
       number: sale.number,
-      customerId: sale.customerId || customers.find((c) => c.name === "Walk-in Customer")?.id || "",
+      customerId: sale.customerId || crmCustomers.find((c) => c.name === "Walk-in Customer")?.id || "",
       customerName: sale.customer?.name || "Walk-in Customer",
       amountDue: Math.max(0, sale.total - sale.amountPaid),
     }))
@@ -75,9 +76,10 @@ export default async function ReceivablesPage({
 
       <AddEntityTab label="Collect payment" title="Record payment against receivable">
         <PaymentForm
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
-          managerOwnerCustomerId={managerOwner.id}
+          customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
+          suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
           invoices={invoices
+            .filter((inv) => crmCustomers.some((c) => c.id === inv.customerId))
             .map((inv) => ({
               id: inv.id,
               number: inv.number,
@@ -100,8 +102,6 @@ export default async function ReceivablesPage({
               <th>Reference</th>
               <th>Customer</th>
               <th>Due</th>
-              <th>Total</th>
-              <th>Paid</th>
               <th>Balance</th>
               <th></th>
             </tr>
@@ -110,13 +110,9 @@ export default async function ReceivablesPage({
             {receivables.map((row) => (
               <tr key={`${row.source}-${row.id}`}>
                 <td>{receivableSourceLabel(row.source)}</td>
-                <td>
-                  <strong>{row.number}</strong>
-                </td>
+                <td>{row.number}</td>
                 <td>{row.customerName}</td>
                 <td>{row.dueDate ? formatAppDate(row.dueDate) : "—"}</td>
-                <td className="money">{formatTTD(row.total)}</td>
-                <td className="money">{formatTTD(row.amountPaid)}</td>
                 <td className="money">{formatTTD(row.balance)}</td>
                 <td>
                   <Link
@@ -130,7 +126,7 @@ export default async function ReceivablesPage({
             ))}
             {receivables.length === 0 ? (
               <tr>
-                <td colSpan={8} className="muted">
+                <td colSpan={6} className="muted">
                   No outstanding receivables.
                 </td>
               </tr>

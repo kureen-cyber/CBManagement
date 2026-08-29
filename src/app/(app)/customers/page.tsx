@@ -20,6 +20,8 @@ export default async function CustomersPage() {
       jobs: { select: { id: true } },
     },
   });
+  const { excludeSystemCustomers } = await import("@/lib/owner-drawings");
+  const visibleCustomers = excludeSystemCustomers(customers);
 
   return (
     <div className="stack">
@@ -74,7 +76,7 @@ export default async function CustomersPage() {
             </tr>
           </thead>
           <tbody>
-            {customers.map((c) => {
+            {visibleCustomers.map((c) => {
               const outstanding = c.invoices
                 .filter((i) => !["PAID", "VOID"].includes(i.status))
                 .reduce((s, i) => s + (i.total - i.amountPaid), 0);
@@ -97,7 +99,7 @@ export default async function CustomersPage() {
                 </tr>
               );
             })}
-            {customers.length === 0 ? (
+            {visibleCustomers.length === 0 ? (
               <tr>
                 <td colSpan={6} className="muted">
                   No customers yet — use Add customer.

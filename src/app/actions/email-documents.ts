@@ -178,15 +178,19 @@ export async function emailPaymentReceipt(input: { paymentId: string; toEmail: s
 
   const payment = await prisma.payment.findFirst({
     where: { id: input.paymentId, companyId },
-    include: { customer: true, invoice: true },
+    include: { customer: true, invoice: true, employee: true, supplier: true },
   });
   if (!payment) return { error: "Payment not found" };
+
+  const payeeName = payment.employee
+    ? `${payment.employee.firstName} ${payment.employee.lastName}`.trim()
+    : payment.supplier?.name || payment.customer?.name || "—";
 
   const payload = buildPaymentEmail({
     header: receiptHeaderText(company),
     footer: receiptFooterText(company),
     dateLabel: formatAppDateTime(payment.paidAt),
-    customerName: payment.customer.name,
+    customerName: payeeName,
     invoiceNumber: payment.invoice?.number ?? null,
     method: payment.method,
     reference: payment.reference,

@@ -235,6 +235,7 @@ model Supplier {
   expenses   Expense[]
   items      SupplierItem[]
   purchases  SupplierPurchase[]
+  payments   Payment[]
 
   @@index([companyId])
 }
@@ -400,6 +401,7 @@ model Employee {
   invoiceAssignments InvoiceEmployee[]
   jobAssignments     JobEmployee[]
   payslips           EmployeePayslip[]
+  payments           Payment[]
 
   @@index([companyId])
 }
@@ -630,7 +632,11 @@ model InvoiceLine {
 model Payment {
   id         String   @id @default(cuid())
   companyId  String
-  customerId String
+  /// OPERATIONAL (customer/supplier) | SALARY (employee or Manager/Owner drawings)
+  kind       String   @default("OPERATIONAL")
+  customerId String?
+  employeeId String?
+  supplierId String?
   invoiceId  String?
   saleId     String?
   amount     Int
@@ -640,13 +646,18 @@ model Payment {
   notes      String?
   createdAt  DateTime @default(now())
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id])
-  invoice  Invoice? @relation(fields: [invoiceId], references: [id])
-  sale     Sale?    @relation(fields: [saleId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  invoice  Invoice?  @relation(fields: [invoiceId], references: [id])
+  sale     Sale?     @relation(fields: [saleId], references: [id])
 
   @@index([companyId])
   @@index([saleId])
+  @@index([employeeId])
+  @@index([supplierId])
+  @@index([kind])
 }
 
 model Expense {

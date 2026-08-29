@@ -144,6 +144,8 @@ export default async function PosPage() {
         viewMode={parseInventoryViewMode(activeStore?.inventoryViewMode ?? "card")}
         initialRegisterId={access.registerId || ""}
         honeyPersonsEnabled={company.receiptHoneyPersons === true}
+        taxEnabled={company.taxEnabled !== false}
+        vatRate={company.vatRate ?? 0.125}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
         categories={categories.map((c) => c.name)}

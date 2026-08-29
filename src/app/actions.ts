@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { nextNumber, nextSku } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
+import { DEFERRED_PAYMENT_CODE } from "@/lib/receivables";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
@@ -1486,8 +1487,13 @@ export async function createInvoice(formData: FormData) {
 export async function recordPayment(formData: FormData) {
   const { companyId } = await requireCompany();
   const invoiceId = String(formData.get("invoiceId") || "") || null;
+  const saleId = String(formData.get("saleId") || "") || null;
   const amount = dollarsToCents(formData.get("amount"));
   const customerId = String(formData.get("customerId"));
+
+  if (invoiceId && saleId) {
+    throw new Error("Select either an invoice or a POS sale, not both");
+  }
 
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
   if (!customer) throw new Error("Customer not found");
@@ -1497,41 +1503,71 @@ export async function recordPayment(formData: FormData) {
     if (!invoice) throw new Error("Invoice not found");
   }
 
-  await prisma.payment.create({
-    data: {
-      companyId,
-      customerId,
-      invoiceId,
-      amount,
-      method: String(formData.get("method") || "BANK"),
-      reference: String(formData.get("reference") || "") || null,
-      paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
-      notes: String(formData.get("notes") || "") || null,
-    },
-  });
-
-  if (invoiceId) {
-    const invoice = await prisma.invoice.findFirstOrThrow({
-      where: { id: invoiceId, companyId },
+  if (saleId) {
+    const sale = await prisma.sale.findFirst({
+      where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
     });
-    const amountPaid = invoice.amountPaid + amount;
-    const status =
-      amountPaid >= invoice.total ? "PAID" : amountPaid > 0 ? "PARTIAL" : invoice.status;
+    if (!sale) throw new Error("POS sale not found");
+    const balance = Math.max(0, sale.total - sale.amountPaid);
+    if (amount <= 0) throw new Error("Amount must be greater than zero");
+    if (amount > balance) throw new Error("Amount exceeds outstanding balance");
 
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: { amountPaid, status },
+    await prisma.payment.create({
+      data: {
+        companyId,
+        customerId,
+        saleId,
+        amount,
+        method: String(formData.get("method") || "BANK"),
+        reference: sale.number,
+        paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
+        notes: String(formData.get("notes") || "") || "POS receivable payment",
+      },
     });
 
-    if (invoice.jobId) {
-      await syncJobStatus(invoice.jobId, companyId);
-      revalidatePath(`/jobs/${invoice.jobId}`);
-      revalidatePath("/jobs");
+    await prisma.sale.update({
+      where: { id: sale.id },
+      data: { amountPaid: sale.amountPaid + amount },
+    });
+  } else {
+    await prisma.payment.create({
+      data: {
+        companyId,
+        customerId,
+        invoiceId,
+        amount,
+        method: String(formData.get("method") || "BANK"),
+        reference: String(formData.get("reference") || "") || null,
+        paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
+        notes: String(formData.get("notes") || "") || null,
+      },
+    });
+
+    if (invoiceId) {
+      const invoice = await prisma.invoice.findFirstOrThrow({
+        where: { id: invoiceId, companyId },
+      });
+      const amountPaid = invoice.amountPaid + amount;
+      const status =
+        amountPaid >= invoice.total ? "PAID" : amountPaid > 0 ? "PARTIAL" : invoice.status;
+
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { amountPaid, status },
+      });
+
+      if (invoice.jobId) {
+        await syncJobStatus(invoice.jobId, companyId);
+        revalidatePath(`/jobs/${invoice.jobId}`);
+        revalidatePath("/jobs");
+      }
     }
   }
 
   revalidatePath("/payments");
   revalidatePath("/invoices");
+  revalidatePath("/receivables");
+  revalidatePath("/pos");
   revalidatePath("/");
 }
 
@@ -2045,13 +2081,15 @@ export async function setActivePosRegister(registerId: string) {
 
 export async function completePosSale(input: {
   lines: PosLineInput[];
-  method: string;
+  method?: string;
+  payments?: { method: string; amount: number }[];
   customerId?: string | null;
   notes?: string;
   honeyPersons?: string | null;
   posRegisterId?: string | null;
   ticketId?: string | null;
   discountPercent?: number;
+  dueDate?: string | null;
 }) {
   const { companyId, company, user } = await requireCompany();
   const { isFreeRetailTier, parsePlanTier } = await import("@/lib/tier");
@@ -2123,7 +2161,45 @@ export async function completePosSale(input: {
   const vatRate = taxOn ? (company.vatRate ?? 0.125) : 0;
   const taxAmount = Math.round(taxable * vatRate);
   const total = taxable + taxAmount;
-  const method = input.method || "CASH";
+
+  const paymentLines =
+    input.payments && input.payments.length
+      ? input.payments.map((p) => ({
+          method: String(p.method || "CASH").trim().toUpperCase(),
+          amount: Math.max(0, Math.round(Number(p.amount) || 0)),
+        }))
+      : [{ method: (input.method || "CASH").trim().toUpperCase(), amount: total }];
+
+  const paidTotal = paymentLines.reduce((s, p) => s + p.amount, 0);
+  if (paidTotal !== total) {
+    return {
+      error: `Payment total (${(paidTotal / 100).toFixed(2)}) must equal sale total (${(total / 100).toFixed(2)})`,
+    };
+  }
+
+  const hasDeferred = paymentLines.some((p) => p.method === DEFERRED_PAYMENT_CODE);
+  const amountPaid = paymentLines
+    .filter((p) => p.method !== DEFERRED_PAYMENT_CODE)
+    .reduce((s, p) => s + p.amount, 0);
+
+  if (hasDeferred && !input.customerId) {
+    return { error: "Select a customer for deferred payment" };
+  }
+
+  const saleMethod =
+    paymentLines.length > 1
+      ? "SPLIT"
+      : paymentLines[0]?.method === DEFERRED_PAYMENT_CODE
+        ? DEFERRED_PAYMENT_CODE
+        : paymentLines[0]?.method || "CASH";
+
+  const dueDate =
+    hasDeferred && input.dueDate?.trim()
+      ? new Date(input.dueDate.trim())
+      : hasDeferred
+        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+
   const honeyPersons =
     company.receiptHoneyPersons === true
       ? String(input.honeyPersons || "").trim() || null
@@ -2145,10 +2221,11 @@ export async function completePosSale(input: {
         subtotal,
         taxAmount,
         total,
-        amountPaid: total,
+        amountPaid,
         discountPercent,
         discountAmount,
-        method,
+        method: saleMethod,
+        dueDate,
         notes: input.notes || null,
         honeyPersons,
         soldAt: new Date(),
@@ -2180,10 +2257,11 @@ export async function completePosSale(input: {
         subtotal,
         taxAmount,
         total,
-        amountPaid: total,
+        amountPaid,
         discountPercent,
         discountAmount,
-        method,
+        method: saleMethod,
+        dueDate,
         notes: input.notes || null,
         honeyPersons,
         lines: {
@@ -2241,19 +2319,8 @@ export async function completePosSale(input: {
     }
   }
 
-  if (input.customerId) {
-    await prisma.payment.create({
-      data: {
-        companyId,
-        customerId: input.customerId,
-        amount: total,
-        method,
-        reference: sale.number,
-        notes: "POS sale",
-        paidAt: new Date(),
-      },
-    });
-  } else {
+  let paymentCustomerId = input.customerId || null;
+  if (!paymentCustomerId) {
     let walkIn = await prisma.customer.findFirst({
       where: { companyId, name: "Walk-in Customer" },
       orderBy: { createdAt: "asc" },
@@ -2263,14 +2330,20 @@ export async function completePosSale(input: {
         data: { companyId, name: "Walk-in Customer", notes: "Auto-created for POS walk-ins" },
       });
     }
+    paymentCustomerId = walkIn.id;
+  }
+
+  for (const line of paymentLines) {
+    if (line.method === DEFERRED_PAYMENT_CODE || line.amount <= 0) continue;
     await prisma.payment.create({
       data: {
         companyId,
-        customerId: walkIn.id,
-        amount: total,
-        method,
+        customerId: paymentCustomerId,
+        saleId: sale.id,
+        amount: line.amount,
+        method: line.method,
         reference: sale.number,
-        notes: "POS walk-in sale",
+        notes: paymentLines.length > 1 ? "POS split payment" : "POS sale",
         paidAt: new Date(),
       },
     });
@@ -2279,9 +2352,10 @@ export async function completePosSale(input: {
   revalidatePath("/pos");
   revalidatePath("/inventory");
   revalidatePath("/payments");
+  revalidatePath("/receivables");
   revalidatePath("/");
 
-  return { saleId: sale.id, number: sale.number, total, method };
+  return { saleId: sale.id, number: sale.number, total, method: saleMethod };
 }
 
 /** Issue a full refund for a completed sale (both POS registers). Restores stock. */
@@ -2432,7 +2506,7 @@ export async function voidPosSale(saleId: string, posRegisterId?: string | null)
   await prisma.payment.deleteMany({
     where: {
       companyId,
-      reference: original.number,
+      OR: [{ saleId: original.id }, { reference: original.number }],
     },
   });
 
@@ -2451,6 +2525,7 @@ export async function voidPosSale(saleId: string, posRegisterId?: string | null)
   revalidatePath("/inventory");
   revalidatePath("/reports");
   revalidatePath("/payments");
+  revalidatePath("/receivables");
   revalidatePath("/analytics");
   revalidatePath("/");
   return { ok: true as const, saleId: original.id, number: original.number };

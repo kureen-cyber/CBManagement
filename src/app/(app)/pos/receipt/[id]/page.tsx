@@ -247,6 +247,24 @@ export default async function ReceiptPage({
             {formatTTD(sale.total)}
           </strong>
         </div>
+        {sale.amountPaid < sale.total ? (
+          <>
+            <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
+              <span>Amount paid</span>
+              <span className="money">{formatTTD(sale.amountPaid)}</span>
+            </div>
+            <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
+              <strong>Balance due</strong>
+              <strong className="money">{formatTTD(sale.total - sale.amountPaid)}</strong>
+            </div>
+            {sale.dueDate ? (
+              <div className="row" style={{ justifyContent: "space-between", marginTop: "0.35rem" }}>
+                <span>Due date</span>
+                <span>{formatAppDateTimeInZone(sale.dueDate, { dateStyle: "medium" }, locale)}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
 
         {isVoided ? (
           <p className="muted" style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>

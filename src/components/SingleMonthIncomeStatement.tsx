@@ -24,7 +24,7 @@ export function SingleMonthIncomeStatementTable({
       </div>
 
       <div className="table-wrap">
-        <table className="data income-statement-table list-dense">
+        <table className="data income-statement-table">
           <thead>
             <tr>
               <th>Line</th>

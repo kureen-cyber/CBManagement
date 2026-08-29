@@ -532,12 +532,12 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 
 .income-statement-header {
   text-align: center;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.65rem;
 }
 
 .income-statement-business {
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 .income-statement-scroll {
@@ -546,16 +546,17 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 
 .income-statement-table {
   min-width: 1100px;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
 }
 
 .income-statement-table th,
 .income-statement-table td {
   white-space: nowrap;
+  padding: 0.65rem 0.85rem;
 }
 
 .income-statement-label-col {
-  min-width: 220px;
+  min-width: 240px;
   position: sticky;
   left: 0;
   background: var(--surface);
@@ -571,7 +572,7 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 
 .income-statement-month {
   text-align: right !important;
-  min-width: 72px;
+  min-width: 84px;
 }
 
 .income-statement-table td.money {
@@ -580,9 +581,9 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 
 .income-statement-section td {
   background: var(--sea-soft);
-  font-size: 0.8rem;
-  padding-top: 0.55rem !important;
-  padding-bottom: 0.55rem !important;
+  font-size: 0.92rem;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
 }
 
 .income-statement-total td,
@@ -601,8 +602,9 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 .income-statement-formula {
   display: block;
   font-weight: 500;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   white-space: normal;
+  margin-top: 0.15rem;
 }
 
 .badge {

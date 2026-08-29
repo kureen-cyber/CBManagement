@@ -37,7 +37,6 @@ export default async function PosPage() {
   await ensureDefaultInventoryCategories(companyId, activeStore?.id);
 
   const businessType = await getBusinessType();
-  const retailMode = isRetailOnly(businessType) || businessType === "BOTH";
   const planTier = parsePlanTier(company.planTier);
   const since = receiptVisibleSince(planTier);
 
@@ -134,7 +133,6 @@ export default async function PosPage() {
       ) : null}
 
       <PosTerminal
-        retailMode={retailMode && access.canManageInventory}
         requireRegister={isFreeRetailTier(planTier)}
         openTicketsEnabled={company.featureOpenTickets}
         outOfStockWarn={company.featureOutOfStockWarn}
@@ -148,7 +146,6 @@ export default async function PosPage() {
         vatRate={company.vatRate ?? 0.125}
         registers={posRegisters.map((r) => ({ id: r.id, name: r.name }))}
         paymentTypes={paymentTypes.map((p) => ({ code: p.code, label: p.label }))}
-        categories={categories.map((c) => c.name)}
         categoryColors={Object.fromEntries(
           categories.map((c) => [c.name.toLowerCase(), c.color]),
         )}

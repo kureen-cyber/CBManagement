@@ -22,7 +22,7 @@ export function MonthlyIncomeStatementTable({
       </div>
 
       <div className="table-wrap income-statement-scroll">
-        <table className="data income-statement-table list-dense">
+        <table className="data income-statement-table">
           <thead>
             <tr>
               <th className="income-statement-label-col">Line</th>

@@ -5,18 +5,14 @@ import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 
 import { useRouter } from "next/navigation";
 import {
   completePosSale,
-  createCustomer,
-  createProduct,
   saveOpenTicket,
   setActivePosRegister,
   voidOpenTicket,
 } from "@/app/actions";
 import { formatTTD, toCents, fromCents } from "@/lib/money";
 import { formatAppDateTime } from "@/lib/timezone";
-import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { DEFERRED_PAYMENT_CODE, DEFERRED_PAYMENT_LABEL } from "@/lib/receivables";
 import type { InventoryViewMode } from "@/lib/settings";
-import { CategoryInput } from "@/components/CategoryInput";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
 import { ItemMenu } from "@/components/ItemMenu";
 import {
@@ -123,13 +119,11 @@ function lineKey(productId: string, variantLabel?: string) {
 export function PosTerminal({
   products: initialProducts,
   customers,
-  retailMode = false,
   registers = [],
   requireRegister = false,
   openTicketsEnabled = false,
   outOfStockWarn = false,
   paymentTypes = [],
-  categories = [],
   categoryColors = {},
   openTickets: initialTickets = [],
   discounts = [],
@@ -144,13 +138,11 @@ export function PosTerminal({
 }: {
   products: Product[];
   customers: Customer[];
-  retailMode?: boolean;
   registers?: { id: string; name: string }[];
   requireRegister?: boolean;
   openTicketsEnabled?: boolean;
   outOfStockWarn?: boolean;
   paymentTypes?: PaymentTypeOption[];
-  categories?: string[];
   categoryColors?: Record<string, string | null | undefined>;
   openTickets?: OpenTicket[];
   discounts?: DiscountOption[];
@@ -186,10 +178,7 @@ export function PosTerminal({
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [showProductForm, setShowProductForm] = useState(false);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
-  const [registerAsService, setRegisterAsService] = useState(false);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [honeyPersons, setHoneyPersons] = useState("");
   const [addModal, setAddModal] = useState<{
@@ -218,10 +207,6 @@ export function PosTerminal({
       setMethod(paymentTypes[0]!.code);
     }
   }, [paymentTypes, method]);
-
-  const categorySuggestions = categories.length
-    ? categories
-    : [...PRODUCT_CATEGORIES, ...products.map((p) => p.category)];
 
   const productCategories = useMemo(() => {
     const set = new Set(products.map((p) => p.category || "General"));
@@ -456,43 +441,6 @@ export function PosTerminal({
 
   const adjustingProduct = adjustingId ? products.find((p) => p.id === adjustingId) : null;
 
-  function onCreateProduct(formData: FormData) {
-    setError(null);
-    setMessage(null);
-    startTransition(async () => {
-      const created = await createProduct(formData);
-      if (created && "error" in created && created.error) {
-        setError(created.error);
-        return;
-      }
-      if (created && "id" in created && created.id) {
-        setProducts((prev) => {
-          if (prev.some((p) => p.id === created.id)) return prev;
-          return [
-            ...prev,
-            {
-              id: created.id,
-              name: created.name,
-              category: created.category,
-              unit: created.unit,
-              unitCost: created.unitCost,
-              unitPrice: created.unitPrice,
-              variablePrice: created.variablePrice,
-              stockQty: created.stockQty,
-              trackStock: created.trackStock,
-              isService: created.isService,
-              variables: created.variables,
-            },
-          ].sort((a, b) => a.name.localeCompare(b.name));
-        });
-        setShowProductForm(false);
-        setRegisterAsService(false);
-        setMessage(`Added ${created.name} to inventory`);
-      }
-      router.refresh();
-    });
-  }
-
   function cartLinesForServer() {
     return cart.map((l) => ({
       productId: l.productId,
@@ -694,114 +642,6 @@ export function PosTerminal({
                 )}
               </select>
             </label>
-          ) : null}
-
-          {retailMode && canManageInventory ? (
-            <div className="row">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setShowCustomerForm((v) => !v);
-                  setShowProductForm(false);
-                }}
-              >
-                Register customer
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setShowProductForm((v) => !v);
-                  setShowCustomerForm(false);
-                }}
-              >
-                Register inventory
-              </button>
-              <a className="btn btn-secondary btn-sm" href="/api/inventory/export">
-                Export stock list
-              </a>
-            </div>
-          ) : null}
-
-          {showCustomerForm && canManageInventory ? (
-            <div className="panel" style={{ padding: "1rem" }}>
-              <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register customer</h3>
-              <form action={createCustomer} className="form-grid" autoComplete="off">
-                <label className="field">
-                  Name
-                  <input name="name" required placeholder="Walk-in regular" autoComplete="organization" />
-                </label>
-                <label className="field">
-                  Phone
-                  <input name="phone" placeholder="868-555-0100" autoComplete="off" />
-                </label>
-                <label className="field">
-                  Email
-                  <input name="email" type="email" autoComplete="off" />
-                </label>
-                <div className="full">
-                  <button className="btn btn-primary btn-sm" type="submit">
-                    Save customer
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : null}
-
-          {showProductForm && canManageInventory ? (
-            <div className="panel" style={{ padding: "1rem" }}>
-              <h3 style={{ marginTop: 0, fontSize: "1rem" }}>Register inventory / service</h3>
-              <form action={onCreateProduct} className="form-grid">
-                <label className="field">
-                  Name
-                  <input name="name" required placeholder="Soft drink or Oil change" />
-                </label>
-                <label className="field">
-                  Category
-                  <CategoryInput
-                    name="category"
-                    defaultValue={categorySuggestions[0] || "General"}
-                    suggestions={categorySuggestions}
-                    listId="pos-category-suggestions"
-                  />
-                </label>
-                <label className="field">
-                  Unit price (leave 0 for variable at POS)
-                  <input name="unitPrice" type="number" step="0.01" defaultValue="0" />
-                </label>
-                <label className="field">
-                  Opening stock
-                  <input
-                    name="stockQty"
-                    type="number"
-                    step="0.01"
-                    defaultValue="0"
-                    disabled={registerAsService}
-                  />
-                </label>
-                <label className="choice-card full">
-                  <input
-                    type="checkbox"
-                    name="isService"
-                    checked={registerAsService}
-                    onChange={(e) => setRegisterAsService(e.target.checked)}
-                  />
-                  <span>Service (fixed price, no stock)</span>
-                </label>
-                {!registerAsService ? (
-                  <label className="choice-card full">
-                    <input type="checkbox" name="trackStock" defaultChecked />
-                    <span>Track stock</span>
-                  </label>
-                ) : null}
-                <div className="full">
-                  <button className="btn btn-primary btn-sm" type="submit" disabled={pending}>
-                    Save item
-                  </button>
-                </div>
-              </form>
-            </div>
           ) : null}
 
           <div className="pos-grid">

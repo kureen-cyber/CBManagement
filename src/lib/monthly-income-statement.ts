@@ -279,7 +279,11 @@ export async function fetchMonthlyIncomeStatement(
 
   for (const purchase of purchases) {
     const supplyType = purchase.supplierItem?.supplyType || "MATERIAL";
-    if (supplyType === "EQUIPMENT" || supplyType === "EQUIPMENT_RENTAL") {
+    if (supplyType === "EQUIPMENT") {
+      addToMonth(capitalPurchase, purchase.purchasedAt, purchase.totalCost);
+      continue;
+    }
+    if (supplyType === "EQUIPMENT_RENTAL") {
       addToMonth(maintenance, purchase.purchasedAt, purchase.totalCost);
       continue;
     }
@@ -302,7 +306,14 @@ export async function fetchMonthlyIncomeStatement(
     const cat = expense.category || "";
     if (matchCategory(cat, [/loan\s*principal|principal\s*payment|loan\s*payment/i])) {
       addToMonth(loanPrincipalPayment, expense.date, amount);
-    } else if (matchCategory(cat, [/capital\s*purchase|capital\s*expend|capex/i])) {
+    } else if (
+      matchCategory(cat, [
+        /capital\s*purchase|capital\s*expend|capex/i,
+        /^equipment$/i,
+        /^equipment\s+purchase/i,
+      ])
+    ) {
+      // Quote→invoice equipment and explicit capital expenses (not rentals).
       addToMonth(capitalPurchase, expense.date, amount);
     } else if (matchCategory(cat, [/reserve|escrow/i])) {
       // Reserve/escrow expense cash-outs stay in miscellaneous; the Reserve line is
@@ -322,7 +333,7 @@ export async function fetchMonthlyIncomeStatement(
       addToMonth(officeSupplies, expense.date, amount);
     } else if (matchCategory(cat, [/market|advert|promo|promotion/i])) {
       addToMonth(marketingAdvertising, expense.date, amount);
-    } else if (matchCategory(cat, [/mainten|repair|equipment/i])) {
+    } else if (matchCategory(cat, [/mainten|repair|equipment\s*rental/i])) {
       addToMonth(maintenance, expense.date, amount);
     } else if (matchCategory(cat, [/insur/i])) {
       addToMonth(insurance, expense.date, amount);

@@ -36,7 +36,7 @@ export default function LandingPage() {
           </p>
           <div className="landing-cta-row">
             <Link href="/signup" className="btn btn-primary landing-cta">
-              Create your free account now
+              Sign up and start your free 30-day trial
             </Link>
           </div>
         </div>
@@ -107,12 +107,12 @@ export default function LandingPage() {
       </section>
 
       <section className="landing-section landing-final-cta">
-        <h2>Start free with CBManagement</h2>
+        <h2>Start your free 30-day trial</h2>
         <p className="landing-section-lede">
-          Create your free account and run Complete Business Management from one place.
+          Sign up and run Complete Business Management from one place.
         </p>
         <Link href="/signup" className="btn btn-primary landing-cta">
-          Create your free account now
+          Sign up and start your free 30-day trial
         </Link>
       </section>
 

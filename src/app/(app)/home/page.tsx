@@ -40,8 +40,10 @@ export default async function DashboardPage() {
     outstandingInvoices,
     customerCount,
     employeeCount,
-    activeJobs,
     products,
+    posReceivableSales,
+    supplierCount,
+    activeJobs,
     quotationCountMonth,
   ] = await Promise.all([
     prisma.sale.aggregate({
@@ -114,8 +116,13 @@ export default async function DashboardPage() {
     }),
     prisma.customer.count({ where: { companyId } }),
     prisma.employee.count({ where: { companyId, active: true } }),
-    prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
+    prisma.sale.findMany({
+      where: { companyId, status: "COMPLETED", isRefund: false },
+      select: { total: true, amountPaid: true },
+    }),
+    prisma.supplier.count({ where: { companyId } }),
+    prisma.job.count({ where: { companyId, status: "ACTIVE" } }),
     prisma.quotation.count({
       where: { companyId, createdAt: { gte: monthStart, lte: monthEnd } },
     }),
@@ -127,6 +134,11 @@ export default async function DashboardPage() {
   const posProfit = posSales - stockSpend;
   const posMargin = posSales === 0 ? 0 : (posProfit / posSales) * 100;
   const lowStockCount = products.filter((p) => p.stockQty <= p.minStock).length;
+  const inventoryCount = products.length;
+  const posReceivableAmt = posReceivableSales.reduce(
+    (sum, sale) => sum + Math.max(0, sale.total - sale.amountPaid),
+    0,
+  );
 
   const serviceIncome = servicePaymentsMonth._sum.amount ?? 0;
   const equipmentSpend = equipmentExpensesMonth._sum.amount ?? 0;
@@ -199,9 +211,14 @@ export default async function DashboardPage() {
             <div className="muted" style={{ marginTop: "0.85rem", fontSize: "0.82rem" }}>
               Low stock alerts: <strong>{lowStockCount}</strong>
               {" · "}
-              <Link href="/inventory">Inventory</Link>
+              Receivables:{" "}
+              <Link href="/receivables">
+                <strong className="money">{formatTTD(posReceivableAmt)}</strong>
+              </Link>
               {" · "}
-              <Link href="/suppliers">Suppliers</Link>
+              <Link href="/inventory">Inventory {inventoryCount}</Link>
+              {" · "}
+              <Link href="/suppliers">Suppliers {supplierCount}</Link>
             </div>
           </Panel>
         ) : null}
@@ -239,10 +256,6 @@ export default async function DashboardPage() {
               Quotations this month: <strong>{quotationCountMonth}</strong>
               {" · "}
               Customers owe: <strong className="money">{formatTTD(outstanding)}</strong>
-              {" · "}
-              <Link href="/quotations">Quotations</Link>
-              {" · "}
-              <Link href="/jobs">Jobs</Link>
             </div>
           </Panel>
         ) : null}

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
 
 export type BankMovement = {
   id: string;
@@ -62,18 +63,21 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
   const raw: Raw[] = [];
 
   for (const p of payments) {
+    const isDrawing = isOwnerDrawingsCustomer(p.customer?.name || "");
     raw.push({
       id: `pay-${p.id}`,
       date: p.paidAt,
-      description: p.invoice
-        ? `Payment — invoice ${p.invoice.number}`
-        : p.sale
-          ? `Payment — receipt ${p.sale.number}`
-          : `Payment — ${p.customer?.name || "Customer"}`,
+      description: isDrawing
+        ? "Owner/manager drawing"
+        : p.invoice
+          ? `Payment — invoice ${p.invoice.number}`
+          : p.sale
+            ? `Payment — receipt ${p.sale.number}`
+            : `Payment — ${p.customer?.name || "Customer"}`,
       reference: p.reference || p.id.slice(-8).toUpperCase(),
-      type: "in",
+      type: isDrawing ? "out" : "in",
       amount: p.amount,
-      category: "Payment received",
+      category: isDrawing ? "drawings" : "Payment received",
     });
   }
 

@@ -90,6 +90,8 @@ export async function ensureCompanyForUser(user: AuthUser) {
   );
   await ensureDefaultPaymentTypes(company.id);
   await ensureDefaultInventoryCategories(company.id);
+  const { ensureManagerOwnerCustomer } = await import("@/lib/owner-drawings");
+  await ensureManagerOwnerCustomer(company.id);
 
   return company;
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
 
 export const INCOME_STATEMENT_MONTHS = [
   "Jan",
@@ -160,6 +161,7 @@ export async function fetchMonthlyIncomeStatement(
         invoiceId: true,
         reference: true,
         notes: true,
+        customer: { select: { name: true } },
       },
     }),
     prisma.supplierPurchase.findMany({
@@ -219,6 +221,10 @@ export async function fetchMonthlyIncomeStatement(
   }
 
   for (const pay of payments) {
+    if (isOwnerDrawingsCustomer(pay.customer.name)) {
+      addToMonth(salariesWages, pay.paidAt, pay.amount);
+      continue;
+    }
     const ref = `${pay.reference || ""} ${pay.notes || ""}`.toLowerCase();
     const isPos = ref.includes("pos") || Boolean(pay.reference?.startsWith("POS"));
     if (isPos) continue;

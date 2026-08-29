@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { fetchOutstandingReceivables, receivableSourceLabel } from "@/lib/receivables";
+import { ensureManagerOwnerCustomer } from "@/lib/owner-drawings";
 import { PageHeader, Panel } from "@/components/ui";
 import { AddEntityTab } from "@/components/AddEntityTab";
 import { PaymentForm } from "@/components/PaymentForm";
@@ -18,6 +19,7 @@ export default async function ReceivablesPage({
   const { companyId } = await requireCompany();
   const params = await searchParams;
   const receivables = await fetchOutstandingReceivables(companyId);
+  const managerOwner = await ensureManagerOwnerCustomer(companyId);
 
   const [customers, invoices, sales] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
@@ -74,6 +76,7 @@ export default async function ReceivablesPage({
       <AddEntityTab label="Collect payment" title="Record payment against receivable">
         <PaymentForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          managerOwnerCustomerId={managerOwner.id}
           invoices={invoices
             .map((inv) => ({
               id: inv.id,

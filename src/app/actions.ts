@@ -10,6 +10,7 @@ import { DEFERRED_PAYMENT_CODE } from "@/lib/receivables";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
+import { isOwnerDrawingsCustomer, MANAGER_OWNER_CUSTOMER_NAME } from "@/lib/owner-drawings";
 import {
   applyOptionQtyDelta,
   coerceVariableOption,
@@ -1498,6 +1499,11 @@ export async function recordPayment(formData: FormData) {
   const customer = await prisma.customer.findFirst({ where: { id: customerId, companyId } });
   if (!customer) throw new Error("Customer not found");
 
+  const ownerDrawing = isOwnerDrawingsCustomer(customer.name);
+  if (ownerDrawing && (invoiceId || saleId)) {
+    throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is for owner drawings only — do not link an invoice or POS sale`);
+  }
+
   if (invoiceId) {
     const invoice = await prisma.invoice.findFirst({ where: { id: invoiceId, companyId } });
     if (!invoice) throw new Error("Invoice not found");
@@ -1539,7 +1545,9 @@ export async function recordPayment(formData: FormData) {
         method: String(formData.get("method") || "BANK"),
         reference: String(formData.get("reference") || "") || null,
         paidAt: new Date(String(formData.get("paidAt") || new Date().toISOString())),
-        notes: String(formData.get("notes") || "") || null,
+        notes: ownerDrawing
+          ? "Owner drawing"
+          : String(formData.get("notes") || "") || null,
       },
     });
 
@@ -1567,6 +1575,7 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/payments");
   revalidatePath("/invoices");
   revalidatePath("/receivables");
+  revalidatePath("/financial-reports");
   revalidatePath("/pos");
   revalidatePath("/");
 }

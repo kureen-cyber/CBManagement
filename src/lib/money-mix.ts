@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { categorizeOutflow } from "@/lib/bank-ledger";
+import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
 
 export type MoneyMixBucket = "expenses" | "materials" | "growth" | "reserve" | "drawings";
 
@@ -62,9 +63,13 @@ export function plannedAllocation(bankBalance: number, plan: MoneyMixPlan): Mone
 }
 
 export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlice[]> {
-  const [expenses, purchases] = await Promise.all([
+  const [expenses, purchases, ownerDrawings] = await Promise.all([
     prisma.expense.findMany({ where: { companyId }, select: { category: true, amount: true } }),
     prisma.supplierPurchase.findMany({ where: { companyId }, select: { totalCost: true } }),
+    prisma.payment.findMany({
+      where: { companyId },
+      select: { amount: true, customer: { select: { name: true } } },
+    }),
   ]);
 
   const totals: Record<MoneyMixBucket, number> = {
@@ -82,6 +87,11 @@ export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlic
   }
   for (const p of purchases) {
     totals.materials += p.totalCost;
+  }
+  for (const pay of ownerDrawings) {
+    if (isOwnerDrawingsCustomer(pay.customer.name)) {
+      totals.drawings += pay.amount;
+    }
   }
 
   const grand = Object.values(totals).reduce((s, v) => s + v, 0) || 1;

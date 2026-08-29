@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { recordPayment } from "@/app/actions";
 import { formatTTD, fromCents } from "@/lib/money";
+import { MANAGER_OWNER_CUSTOMER_NAME } from "@/lib/owner-drawings";
 
 type InvoiceOption = {
   id: string;
@@ -26,12 +27,14 @@ export function PaymentForm({
   sales = [],
   initialInvoiceId = "",
   initialSaleId = "",
+  managerOwnerCustomerId = "",
 }: {
   customers: { id: string; name: string }[];
   invoices: InvoiceOption[];
   sales?: SaleOption[];
   initialInvoiceId?: string;
   initialSaleId?: string;
+  managerOwnerCustomerId?: string;
 }) {
   const [customerId, setCustomerId] = useState("");
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId);
@@ -48,6 +51,8 @@ export function PaymentForm({
   );
 
   const selectedReceivable = selectedInvoice || selectedSale;
+  const isOwnerDrawing =
+    !!managerOwnerCustomerId && customerId === managerOwnerCustomerId;
 
   useEffect(() => {
     if (initialInvoiceId) {
@@ -81,11 +86,31 @@ export function PaymentForm({
     if (sale) setCustomerId(sale.customerId);
   }
 
+  function onCustomerChange(id: string) {
+    setCustomerId(id);
+    if (managerOwnerCustomerId && id === managerOwnerCustomerId) {
+      setInvoiceId("");
+      setSaleId("");
+      return;
+    }
+    if (selectedInvoice && selectedInvoice.customerId !== id) {
+      setInvoiceId("");
+    }
+    if (selectedSale && selectedSale.customerId !== id) {
+      setSaleId("");
+    }
+  }
+
   return (
     <form action={recordPayment} className="form-grid">
       <label className="field">
         Invoice (service)
-        <select name="invoiceId" value={invoiceId} onChange={(e) => onInvoiceChange(e.target.value)}>
+        <select
+          name="invoiceId"
+          value={invoiceId}
+          disabled={isOwnerDrawing}
+          onChange={(e) => onInvoiceChange(e.target.value)}
+        >
           <option value="">None</option>
           {invoices.map((inv) => (
             <option key={inv.id} value={inv.id}>
@@ -96,7 +121,12 @@ export function PaymentForm({
       </label>
       <label className="field">
         POS sale
-        <select name="saleId" value={saleId} onChange={(e) => onSaleChange(e.target.value)}>
+        <select
+          name="saleId"
+          value={saleId}
+          disabled={isOwnerDrawing}
+          onChange={(e) => onSaleChange(e.target.value)}
+        >
           <option value="">None</option>
           {sales.map((sale) => (
             <option key={sale.id} value={sale.id}>
@@ -111,25 +141,29 @@ export function PaymentForm({
           name="customerId"
           required
           value={customerId}
-          onChange={(e) => {
-            setCustomerId(e.target.value);
-            if (selectedInvoice && selectedInvoice.customerId !== e.target.value) {
-              setInvoiceId("");
-            }
-            if (selectedSale && selectedSale.customerId !== e.target.value) {
-              setSaleId("");
-            }
-          }}
+          onChange={(e) => onCustomerChange(e.target.value)}
         >
           <option value="" disabled>
             Select
           </option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
+          {managerOwnerCustomerId ? (
+            <option value={managerOwnerCustomerId}>
+              {MANAGER_OWNER_CUSTOMER_NAME} — owner drawings
             </option>
-          ))}
+          ) : null}
+          {customers
+            .filter((c) => c.id !== managerOwnerCustomerId)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
+        {isOwnerDrawing ? (
+          <span className="muted" style={{ fontSize: "0.78rem", marginTop: "0.25rem" }}>
+            Records money taken out as owner/manager drawings (not customer income).
+          </span>
+        ) : null}
       </label>
       <label className="field">
         Amount (TT$)
@@ -159,7 +193,7 @@ export function PaymentForm({
       </label>
       <div className="full">
         <button className="btn btn-primary" type="submit">
-          Save payment
+          {isOwnerDrawing ? "Record owner drawing" : "Save payment"}
         </button>
       </div>
     </form>

@@ -9,6 +9,7 @@ import { AddEntityTab } from "@/components/AddEntityTab";
 import { PaymentForm } from "@/components/PaymentForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
+import { ensureManagerOwnerCustomer, isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export default async function PaymentsPage({
   const { companyId, company } = await requireCompany();
   const planTier = parsePlanTier(company.planTier);
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
+
+  const managerOwner = await ensureManagerOwnerCustomer(companyId);
 
   const [customers, invoices, payments, sales] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
@@ -66,6 +69,7 @@ export default async function PaymentsPage({
       <AddEntityTab label="Add payment" title="Record payment">
         <PaymentForm
           customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          managerOwnerCustomerId={managerOwner.id}
           invoices={invoices.map((inv) => ({
             id: inv.id,
             number: inv.number,
@@ -92,7 +96,14 @@ export default async function PaymentsPage({
             {payments.map((p) => (
               <tr key={p.id}>
                 <td>{formatAppDate(p.paidAt)}</td>
-                <td>{p.customer.name}</td>
+                <td>
+                  {p.customer.name}
+                  {isOwnerDrawingsCustomer(p.customer.name) ? (
+                    <span className="badge" style={{ marginLeft: "0.35rem" }}>
+                      Owner drawing
+                    </span>
+                  ) : null}
+                </td>
                 <td className="muted">
                   {p.invoice?.number ?? p.sale?.number ?? p.reference ?? "—"}
                 </td>

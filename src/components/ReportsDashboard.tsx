@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import type { ResolvedDateRange } from "@/lib/date-range";
-import { formatTTD } from "@/lib/money";
+import { formatTTD, fromCents } from "@/lib/money";
 import { Panel } from "@/components/ui";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import type { CompanyBranding } from "@/lib/settings";
@@ -31,6 +31,9 @@ export type ReportsData = {
   posService: number;
   serviceIncome: number;
   otherIncome: number;
+  posReceivables: number;
+  serviceReceivables: number;
+  totalRevenue: number;
   profit: number;
   grossSales: number;
   refunds: number;
@@ -61,7 +64,6 @@ export type ReportsData = {
     total: number;
   }[];
   saleLines: SaleLineReport[];
-  weekly: { label: string; income: number; expenses: number }[];
   dailyEarnings: { label: string; amount: number; date: string }[];
   salesSummaryByDay: {
     date: string;
@@ -103,15 +105,31 @@ const TABS: { id: TabId; label: string; color: string }[] = [
 
 const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777", "#0f766e"];
 const LINE_COLOR = "#0a6b6e";
-const WEEKLY_INCOME_COLOR = "#1f7a4d";
-const WEEKLY_EXPENSE_COLOR = "#c45c26";
+const EXPENSE_COLOR = "#b42318";
+
+function formatAxisAmount(cents: number): string {
+  const dollars = fromCents(cents);
+  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
+  if (dollars >= 1_000) return `$${(dollars / 1_000).toFixed(dollars >= 10_000 ? 0 : 1)}k`;
+  return `$${Math.round(dollars)}`;
+}
+
+function axisTicks(max: number, count = 4): number[] {
+  if (max <= 0) return [0];
+  const step = max / count;
+  return Array.from({ length: count + 1 }, (_, i) => Math.round((step * i) / 100) * 100);
+}
 
 function DonutChart({
   slices,
   size = 220,
+  showCenterTotal = true,
+  centerLabel = "Total",
 }: {
   slices: { label: string; value: number; color: string }[];
   size?: number;
+  showCenterTotal?: boolean;
+  centerLabel?: string;
 }) {
   const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
   const r = size / 2 - Math.max(12, size * 0.08);
@@ -168,12 +186,16 @@ function DonutChart({
           />
         ))}
         <circle cx={c} cy={c} r={r - stroke / 2 - 3} fill="var(--surface)" />
-        <text x={c} y={c - 6} textAnchor="middle" className="donut-center-label">
-          Total
-        </text>
-        <text x={c} y={c + 10} textAnchor="middle" className="donut-center-value">
-          {formatTTD(total)}
-        </text>
+        {showCenterTotal ? (
+          <>
+            <text x={c} y={c - 6} textAnchor="middle" className="donut-center-label">
+              {centerLabel}
+            </text>
+            <text x={c} y={c + 10} textAnchor="middle" className="donut-center-value">
+              {formatTTD(total)}
+            </text>
+          </>
+        ) : null}
       </svg>
       <div className="chart-legend">
         {arcs.map((a) => (
@@ -197,8 +219,9 @@ function LineChart({
   height?: number;
   ariaLabel?: string;
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const width = 640;
-  const padL = 28;
+  const padL = 52;
   const padR = 12;
   const padT = 22;
   const padB = 28;
@@ -224,11 +247,12 @@ function LineChart({
 
   const amounts = points.map((p) => p.amount);
   const max = Math.max(1, ...amounts);
-  const min = Math.min(0, ...amounts);
+  const min = 0;
   const span = Math.max(1, max - min);
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const n = points.length;
+  const yTicks = axisTicks(max);
 
   const coords = points.map((p, i) => {
     const x = padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
@@ -237,21 +261,32 @@ function LineChart({
   });
 
   const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(" ");
-
   const labelStep = Math.max(1, Math.ceil(n / 4));
-  const showLabel = (i: number) => i === 0 || i === n - 1 || i % labelStep === 0;
+  const hovered = hoveredIndex != null ? coords[hoveredIndex] : null;
 
   return (
     <div className="line-chart">
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
-        <line
-          x1={padL}
-          y1={padT + innerH}
-          x2={width - padR}
-          y2={padT + innerH}
-          stroke="var(--line)"
-          strokeWidth="1"
-        />
+        {yTicks.map((tick) => {
+          const y = padT + innerH - ((tick - min) / span) * innerH;
+          return (
+            <g key={tick}>
+              <line
+                x1={padL}
+                y1={y}
+                x2={width - padR}
+                y2={y}
+                stroke="var(--line)"
+                strokeWidth="1"
+                strokeDasharray={tick === 0 ? undefined : "2 3"}
+                opacity={tick === 0 ? 1 : 0.55}
+              />
+              <text x={padL - 6} y={y + 3} textAnchor="end" fill="var(--muted)" fontSize="8" fontWeight="600">
+                {formatAxisAmount(tick)}
+              </text>
+            </g>
+          );
+        })}
         <path
           d={pathD}
           fill="none"
@@ -262,123 +297,22 @@ function LineChart({
         />
         {coords.map((c, i) => (
           <g key={c.date}>
-            <circle cx={c.x} cy={c.y} r={3} fill={LINE_COLOR} />
-            {showLabel(i) && c.amount > 0 ? (
-              <text
-                x={c.x}
-                y={c.y - 8}
-                textAnchor="middle"
-                fill={LINE_COLOR}
-                fontSize="9"
-                fontWeight="700"
-              >
-                {formatTTD(c.amount)}
-              </text>
-            ) : null}
-            {i === 0 || i === n - 1 || i % Math.max(1, Math.ceil(n / 4)) === 0 ? (
-              <text
-                x={c.x}
-                y={height - 8}
-                textAnchor="middle"
-                fill="var(--muted)"
-                fontSize="9"
-                fontWeight="600"
-              >
-                {c.label}
-              </text>
-            ) : null}
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-function WeeklyLineChart({
-  points,
-  height = 160,
-}: {
-  points: { label: string; income: number; expenses: number }[];
-  height?: number;
-}) {
-  const width = 640;
-  const padL = 28;
-  const padR = 12;
-  const padT = 22;
-  const padB = 28;
-
-  if (!points.length) {
-    return (
-      <div className="chart-empty line-chart">
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Weekly flow">
-          <text
-            x={width / 2}
-            y={height / 2}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="var(--muted)"
-            fontSize="12"
-          >
-            No data yet
-          </text>
-        </svg>
-      </div>
-    );
-  }
-
-  const max = Math.max(1, ...points.flatMap((p) => [p.income, p.expenses]));
-  const min = 0;
-  const span = Math.max(1, max - min);
-  const innerW = width - padL - padR;
-  const innerH = height - padT - padB;
-  const n = points.length;
-
-  const coords = points.map((p, i) => {
-    const x = padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-    const incomeY = padT + innerH - ((p.income - min) / span) * innerH;
-    const expenseY = padT + innerH - ((p.expenses - min) / span) * innerH;
-    return { ...p, x, incomeY, expenseY };
-  });
-
-  const incomePath = coords
-    .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.incomeY.toFixed(1)}`)
-    .join(" ");
-  const expensePath = coords
-    .map((c, i) => `${i === 0 ? "M" : "L"} ${c.x.toFixed(1)} ${c.expenseY.toFixed(1)}`)
-    .join(" ");
-  const labelStep = Math.max(1, Math.ceil(n / 4));
-
-  return (
-    <div className="line-chart">
-      <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Weekly flow">
-        <line
-          x1={padL}
-          y1={padT + innerH}
-          x2={width - padR}
-          y2={padT + innerH}
-          stroke="var(--line)"
-          strokeWidth="1"
-        />
-        <path
-          d={incomePath}
-          fill="none"
-          stroke={WEEKLY_INCOME_COLOR}
-          strokeWidth="2.25"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <path
-          d={expensePath}
-          fill="none"
-          stroke={WEEKLY_EXPENSE_COLOR}
-          strokeWidth="2.25"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        {coords.map((c, i) => (
-          <g key={`${c.label}-${i}`}>
-            <circle cx={c.x} cy={c.incomeY} r={3} fill={WEEKLY_INCOME_COLOR} />
-            <circle cx={c.x} cy={c.expenseY} r={3} fill={WEEKLY_EXPENSE_COLOR} />
+            <circle
+              cx={c.x}
+              cy={c.y}
+              r={hoveredIndex === i ? 5 : 8}
+              fill="transparent"
+              style={{ cursor: "pointer" }}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+            />
+            <circle
+              cx={c.x}
+              cy={c.y}
+              r={hoveredIndex === i ? 4.5 : 3}
+              fill={LINE_COLOR}
+              pointerEvents="none"
+            />
             {i === 0 || i === n - 1 || i % labelStep === 0 ? (
               <text
                 x={c.x}
@@ -393,6 +327,29 @@ function WeeklyLineChart({
             ) : null}
           </g>
         ))}
+        {hovered ? (
+          <g pointerEvents="none">
+            <rect
+              x={Math.min(Math.max(hovered.x - 54, padL), width - padR - 108)}
+              y={Math.max(hovered.y - 34, padT)}
+              width="108"
+              height="24"
+              rx="4"
+              fill="var(--surface)"
+              stroke="var(--line)"
+            />
+            <text
+              x={Math.min(Math.max(hovered.x, padL + 54), width - padR - 54)}
+              y={Math.max(hovered.y - 18, padT + 12)}
+              textAnchor="middle"
+              fill="var(--text)"
+              fontSize="10"
+              fontWeight="700"
+            >
+              {formatTTD(hovered.amount)}
+            </text>
+          </g>
+        ) : null}
       </svg>
     </div>
   );
@@ -464,22 +421,23 @@ export function ReportsDashboard({
     () => [
       { label: "POS retail", value: data.posRetail, color: "#0e7cc0" },
       { label: "POS / service sales", value: data.posService, color: "#5b4db8" },
-      { label: "Other income", value: data.otherIncome, color: "#1f7a4d" },
-      { label: "Expenses", value: data.expenses, color: "#c45c26" },
+      { label: "Service income", value: data.otherIncome, color: "#1f7a4d" },
+      { label: "Expenses", value: data.expenses, color: EXPENSE_COLOR },
       { label: "Receivables", value: data.receivables, color: "#b45309" },
     ],
     [data],
   );
 
-  const incomeSlices = useMemo(
-    () =>
-      data.incomeByCategory.map((e, i) => ({
-        label: e.category,
-        value: e.amount,
-        color: CHART_COLORS[i % CHART_COLORS.length],
-      })),
-    [data.incomeByCategory],
+  const incomeTabSlices = useMemo(
+    () => [
+      { label: "POS income", value: data.pos, color: "#0e7cc0" },
+      { label: "Service income", value: data.otherIncome, color: "#1f7a4d" },
+    ],
+    [data],
   );
+
+  const posRevenueWithAr = data.pos + data.posReceivables;
+  const serviceRevenueWithAr = data.otherIncome + data.serviceReceivables;
 
   const expenseSlices = useMemo(
     () =>
@@ -579,41 +537,29 @@ export function ReportsDashboard({
         </div>
         <MetricStrip
           items={[
-            { label: "Total income", value: formatTTD(data.income), tone: "#1f7a4d" },
-            { label: "Expenses", value: formatTTD(data.expenses), tone: "#c45c26" },
-            { label: "Profit", value: formatTTD(data.profit), tone: data.profit >= 0 ? "#0a6b6e" : "#b42318" },
-            { label: "POS", value: formatTTD(data.pos), tone: "#0e7cc0" },
+            {
+              label: "POS revenue (includes receivables)",
+              value: formatTTD(posRevenueWithAr),
+              tone: "#0e7cc0",
+            },
+            {
+              label: "Service revenue (includes receivables)",
+              value: formatTTD(serviceRevenueWithAr),
+              tone: "#1f7a4d",
+            },
+            { label: "Total revenue", value: formatTTD(data.totalRevenue), tone: "#0a6b6e" },
+            { label: "Expenses", value: formatTTD(data.expenses), tone: EXPENSE_COLOR },
           ]}
         />
 
         <div className="reports-diagrams reports-diagrams-compact">
           <div className="diagram-card diagram-card-compact">
             <h3>Money mix</h3>
-            <DonutChart slices={overviewSlices} size={140} />
+            <DonutChart slices={overviewSlices} size={140} showCenterTotal={false} />
           </div>
           <div className="diagram-card diagram-card-compact">
             <h3>Daily earnings</h3>
             <LineChart points={data.dailyEarnings} height={140} ariaLabel="Daily earnings" />
-          </div>
-          <div className="diagram-card diagram-card-compact">
-            <h3>Weekly flow</h3>
-            {data.weekly.length > 0 ? (
-              <>
-                <WeeklyLineChart points={data.weekly} height={140} />
-                <div className="bar-key">
-                  <span>
-                    <i className="swatch income" /> Income
-                  </span>
-                  <span>
-                    <i className="swatch expense" /> Expenses
-                  </span>
-                </div>
-              </>
-            ) : (
-              <p className="muted" style={{ margin: 0, fontSize: "0.82rem" }}>
-                No weekly data yet.
-              </p>
-            )}
           </div>
         </div>
       </Panel>
@@ -653,24 +599,24 @@ export function ReportsDashboard({
         <Panel className="report-tab-panel">
           <h3>Overview</h3>
           <p className="muted">
-            Estimated profit this period: <strong className="money">{formatTTD(data.profit)}</strong>
+            Estimated net profit this period: <strong className="money">{formatTTD(data.profit)}</strong>
           </p>
           <div className="kpi-grid" style={{ marginTop: "1rem" }}>
             <div className="report-stat sea">
-              <div className="label">Total income</div>
-              <div className="value money">{formatTTD(data.income)}</div>
-            </div>
-            <div className="report-stat accent">
-              <div className="label">Expenses</div>
-              <div className="value money">{formatTTD(data.expenses)}</div>
+              <div className="label">Total revenue</div>
+              <div className="value money">{formatTTD(data.totalRevenue)}</div>
             </div>
             <div className="report-stat purple">
               <div className="label">Receivables</div>
               <div className="value money">{formatTTD(data.receivables)}</div>
             </div>
+            <div className="report-stat accent">
+              <div className="label">Expenses</div>
+              <div className="value money">{formatTTD(data.expenses)}</div>
+            </div>
             <div className="report-stat blue">
-              <div className="label">POS sales</div>
-              <div className="value money">{formatTTD(data.pos)}</div>
+              <div className="label">Net profit</div>
+              <div className="value money">{formatTTD(data.profit)}</div>
             </div>
           </div>
         </Panel>
@@ -679,54 +625,30 @@ export function ReportsDashboard({
       {tab === "income" ? (
         <Panel className="report-tab-panel">
           <h3>Income</h3>
-          <p className="muted">
-            POS retail sales and service income are both included, broken down by category.
-          </p>
+          <p className="muted">POS and service income for this period.</p>
           <div className="kpi-grid" style={{ marginTop: "0.75rem", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
             <div className="report-stat blue">
-              <div className="label">POS retail</div>
-              <div className="value money">{formatTTD(data.posRetail)}</div>
-            </div>
-            <div className="report-stat purple">
-              <div className="label">Service income</div>
-              <div className="value money">{formatTTD(data.serviceIncome)}</div>
+              <div className="label">POS income</div>
+              <div className="value money">{formatTTD(data.pos)}</div>
             </div>
             <div className="report-stat sea">
-              <div className="label">Other payments</div>
+              <div className="label">Service income</div>
               <div className="value money">{formatTTD(data.otherIncome)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Total income</div>
+              <div className="value money">{formatTTD(data.pos + data.otherIncome)}</div>
             </div>
           </div>
           <div style={{ marginTop: "1rem" }}>
             <DonutChart
               slices={
-                incomeSlices.length
-                  ? incomeSlices
+                incomeTabSlices.some((s) => s.value > 0)
+                  ? incomeTabSlices
                   : [{ label: "No income", value: 0, color: "#ccc" }]
               }
+              centerLabel="Total income"
             />
-          </div>
-          <div className="stack" style={{ marginTop: "1rem" }}>
-            {data.incomeByCategory.map((row) => (
-              <div key={`${row.kind}-${row.category}`} className="row" style={{ justifyContent: "space-between" }}>
-                <span>
-                  {row.category}
-                  <span className="muted" style={{ marginLeft: "0.45rem", fontSize: "0.8rem" }}>
-                    {row.kind}
-                  </span>
-                </span>
-                <strong className="money">{formatTTD(row.amount)}</strong>
-              </div>
-            ))}
-            {data.incomeByCategory.length === 0 ? (
-              <div className="muted">No income recorded this period yet.</div>
-            ) : null}
-            <div
-              className="row"
-              style={{ justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: "0.75rem" }}
-            >
-              <strong>Total income</strong>
-              <strong className="money">{formatTTD(data.income)}</strong>
-            </div>
           </div>
         </Panel>
       ) : null}

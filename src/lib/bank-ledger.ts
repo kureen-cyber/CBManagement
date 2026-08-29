@@ -166,13 +166,13 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
 }
 
 /**
- * Ending bank cash balance for each calendar month in `year` (length 12, cents).
- * Uses the same in/out rules as the bank ledger.
+ * Ending bank cash balance for each calendar month in `year` (length 12, cents),
+ * plus cash balance at the start of the year (before January activity).
  */
 export async function fetchMonthEndCashBalances(
   companyId: string,
   year: number,
-): Promise<number[]> {
+): Promise<{ yearStartBalance: number; monthEnds: number[] }> {
   const ledger = await fetchBankLedger(companyId);
   const chronological = [...ledger.movements].reverse();
   const monthEnds = Array.from(
@@ -189,6 +189,7 @@ export async function fetchMonthEndCashBalances(
     balance += row.type === "in" ? row.amount : -row.amount;
     idx += 1;
   }
+  const yearStartBalance = balance;
   for (let m = 0; m < 12; m++) {
     const end = monthEnds[m]!;
     while (idx < chronological.length && chronological[idx]!.date <= end) {
@@ -198,5 +199,5 @@ export async function fetchMonthEndCashBalances(
     }
     balances[m] = balance;
   }
-  return balances;
+  return { yearStartBalance, monthEnds: balances };
 }

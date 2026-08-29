@@ -17,10 +17,12 @@ export const INCOME_STATEMENT_MONTHS = [
 ] as const;
 
 export type IncomeStatementLineId =
+  | "cashOnHandBeginning"
   | "salesRevenue"
   | "serviceIncome"
   | "otherIncome"
   | "totalRevenue"
+  | "totalCashPosition"
   | "openingInventory"
   | "purchases"
   | "directLabour"
@@ -109,9 +111,12 @@ function inventoryValueAt(
  * - Gross Profit = Total Revenue − Total COGS
  * - Total Operating Expenses = sum of operating expense lines
  * - Net Profit = Gross Profit − Total Operating Expenses
- * - Below net profit (not in net): Loan Principal Payment, Capital Purchase,
- *   Reserve and/or Escrow (from bank money-mix %), Owner's Withdrawal,
- *   Total Cash Paid Out, Cash Position
+ * - Cash on Hand (Beginning) = prior month Cash Position − prior month Reserves
+ * - Total Revenue = Sales Revenue + Service Income + Other Income
+ * - Total Cash Position (under revenue) = Total Revenue + Cash on Hand Beginning
+ * - Reserve = money-mix % of that month's Total Revenue only; if monthly cash outflows
+ *   exceed available cash (beginning + revenue), the shortfall reduces that month's reserve
+ * - Below net profit: Loan, Capital, Reserve, Owner's Withdrawal, Total Cash Paid Out, Cash Position
  */
 export async function fetchMonthlyIncomeStatement(
   companyId: string,
@@ -138,7 +143,7 @@ export async function fetchMonthlyIncomeStatement(
     expenses,
     payslips,
     company,
-    cashPosition,
+    cashBalances,
   ] = await Promise.all([
     prisma.product.findMany({
       where: { companyId, isService: false, trackStock: true },
@@ -222,6 +227,8 @@ export async function fetchMonthlyIncomeStatement(
   ]);
 
   const reservePct = Number(company.moneyMixReservePct) || 0;
+  const cashPosition = cashBalances.monthEnds;
+  const yearStartCash = cashBalances.yearStartBalance;
 
   const salesRevenue = emptyMonths();
   const serviceIncome = emptyMonths();
@@ -355,11 +362,10 @@ export async function fetchMonthlyIncomeStatement(
   const grossProfit = emptyMonths();
   const totalOperatingExpenses = emptyMonths();
   const netProfit = emptyMonths();
+  const cashOnHandBeginning = emptyMonths();
+  const totalCashPositionUnderRevenue = emptyMonths();
   const reserveEscrowCalc = emptyMonths();
   const totalCashPaidOut = emptyMonths();
-
-  let cumPlannedReserve = 0;
-  let cumRecognizedReserve = 0;
 
   for (let m = 0; m < 12; m++) {
     totalRevenue[m] =
@@ -383,18 +389,25 @@ export async function fetchMonthlyIncomeStatement(
       miscellaneousExpenses[m]!;
     netProfit[m] = grossProfit[m]! - totalOperatingExpenses[m]!;
 
-    // Compounded reserves from bank money-mix % of month-end cash.
-    // Planned monthly = cash × reserve%. Record that month in full only when
-    // cash covers the cumulative planned target; otherwise record none (no partials).
-    const monthEndCash = Math.max(0, cashPosition[m] ?? 0);
-    const plannedThisMonth = Math.round(monthEndCash * (reservePct / 100));
-    cumPlannedReserve += plannedThisMonth;
-    if (plannedThisMonth > 0 && monthEndCash >= cumPlannedReserve) {
-      reserveEscrowCalc[m] = plannedThisMonth;
-      cumRecognizedReserve += plannedThisMonth;
-    } else {
-      reserveEscrowCalc[m] = 0;
-    }
+    // Beginning cash = prior month-end cash position minus prior reserves (unreserved cash).
+    cashOnHandBeginning[m] =
+      m === 0
+        ? yearStartCash
+        : (cashPosition[m - 1] ?? 0) - (reserveEscrowCalc[m - 1] ?? 0);
+
+    totalCashPositionUnderRevenue[m] = totalRevenue[m]! + cashOnHandBeginning[m]!;
+
+    // Reserves = % of this month's total revenue only (not beginning cash).
+    const plannedReserve = Math.round(totalRevenue[m]! * (reservePct / 100));
+    const cashOutBeforeReserve =
+      totalOperatingExpenses[m]! +
+      loanPrincipalPayment[m]! +
+      capitalPurchase[m]! +
+      ownersWithdrawal[m]!;
+    const availableCash = cashOnHandBeginning[m]! + totalRevenue[m]!;
+    const shortfall = Math.max(0, cashOutBeforeReserve - availableCash);
+    // If outflows exceed available cash, dip into this month's planned reserves first.
+    reserveEscrowCalc[m] = Math.max(0, plannedReserve - shortfall);
 
     totalCashPaidOut[m] =
       totalOperatingExpenses[m]! +
@@ -437,6 +450,13 @@ export async function fetchMonthlyIncomeStatement(
 
   const rows: IncomeStatementRow[] = [
     section("sec-revenue", "Revenue (Income)"),
+    line(
+      "cashOnHandBeginning",
+      "Cash on Hand (Beginning of Month)",
+      cashOnHandBeginning,
+      "line",
+      "Prior month Cash Position − prior month Reserves (January uses year-start bank balance)",
+    ),
     line("salesRevenue", "Sales Revenue", salesRevenue),
     line("serviceIncome", "Service Income", serviceIncome),
     line("otherIncome", "Other Income", otherIncome),
@@ -446,6 +466,13 @@ export async function fetchMonthlyIncomeStatement(
       totalRevenue,
       "total",
       "Sales Revenue + Service Income + Other Income",
+    ),
+    line(
+      "totalCashPosition",
+      "Total Cash Position",
+      totalCashPositionUnderRevenue,
+      "result",
+      "Total Revenue + Cash on Hand (Beginning of Month)",
     ),
     section("sec-cogs", "Cost of Goods Sold (COGS)"),
     line("openingInventory", "Opening Inventory", openingInventory),
@@ -502,7 +529,7 @@ export async function fetchMonthlyIncomeStatement(
       "Reserve and/or Escrow",
       reserveEscrow,
       "line",
-      `${reservePct}% of month-end bank cash from money mix, compounded — recorded in full only when cash covers the cumulative reserve target; otherwise none`,
+      `${reservePct}% of Total Revenue for the month; reduced if outflows exceed Cash on Hand Beginning + Total Revenue`,
     ),
     line(
       "ownersWithdrawal",

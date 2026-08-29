@@ -21,7 +21,7 @@ export default async function PaymentsPage({
   const planTier = parsePlanTier(company.planTier);
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
 
-  const [customers, invoices, payments] = await Promise.all([
+  const [customers, invoices, payments, sales] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.invoice.findMany({
       where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
@@ -31,9 +31,24 @@ export default async function PaymentsPage({
     prisma.payment.findMany({
       where: { companyId, paidAt: { gte: range.start, lte: range.end } },
       orderBy: { paidAt: "desc" },
-      include: { customer: true, invoice: true },
+      include: { customer: true, invoice: true, sale: true },
+    }),
+    prisma.sale.findMany({
+      where: { companyId, status: "COMPLETED", isRefund: false },
+      include: { customer: true },
+      orderBy: { soldAt: "desc" },
     }),
   ]);
+
+  const openSales = sales
+    .map((sale) => ({
+      id: sale.id,
+      number: sale.number,
+      customerId: sale.customerId || customers.find((c) => c.name === "Walk-in Customer")?.id || "",
+      customerName: sale.customer?.name || "Walk-in Customer",
+      amountDue: Math.max(0, sale.total - sale.amountPaid),
+    }))
+    .filter((sale) => sale.amountDue > 0 && sale.customerId);
 
   return (
     <div className="stack">
@@ -58,6 +73,7 @@ export default async function PaymentsPage({
             customerName: inv.customer.name,
             amountDue: Math.max(0, inv.total - inv.amountPaid),
           }))}
+          sales={openSales}
         />
       </AddEntityTab>
       <Panel className="table-wrap list-dense">
@@ -77,7 +93,9 @@ export default async function PaymentsPage({
               <tr key={p.id}>
                 <td>{formatAppDate(p.paidAt)}</td>
                 <td>{p.customer.name}</td>
-                <td className="muted">{p.invoice?.number ?? p.reference ?? "—"}</td>
+                <td className="muted">
+                  {p.invoice?.number ?? p.sale?.number ?? p.reference ?? "—"}
+                </td>
                 <td>{p.method}</td>
                 <td className="money">{formatTTD(p.amount)}</td>
                 <td>

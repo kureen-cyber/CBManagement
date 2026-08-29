@@ -626,6 +626,7 @@ model Payment {
   companyId  String
   customerId String
   invoiceId  String?
+  saleId     String?
   amount     Int
   method     String   @default("BANK")
   reference  String?
@@ -636,8 +637,10 @@ model Payment {
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id])
   invoice  Invoice? @relation(fields: [invoiceId], references: [id])
+  sale     Sale?    @relation(fields: [saleId], references: [id])
 
   @@index([companyId])
+  @@index([saleId])
 }
 
 model Expense {
@@ -694,6 +697,7 @@ model Sale {
   total         Int      @default(0)
   amountPaid    Int      @default(0)
   method        String   @default("CASH")
+  dueDate       DateTime?
   notes         String?
   /// Names of persons involved (honey sales), when enabled in settings
   honeyPersons  String?
@@ -712,6 +716,7 @@ model Sale {
   refundOf    Sale?        @relation("SaleRefunds", fields: [refundOfSaleId], references: [id])
   refunds     Sale[]       @relation("SaleRefunds")
   lines       SaleLine[]
+  payments    Payment[]
 
   @@unique([companyId, number])
   @@index([companyId])

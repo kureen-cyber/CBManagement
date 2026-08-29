@@ -11,9 +11,10 @@ import {
   setActivePosRegister,
   voidOpenTicket,
 } from "@/app/actions";
-import { formatTTD, toCents } from "@/lib/money";
+import { formatTTD, toCents, fromCents } from "@/lib/money";
 import { formatAppDateTime } from "@/lib/timezone";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { DEFERRED_PAYMENT_CODE, DEFERRED_PAYMENT_LABEL } from "@/lib/receivables";
 import type { InventoryViewMode } from "@/lib/settings";
 import { CategoryInput } from "@/components/CategoryInput";
 import { AdjustStockModal } from "@/components/AdjustStockModal";
@@ -113,6 +114,7 @@ type OpenTicket = {
 
 type PaymentTypeOption = { code: string; label: string };
 type DiscountOption = { id: string; name: string; percent: number };
+type SplitPaymentRow = { id: string; method: string; amount: string };
 
 function lineKey(productId: string, variantLabel?: string) {
   return `${productId}::${variantLabel || ""}`;
@@ -137,6 +139,8 @@ export function PosTerminal({
   viewMode = "card",
   initialRegisterId = "",
   honeyPersonsEnabled = false,
+  taxEnabled = true,
+  vatRate = 0.125,
 }: {
   products: Product[];
   customers: Customer[];
@@ -157,12 +161,19 @@ export function PosTerminal({
   viewMode?: InventoryViewMode;
   initialRegisterId?: string;
   honeyPersonsEnabled?: boolean;
+  taxEnabled?: boolean;
+  vatRate?: number;
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
   const [tickets, setTickets] = useState(initialTickets);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [method, setMethod] = useState(paymentTypes[0]?.code || "CASH");
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [splitRows, setSplitRows] = useState<SplitPaymentRow[]>([
+    { id: "1", method: paymentTypes[0]?.code || "CASH", amount: "" },
+  ]);
+  const [deferredDueDate, setDeferredDueDate] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [posRegisterId, setPosRegisterId] = useState(
     initialRegisterId || registers[0]?.id || "",
@@ -231,7 +242,34 @@ export function PosTerminal({
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
-  const total = Math.max(0, subtotal - discountAmount);
+  const taxable = Math.max(0, subtotal - discountAmount);
+  const taxAmount =
+    taxEnabled !== false ? Math.round(taxable * (vatRate ?? 0.125)) : 0;
+  const chargeTotal = taxable + taxAmount;
+
+  const methodOptions = useMemo(() => {
+    const base = paymentTypes.length
+      ? paymentTypes
+      : [
+          { code: "CASH", label: "Cash" },
+          { code: "CARD", label: "Card" },
+          { code: "BANK", label: "Bank transfer" },
+        ];
+    return [...base, { code: DEFERRED_PAYMENT_CODE, label: DEFERRED_PAYMENT_LABEL }];
+  }, [paymentTypes]);
+
+  const splitAllocatedCents = useMemo(
+    () =>
+      splitRows.reduce((sum, row) => {
+        const dollars = Number(row.amount);
+        if (!Number.isFinite(dollars) || dollars <= 0) return sum;
+        return sum + toCents(dollars);
+      }, 0),
+    [splitRows],
+  );
+
+  const splitRemainingCents = Math.max(0, chargeTotal - splitAllocatedCents);
+  const hasDeferredSplit = splitRows.some((row) => row.method === DEFERRED_PAYMENT_CODE);
 
   function openAddModal(p: Product) {
     const selections: Record<string, string> = {};
@@ -497,16 +535,43 @@ export function PosTerminal({
       setError("Select a POS register (or name them in Settings → POS)");
       return;
     }
+    if (splitPayment) {
+      if (splitRemainingCents !== 0) {
+        setError("Split payment amounts must equal the sale total");
+        return;
+      }
+      if (hasDeferredSplit && !customerId) {
+        setError("Select a customer for deferred payment");
+        return;
+      }
+    }
     startTransition(async () => {
-      const result = await completePosSale({
+      const payload = {
         lines: cartLinesForServer(),
-        method,
         customerId: customerId || null,
         posRegisterId: posRegisterId || null,
         ticketId: openTicketId,
         discountPercent,
         honeyPersons: honeyPersonsEnabled ? honeyPersons : null,
-      });
+        dueDate: hasDeferredSplit ? deferredDueDate || null : null,
+      };
+
+      const result = await completePosSale(
+        splitPayment
+          ? {
+              ...payload,
+              payments: splitRows
+                .map((row) => ({
+                  method: row.method,
+                  amount: toCents(Number(row.amount) || 0),
+                }))
+                .filter((row) => row.amount > 0),
+            }
+          : {
+              ...payload,
+              method,
+            },
+      );
       if ("error" in result && result.error) {
         setError(result.error);
         return;
@@ -912,21 +977,124 @@ export function PosTerminal({
                   </select>
                 </label>
                 <label className="field">
-                  Payment method
-                  <select value={method} onChange={(e) => setMethod(e.target.value)}>
-                    {(paymentTypes.length
-                      ? paymentTypes
-                      : [
-                          { code: "CASH", label: "Cash" },
-                          { code: "CARD", label: "Card" },
-                          { code: "BANK", label: "Bank transfer" },
-                        ]
-                    ).map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Payment</span>
+                    <label className="row" style={{ gap: "0.35rem", fontSize: "0.85rem", fontWeight: 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={splitPayment}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setSplitPayment(enabled);
+                          if (enabled) {
+                            setSplitRows([
+                              {
+                                id: "1",
+                                method: methodOptions[0]?.code || "CASH",
+                                amount: chargeTotal ? fromCents(chargeTotal).toFixed(2) : "",
+                              },
+                            ]);
+                          }
+                        }}
+                      />
+                      Split payment
+                    </label>
+                  </span>
+                  {!splitPayment ? (
+                    <select value={method} onChange={(e) => setMethod(e.target.value)}>
+                      {methodOptions.map((p) => (
+                        <option key={p.code} value={p.code}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="stack" style={{ gap: "0.5rem" }}>
+                      {splitRows.map((row) => (
+                        <div key={row.id} className="row" style={{ gap: "0.45rem", alignItems: "end" }}>
+                          <label className="field" style={{ flex: 1, margin: 0 }}>
+                            Method
+                            <select
+                              value={row.method}
+                              onChange={(e) =>
+                                setSplitRows((prev) =>
+                                  prev.map((item) =>
+                                    item.id === row.id ? { ...item, method: e.target.value } : item,
+                                  ),
+                                )
+                              }
+                            >
+                              {methodOptions.map((p) => (
+                                <option key={p.code} value={p.code}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="field" style={{ width: "7.5rem", margin: 0 }}>
+                            Amount
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={row.amount}
+                              onChange={(e) =>
+                                setSplitRows((prev) =>
+                                  prev.map((item) =>
+                                    item.id === row.id ? { ...item, amount: e.target.value } : item,
+                                  ),
+                                )
+                              }
+                            />
+                          </label>
+                          {splitRows.length > 1 ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() =>
+                                setSplitRows((prev) => prev.filter((item) => item.id !== row.id))
+                              }
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                      <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem" }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() =>
+                            setSplitRows((prev) => [
+                              ...prev,
+                              {
+                                id: String(Date.now()),
+                                method: methodOptions[0]?.code || "CASH",
+                                amount: splitRemainingCents
+                                  ? fromCents(splitRemainingCents).toFixed(2)
+                                  : "",
+                              },
+                            ])
+                          }
+                        >
+                          Add payment
+                        </button>
+                        <span className="muted" style={{ fontSize: "0.85rem" }}>
+                          Remaining: {formatTTD(splitRemainingCents)}
+                        </span>
+                      </div>
+                      {hasDeferredSplit ? (
+                        <label className="field">
+                          Due date (deferred)
+                          <input
+                            type="date"
+                            value={deferredDueDate}
+                            onChange={(e) => setDeferredDueDate(e.target.value)}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  )}
                 </label>
                 <label className="field">
                   Discount
@@ -959,10 +1127,16 @@ export function PosTerminal({
                     <span className="money">−{formatTTD(discountAmount)}</span>
                   </div>
                 ) : null}
+                {taxAmount > 0 ? (
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <span className="muted">Tax</span>
+                    <span className="money">{formatTTD(taxAmount)}</span>
+                  </div>
+                ) : null}
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <span className="muted">Total</span>
                   <span className="value money" style={{ fontSize: "1.5rem" }}>
-                    {formatTTD(total)}
+                    {formatTTD(chargeTotal)}
                   </span>
                 </div>
                 {error ? <div className="badge badge-danger">{error}</div> : null}

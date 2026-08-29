@@ -1233,7 +1233,7 @@ input:focus, select:focus, textarea:focus {
   margin-top: 1.15rem;
 }
 .reports-diagrams-compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
   margin-top: 0.85rem;
 }

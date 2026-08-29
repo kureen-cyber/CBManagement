@@ -12,14 +12,6 @@ import { ReportsDashboard } from "@/components/ReportsDashboard";
 
 export const dynamic = "force-dynamic";
 
-function weekMeta(dt: Date) {
-  const d = new Date(dt);
-  const day = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return { key: d.toISOString(), label: format(d, "dd MMM"), sort: d.getTime() };
-}
-
 function itemDisplayName(description: string, productName?: string | null) {
   const raw = (productName || description || "").replace(/^Refund:\s*/i, "").trim();
   return raw || description;
@@ -35,7 +27,7 @@ export default async function ReportsPage({
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
-  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange] =
+  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales] =
     await Promise.all([
       prisma.payment.aggregate({
         _sum: { amount: true },
@@ -91,12 +83,21 @@ export default async function ReportsPage({
         },
         orderBy: { soldAt: "desc" },
       }),
+      prisma.sale.findMany({
+        where: { companyId, status: "COMPLETED", isRefund: false },
+        select: { total: true, amountPaid: true },
+      }),
     ]);
 
   const expenseTotal = expenses._sum.amount ?? 0;
-  const ar = invoices
+  const serviceReceivables = invoices
     .filter((i) => i.status !== "PAID")
     .reduce((s, i) => s + (i.total - i.amountPaid), 0);
+  const posReceivables = openSales.reduce(
+    (s, sale) => s + Math.max(0, sale.total - sale.amountPaid),
+    0,
+  );
+  const ar = serviceReceivables + posReceivables;
 
   let grossSales = 0;
   let refundsTotal = 0;
@@ -173,6 +174,7 @@ export default async function ReportsPage({
     .reduce((s, p) => s + p.amount, 0);
   const otherIncome = Math.max(0, (payments._sum.amount ?? 0) - posPaymentTotal);
   const income = Math.max(0, netSales) + otherIncome;
+  const totalRevenue = Math.max(0, pos) + otherIncome + posReceivables + serviceReceivables;
   const serviceIncome = Math.max(0, posService) + otherIncome;
 
   const expenseByCategoryMap = new Map<string, number>();
@@ -274,23 +276,6 @@ export default async function ReportsPage({
       };
     });
 
-  const weeklyMap = new Map<string, { label: string; sort: number; income: number; expenses: number }>();
-  for (const sale of salesInRange) {
-    const w = weekMeta(sale.soldAt);
-    const cur = weeklyMap.get(w.key) || { label: w.label, sort: w.sort, income: 0, expenses: 0 };
-    cur.income += sale.total;
-    weeklyMap.set(w.key, cur);
-  }
-  for (const row of expenseRows) {
-    const w = weekMeta(row.date);
-    const cur = weeklyMap.get(w.key) || { label: w.label, sort: w.sort, income: 0, expenses: 0 };
-    cur.expenses += row.amount;
-    weeklyMap.set(w.key, cur);
-  }
-  const weekly = [...weeklyMap.values()]
-    .sort((a, b) => a.sort - b.sort)
-    .map(({ label, income: inc, expenses: exp }) => ({ label, income: inc, expenses: exp }));
-
   const receipts = salesInRange.map((s) => ({
     id: s.id,
     soldAt: s.soldAt.toISOString(),
@@ -330,7 +315,10 @@ export default async function ReportsPage({
           posService,
           serviceIncome,
           otherIncome,
-          profit: income - expenseTotal,
+          posReceivables,
+          serviceReceivables,
+          totalRevenue,
+          profit: totalRevenue - expenseTotal,
           grossSales,
           refunds: refundsTotal,
           discounts: discountsTotal,
@@ -362,7 +350,6 @@ export default async function ReportsPage({
             method: l.sale.method,
             isRefund: l.sale.isRefund,
           })),
-          weekly,
           dailyEarnings,
           salesSummaryByDay,
         }}

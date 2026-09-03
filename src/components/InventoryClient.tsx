@@ -280,6 +280,7 @@ export function InventoryClient({
 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts);
+  const [page, setPage] = useState(1);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isService, setIsService] = useState(false);
@@ -290,9 +291,22 @@ export function InventoryClient({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return products.slice(start, start + pageSize);
+  }, [products, currentPage, pageSize]);
+
   useEffect(() => {
     setProducts(initialProducts);
+    setPage(1);
   }, [initialProducts]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const autoOpeningStock = useMemo(() => sumDraftStock(vars), [vars]);
   const hasOptionQtys = vars.some((v) => v.options.length > 0);
@@ -625,7 +639,7 @@ export function InventoryClient({
           viewMode === "list" ? "inventory-list inventory-compact" : "inventory-grid inventory-compact"
         }
       >
-        {products.map((p) => {
+        {pageProducts.map((p) => {
           const hasOptions = Boolean(p.variables?.some((v) => v.options.length));
           const out =
             p.trackStock &&
@@ -792,7 +806,58 @@ export function InventoryClient({
             </div>
           );
         })}
+        {products.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            No inventory items yet.
+          </p>
+        ) : null}
       </div>
+
+      {products.length > pageSize ? (
+        <div
+          className="row"
+          style={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+          }}
+        >
+          <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+            Showing {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, products.length)} of {products.length}
+          </p>
+          <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={n === currentPage ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"}
+                aria-current={n === currentPage ? "page" : undefined}
+                onClick={() => setPage(n)}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {editingProduct ? (
         <EditProductModal

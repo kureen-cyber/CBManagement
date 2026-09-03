@@ -23,11 +23,13 @@ import {
   applyOptionQtyDelta,
   assignOptionSkus,
   coerceVariableOption,
+  effectiveProductUnitCost,
   findOptionForVariantLabel,
   hasOptionStock,
   parseVariableOptions,
   parseVariantFromDescription,
   resolveOptionUnitPrice,
+  resolveSaleUnitCost,
   serializeVariableOptions,
   sumOptionStock,
   type ProductVariableDef,
@@ -683,7 +685,7 @@ export async function createProduct(formData: FormData) {
         productId: product.id,
         type: "OPENING",
         quantity: resolvedOpening,
-        unitCost: product.unitCost,
+        unitCost: effectiveProductUnitCost(product, variables),
         notes:
           optionStockTotal != null
             ? "Opening stock (sum of variable options)"
@@ -871,7 +873,17 @@ export async function adjustProductStock(formData: FormData) {
   const unitCost =
     formData.get("unitCost") != null && String(formData.get("unitCost")).trim() !== ""
       ? dollarsToCents(formData.get("unitCost"))
-      : product.unitCost;
+      : tracksOptions && optionLabel
+        ? resolveSaleUnitCost(
+            product,
+            variables,
+            variables.length === 1
+              ? `${variables[0]!.name}: ${optionLabel}`
+              : optionLabel.includes(":")
+                ? optionLabel
+                : `${variables[0]!.name}: ${optionLabel}`,
+          )
+        : product.unitCost;
 
   const movementType = quantity > 0 ? "PURCHASE" : "ADJUSTMENT";
   const defaultNotes = quantity > 0 ? "Stock received" : "Stock adjustment";
@@ -2430,12 +2442,20 @@ export async function completePosSale(input: {
   try {
     for (const line of built) {
       if (!line.trackStock) continue;
+      const product = byId[line.productId!];
+      const variables: ProductVariableDef[] = (product?.variables || []).map((v) => ({
+        name: v.name,
+        options: parseVariableOptions(v.options),
+      }));
+      const unitCost = product
+        ? resolveSaleUnitCost(product, variables, line.variantLabel)
+        : 0;
       const updated = await applyProductStockDelta(line.productId!, -line.quantity, {
         variantLabel: line.variantLabel,
         movement: {
           type: "USAGE",
           quantity: -line.quantity,
-          unitCost: byId[line.productId!]?.unitCost ?? 0,
+          unitCost,
           reference: sale.number,
           notes: line.variantLabel ? `POS sale (${line.variantLabel})` : "POS sale",
         },
@@ -2586,6 +2606,7 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
     if (!line.productId) continue;
     const product = await prisma.product.findFirst({
       where: { id: line.productId, companyId },
+      include: { variables: { orderBy: { sortOrder: "asc" } } },
     });
     if (!product || !product.trackStock || product.isService) continue;
 
@@ -2593,13 +2614,17 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
       line.variantLabel?.trim() ||
       parseVariantFromDescription(product.name, line.description) ||
       undefined;
+    const variables: ProductVariableDef[] = product.variables.map((v) => ({
+      name: v.name,
+      options: parseVariableOptions(v.options),
+    }));
 
     await applyProductStockDelta(product.id, line.quantity, {
       variantLabel,
       movement: {
         type: "RETURN",
         quantity: line.quantity,
-        unitCost: product.unitCost,
+        unitCost: resolveSaleUnitCost(product, variables, variantLabel),
         reference: refund.number,
         notes: variantLabel
           ? `Refund of ${original.number} (${variantLabel})`
@@ -2654,6 +2679,7 @@ export async function voidPosSale(saleId: string, posRegisterId?: string | null)
     if (!line.productId) continue;
     const product = await prisma.product.findFirst({
       where: { id: line.productId, companyId },
+      include: { variables: { orderBy: { sortOrder: "asc" } } },
     });
     if (!product || !product.trackStock || product.isService) continue;
 
@@ -2661,13 +2687,17 @@ export async function voidPosSale(saleId: string, posRegisterId?: string | null)
       line.variantLabel?.trim() ||
       parseVariantFromDescription(product.name, line.description) ||
       undefined;
+    const variables: ProductVariableDef[] = product.variables.map((v) => ({
+      name: v.name,
+      options: parseVariableOptions(v.options),
+    }));
 
     await applyProductStockDelta(product.id, line.quantity, {
       variantLabel,
       movement: {
         type: "RETURN",
         quantity: line.quantity,
-        unitCost: product.unitCost,
+        unitCost: resolveSaleUnitCost(product, variables, variantLabel),
         reference: original.number,
         notes: variantLabel
           ? `Void of ${original.number} (${variantLabel})`

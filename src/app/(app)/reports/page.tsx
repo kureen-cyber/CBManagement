@@ -10,12 +10,26 @@ import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { payablesTotal, fetchOutstandingPayables } from "@/lib/payables";
+import {
+  parseVariableOptions,
+  resolveSaleUnitCost,
+  type ProductVariableDef,
+} from "@/lib/product-variables";
 
 export const dynamic = "force-dynamic";
 
 function itemDisplayName(description: string, productName?: string | null) {
   const raw = (productName || description || "").replace(/^Refund:\s*/i, "").trim();
   return raw || description;
+}
+
+function productVariables(
+  product: { variables?: { name: string; options: string }[] } | null | undefined,
+): ProductVariableDef[] {
+  return (product?.variables || []).map((v) => ({
+    name: v.name,
+    options: parseVariableOptions(v.options),
+  }));
 }
 
 export default async function ReportsPage({
@@ -55,7 +69,7 @@ export default async function ReportsPage({
           sale: { companyId, status: "COMPLETED", soldAt: { gte: rangeStart, lte: rangeEnd } },
         },
         include: {
-          product: true,
+          product: { include: { variables: { orderBy: { sortOrder: "asc" } } } },
           sale: {
             select: {
               number: true,
@@ -135,7 +149,13 @@ export default async function ReportsPage({
     const service = Boolean(line.product?.isService);
     const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
     const signedTotal = line.lineTotal;
-    const unitCost = line.product?.unitCost ?? 0;
+    const unitCost = line.product
+      ? resolveSaleUnitCost(
+          line.product,
+          productVariables(line.product),
+          line.variantLabel,
+        )
+      : 0;
     const lineCogs = service ? 0 : Math.round(unitCost * line.quantity) * sign;
     cogsTotal += lineCogs;
 
@@ -260,7 +280,13 @@ export default async function ReportsPage({
     const service = Boolean(line.product?.isService);
     if (service) continue;
     const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
-    const unitCost = line.product?.unitCost ?? 0;
+    const unitCost = line.product
+      ? resolveSaleUnitCost(
+          line.product,
+          productVariables(line.product),
+          line.variantLabel,
+        )
+      : 0;
     dayBucket(line.sale.soldAt).cogs += Math.round(unitCost * line.quantity) * sign;
   }
   const salesSummaryByDay = [...daySummaryMap.values()]

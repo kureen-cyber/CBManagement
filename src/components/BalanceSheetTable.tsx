@@ -57,8 +57,9 @@ export function BalanceSheetTable({ sheet }: { sheet: BalanceSheet }) {
       </div>
 
       <p className="muted" style={{ margin: 0, fontSize: "0.78rem" }}>
-        Cash from bank ledger; receivables and payables from open balances; inventory from current
-        stock valuation. Owner&apos;s equity is the balancing figure (assets − liabilities).
+        Cash from bank ledger; receivables and payables from open balances; inventory total is
+        on-hand quantity × unit cost for variants and for items without variants. Owner&apos;s
+        equity is the balancing figure (assets − liabilities).
       </p>
     </div>
   );

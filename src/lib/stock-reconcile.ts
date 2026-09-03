@@ -4,25 +4,26 @@ import {
   hasOptionStock,
   parseVariableOptions,
   parseVariantFromDescription,
+  resolveSaleUnitCost,
   serializeVariableOptions,
   sumOptionStock,
   type ProductVariableDef,
-  type VariableOption,
 } from "@/lib/product-variables";
 
 /**
  * Ensure completed POS sales have stock movements, apply any missing deductions to
  * the correct variant row only, and keep product.stockQty = sum of variant qtys.
- * Never consolidates total inventory onto the first option.
+ * Never consolidates total inventory onto the first option, and never rewrites
+ * option qtys from the product-level ledger (opening is a total only — per-row
+ * quantities live in ProductVariable.options).
  */
 export async function reconcileMissingSaleStock(companyId: string): Promise<{
   fixedLines: number;
   repairedProducts: number;
 }> {
-  const repairedProducts = await repairConsolidatedVariantStock(companyId);
   const fixedLines = await ensureAndApplyMissingSaleStock(companyId);
   await syncProductStockQtyFromOptions(companyId);
-  return { fixedLines, repairedProducts };
+  return { fixedLines, repairedProducts: 0 };
 }
 
 /** Extract "Colour: Red" from movement notes like "POS sale (Colour: Red)". */
@@ -34,63 +35,6 @@ export function extractVariantFromMovementNotes(notes: string | null | undefined
     if (inner.includes(":") && !/sum of variable/i.test(inner)) return inner;
   }
   return null;
-}
-
-/**
- * Undo a bad rebuild that dumped all on-hand qty onto the first variant row.
- * Splits that qty evenly across primary options so each row has its own stock again.
- */
-async function repairConsolidatedVariantStock(companyId: string): Promise<number> {
-  const products = await prisma.product.findMany({
-    where: { companyId, trackStock: true, isService: false },
-    include: { variables: { orderBy: { sortOrder: "asc" } } },
-  });
-
-  let repaired = 0;
-  for (const product of products) {
-    if (!product.variables.length) continue;
-    const variables: ProductVariableDef[] = product.variables.map((v) => ({
-      name: v.name,
-      options: parseVariableOptions(v.options),
-    }));
-    const primary = variables[0];
-    if (!primary || primary.options.length < 2) continue;
-
-    const firstQty = primary.options[0]?.qty ?? 0;
-    const othersQty = primary.options.slice(1).reduce((s, o) => s + (o.qty || 0), 0);
-    // Dump pattern: everything on row 1, other variant rows empty
-    if (firstQty <= 0 || othersQty > 0) continue;
-
-    const n = primary.options.length;
-    const each = Math.floor(firstQty / n);
-    let remainder = firstQty - each * n;
-    const splitOptions: VariableOption[] = primary.options.map((o) => {
-      const extra = remainder > 0 ? 1 : 0;
-      if (remainder > 0) remainder -= 1;
-      return { ...o, qty: each + extra };
-    });
-
-    const nextVariables = variables.map((v, vi) =>
-      vi === 0 ? { ...v, options: splitOptions } : v,
-    );
-    const nextQty = sumOptionStock(nextVariables);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.product.update({
-        where: { id: product.id },
-        data: { stockQty: nextQty },
-      });
-      const row = product.variables[0];
-      if (row) {
-        await tx.productVariable.update({
-          where: { id: row.id },
-          data: { options: serializeVariableOptions(splitOptions) },
-        });
-      }
-    });
-    repaired += 1;
-  }
-  return repaired;
 }
 
 async function syncProductStockQtyFromOptions(companyId: string) {
@@ -263,7 +207,7 @@ async function applyVariantOnlyStockDelta(input: {
         productId: input.productId,
         type: input.quantityDelta < 0 ? "USAGE" : "RETURN",
         quantity: input.quantityDelta,
-        unitCost: product.unitCost,
+        unitCost: resolveSaleUnitCost(product, variables, variantLabel),
         reference: input.saleNumber,
         notes: variantLabel
           ? `Auto-reconcile stock for ${input.saleNumber} (${variantLabel})`

@@ -76,9 +76,12 @@ export function MonthlyIncomeStatementTable({
         </table>
       </div>
       <p className="muted" style={{ margin: 0, fontSize: "0.78rem" }}>
-        Hover formula rows for the calculation used. Inventory uses current stock rolled back with
-        stock movements. Purchases come from supplier purchases; direct labour from completed time
-        clock entries; salaries include payslips and salary/wage expenses.
+        Hover formula rows for the calculation used. Opening inventory is quantity × unit cost at
+        month start for every stocked item — variant rows use each option&apos;s cost; items
+        without variants use the product unit cost. Goods already sold after that date are added
+        back. Closing inventory is the same at month end. Purchases include supplier purchases and
+        inventory received; direct labour from completed time clock entries; salaries include
+        payslips and salary/wage expenses.
       </p>
     </div>
   );

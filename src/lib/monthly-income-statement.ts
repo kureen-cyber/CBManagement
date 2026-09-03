@@ -1,5 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { isOwnerDrawingPayment, isSalaryPayment } from "@/lib/owner-drawings";
+import {
+  fillUnitCostFromMovements,
+  inventoryValueAsOfCents,
+  type ValuedProduct,
+} from "@/lib/inventory-valuation";
+import {
+  effectiveProductUnitCost,
+  parseVariableOptions,
+  resolveSaleUnitCost,
+} from "@/lib/product-variables";
 
 export const INCOME_STATEMENT_MONTHS = [
   "Jan",
@@ -89,17 +99,11 @@ function matchCategory(category: string, patterns: RegExp[]) {
   return patterns.some((p) => p.test(c));
 }
 
-function inventoryValueAt(
-  products: { id: string; stockQty: number; unitCost: number }[],
-  movementsAfter: Map<string, number>,
-): number {
-  let value = 0;
-  for (const p of products) {
-    const after = movementsAfter.get(p.id) ?? 0;
-    const qtyAt = p.stockQty - after;
-    value += Math.round(Math.max(0, qtyAt) * p.unitCost);
-  }
-  return value;
+/** Inventory received in-period (not via supplier invoice) counts as Purchases for COGS. */
+function isInventoryPurchaseMovement(type: string, quantity: number) {
+  if (quantity <= 0) return false;
+  const t = type.toUpperCase();
+  return t === "OPENING" || t === "PURCHASE" || t === "ADJUSTMENT";
 }
 
 /**
@@ -126,10 +130,6 @@ export async function fetchMonthlyIncomeStatement(
   const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
   const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
   const monthStarts = Array.from({ length: 12 }, (_, m) => new Date(year, m, 1, 0, 0, 0, 0));
-  const monthEnds = Array.from(
-    { length: 12 },
-    (_, m) => new Date(year, m + 1, 0, 23, 59, 59, 999),
-  );
 
   const { fetchMonthEndCashBalances } = await import("@/lib/bank-ledger");
 
@@ -147,27 +147,50 @@ export async function fetchMonthlyIncomeStatement(
   ] = await Promise.all([
     prisma.product.findMany({
       where: { companyId, isService: false, trackStock: true },
-      select: { id: true, stockQty: true, unitCost: true },
+      select: {
+        id: true,
+        stockQty: true,
+        unitCost: true,
+        variables: { orderBy: { sortOrder: "asc" }, select: { name: true, options: true } },
+      },
     }),
     prisma.stockMovement.findMany({
       where: {
         createdAt: { gte: yearStart },
         product: { companyId, isService: false, trackStock: true },
       },
-      select: { productId: true, quantity: true, createdAt: true },
+      select: {
+        productId: true,
+        quantity: true,
+        createdAt: true,
+        type: true,
+        unitCost: true,
+        notes: true,
+      },
     }),
     prisma.saleLine.findMany({
       where: {
         sale: {
           companyId,
           status: "COMPLETED",
-          soldAt: { gte: yearStart, lte: yearEnd },
+          soldAt: { gte: yearStart },
         },
       },
       select: {
+        productId: true,
         lineTotal: true,
         quantity: true,
-        product: { select: { isService: true, unitCost: true } },
+        variantLabel: true,
+        product: {
+          select: {
+            isService: true,
+            unitCost: true,
+            variables: {
+              orderBy: { sortOrder: "asc" },
+              select: { name: true, options: true },
+            },
+          },
+        },
         sale: { select: { soldAt: true, isRefund: true } },
       },
     }),
@@ -231,6 +254,29 @@ export async function fetchMonthlyIncomeStatement(
   const cashPosition = cashBalances.monthEnds;
   const yearStartCash = cashBalances.yearStartBalance;
 
+  const valuedProducts: ValuedProduct[] = fillUnitCostFromMovements(
+    companyProducts.map((p) => ({
+      id: p.id,
+      stockQty: p.stockQty,
+      unitCost: p.unitCost,
+      variables: p.variables.map((v) => ({
+        name: v.name,
+        options: parseVariableOptions(v.options),
+      })),
+    })),
+    stockMoves,
+  );
+  const productById = new Map(valuedProducts.map((p) => [p.id, p]));
+
+  const inventorySales = saleLines.map((line) => ({
+    productId: line.productId,
+    quantity: line.quantity,
+    variantLabel: line.variantLabel,
+    soldAt: line.sale.soldAt,
+    isRefund: line.sale.isRefund,
+    isService: Boolean(line.product?.isService),
+  }));
+
   const salesRevenue = emptyMonths();
   const serviceIncome = emptyMonths();
   const otherIncome = emptyMonths();
@@ -251,9 +297,24 @@ export async function fetchMonthlyIncomeStatement(
   const ownersWithdrawal = emptyMonths();
 
   for (const line of saleLines) {
+    if (line.sale.soldAt > yearEnd) continue;
     const service = Boolean(line.product?.isService);
     if (service) addToMonth(serviceIncome, line.sale.soldAt, line.lineTotal);
     else addToMonth(salesRevenue, line.sale.soldAt, line.lineTotal);
+  }
+
+  // Inventory received via Inventory/POS stock (not supplier invoices) still belongs in Purchases.
+  for (const move of stockMoves) {
+    if (!isInventoryPurchaseMovement(move.type, move.quantity)) continue;
+    const product = productById.get(move.productId);
+    const unitCost =
+      move.unitCost > 0
+        ? move.unitCost
+        : product
+          ? effectiveProductUnitCost(product, product.variables)
+          : 0;
+    if (unitCost <= 0) continue;
+    addToMonth(purchasesMonths, move.createdAt, Math.round(move.quantity * unitCost));
   }
 
   for (const pay of payments) {
@@ -345,28 +406,38 @@ export async function fetchMonthlyIncomeStatement(
     }
   }
 
-  // Inventory valuation at each month boundary via reverse stock movements from today.
-  const movesAfterMonthStart = monthStarts.map(() => new Map<string, number>());
-  const movesAfterMonthEnd = monthEnds.map(() => new Map<string, number>());
-
-  for (const move of stockMoves) {
-    for (let m = 0; m < 12; m++) {
-      if (move.createdAt >= monthStarts[m]!) {
-        const map = movesAfterMonthStart[m]!;
-        map.set(move.productId, (map.get(move.productId) ?? 0) + move.quantity);
-      }
-      if (move.createdAt > monthEnds[m]!) {
-        const map = movesAfterMonthEnd[m]!;
-        map.set(move.productId, (map.get(move.productId) ?? 0) + move.quantity);
-      }
-    }
-  }
-
   const openingInventory = emptyMonths();
   const closingInventory = emptyMonths();
   for (let m = 0; m < 12; m++) {
-    openingInventory[m] = inventoryValueAt(companyProducts, movesAfterMonthStart[m]!);
-    closingInventory[m] = inventoryValueAt(companyProducts, movesAfterMonthEnd[m]!);
+    const nextMonthStart = new Date(year, m + 1, 1, 0, 0, 0, 0);
+    openingInventory[m] = inventoryValueAsOfCents(
+      valuedProducts,
+      monthStarts[m]!,
+      inventorySales,
+      stockMoves,
+    );
+    closingInventory[m] = inventoryValueAsOfCents(
+      valuedProducts,
+      nextMonthStart,
+      inventorySales,
+      stockMoves,
+    );
+  }
+
+  // Sales-based COGS (qty × unit cost) — used when the inventory identity understates cost
+  // (e.g. missing unit costs on movements / opening stock entered without cost).
+  const salesCogs = emptyMonths();
+  for (const line of saleLines) {
+    if (!line.product || line.product.isService) continue;
+    const variables = line.product.variables.map((v) => ({
+      name: v.name,
+      options: parseVariableOptions(v.options),
+    }));
+    const unitCost = resolveSaleUnitCost(line.product, variables, line.variantLabel);
+    if (unitCost <= 0) continue;
+    if (line.sale.soldAt > yearEnd) continue;
+    const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
+    addToMonth(salesCogs, line.sale.soldAt, Math.round(unitCost * line.quantity) * sign);
   }
 
   const totalRevenue = emptyMonths();
@@ -383,11 +454,19 @@ export async function fetchMonthlyIncomeStatement(
     totalRevenue[m] =
       salesRevenue[m]! + serviceIncome[m]! + otherIncome[m]!;
     // Total COGS = Opening + Purchases + Direct Labour − Closing
-    totalCogs[m] =
+    const inventoryCogs =
       openingInventory[m]! +
       purchasesMonths[m]! +
       directLabour[m]! -
       closingInventory[m]!;
+    // If inventory identity is zero/negative but goods were sold with a known cost,
+    // use sold-goods cost so Gross Profit is not overstated.
+    totalCogs[m] =
+      inventoryCogs > 0
+        ? inventoryCogs
+        : salesCogs[m]! > 0
+          ? salesCogs[m]! + directLabour[m]!
+          : inventoryCogs;
     grossProfit[m] = totalRevenue[m]! - totalCogs[m]!;
     totalOperatingExpenses[m] =
       rentExpense[m]! +
@@ -487,10 +566,22 @@ export async function fetchMonthlyIncomeStatement(
       "Total Revenue + Cash on Hand (Beginning of Month)",
     ),
     section("sec-cogs", "Cost of Goods Sold (COGS)"),
-    line("openingInventory", "Opening Inventory", openingInventory),
+    line(
+      "openingInventory",
+      "Opening Inventory",
+      openingInventory,
+      "line",
+      "On-hand qty × unit cost at month start for variants and items without variants (current stock plus goods sold since then)",
+    ),
     line("purchases", "Purchases", purchasesMonths),
     line("directLabour", "Direct Labour", directLabour),
-    line("closingInventory", "Closing Inventory", closingInventory),
+    line(
+      "closingInventory",
+      "Closing Inventory",
+      closingInventory,
+      "line",
+      "On-hand qty × unit cost at month end for variants and items without variants",
+    ),
     line(
       "totalCogs",
       "Total COGS",

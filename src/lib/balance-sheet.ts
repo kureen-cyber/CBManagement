@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { fetchBankLedger } from "@/lib/bank-ledger";
 import { fetchOutstandingReceivables } from "@/lib/receivables";
 import { fetchOutstandingPayables, payablesTotal } from "@/lib/payables";
+import { onHandInventoryValueCents, fillUnitCostFromMovements, type ValuedProduct } from "@/lib/inventory-valuation";
+import { parseVariableOptions } from "@/lib/product-variables";
 
 export type BalanceSheetLine = {
   id: string;
@@ -35,19 +37,44 @@ export async function fetchBalanceSheet(
   businessName: string,
   asOf: Date = new Date(),
 ): Promise<BalanceSheet> {
-  const [bank, receivables, payables, products] = await Promise.all([
+  const [bank, receivables, payables, products, costMoves] = await Promise.all([
     fetchBankLedger(companyId),
     fetchOutstandingReceivables(companyId),
     fetchOutstandingPayables(companyId),
     prisma.product.findMany({
       where: { companyId, trackStock: true, isService: false },
-      select: { stockQty: true, unitCost: true },
+      select: {
+        id: true,
+        stockQty: true,
+        unitCost: true,
+        variables: { orderBy: { sortOrder: "asc" }, select: { name: true, options: true } },
+      },
+    }),
+    prisma.stockMovement.findMany({
+      where: {
+        product: { companyId, trackStock: true, isService: false },
+        unitCost: { gt: 0 },
+      },
+      select: { productId: true, unitCost: true, createdAt: true },
     }),
   ]);
 
+  const valuedProducts: ValuedProduct[] = fillUnitCostFromMovements(
+    products.map((p) => ({
+      id: p.id,
+      stockQty: p.stockQty,
+      unitCost: p.unitCost,
+      variables: p.variables.map((v) => ({
+        name: v.name,
+        options: parseVariableOptions(v.options),
+      })),
+    })),
+    costMoves,
+  );
+
   const cash = Math.max(0, bank.balance);
   const accountsReceivable = receivables.reduce((s, r) => s + r.balance, 0);
-  const inventory = products.reduce((s, p) => s + Math.round(p.stockQty * p.unitCost), 0);
+  const inventory = onHandInventoryValueCents(valuedProducts);
   const accountsPayable = payablesTotal(payables);
 
   const totalAssets = cash + accountsReceivable + inventory;
@@ -64,7 +91,7 @@ export async function fetchBalanceSheet(
     section("assets", "Assets"),
     line("cash", "Cash and bank", cash),
     line("ar", "Accounts receivable", accountsReceivable),
-    line("inventory", "Inventory", inventory),
+    line("inventory", "Inventory total", inventory),
     line("total-assets", "Total assets", totalAssets, "total", false),
   ];
 

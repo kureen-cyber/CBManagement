@@ -169,6 +169,53 @@ export function resolveOptionUnitCost(option: VariableOption, productUnitCost: n
 }
 
 /**
+ * Unit cost in cents for a sold line: prefer the matched variant option cost,
+ * otherwise the product cost, otherwise a qty-weighted average of option costs.
+ */
+export function resolveSaleUnitCost(
+  product: { unitCost: number },
+  variables: ProductVariableDef[],
+  variantLabel?: string | null,
+): number {
+  const label = String(variantLabel || "").trim();
+  if (label) {
+    const hit = findOptionForVariantLabel(variables, label);
+    if (hit) return resolveOptionUnitCost(hit.option, product.unitCost);
+  }
+  return effectiveProductUnitCost(product, variables);
+}
+
+/** Best available unit cost in cents when no specific variant is known. */
+export function effectiveProductUnitCost(
+  product: { unitCost: number },
+  variables: ProductVariableDef[],
+): number {
+  if (product.unitCost > 0) return product.unitCost;
+
+  const primary = variables[0];
+  if (!primary?.options.length) return 0;
+
+  let weighted = 0;
+  let qtySum = 0;
+  const positiveCosts: number[] = [];
+  for (const o of primary.options) {
+    const cost = nonNeg(o.unitCost);
+    if (cost <= 0) continue;
+    positiveCosts.push(cost);
+    const qty = nonNeg(o.qty);
+    if (qty > 0) {
+      weighted += cost * qty;
+      qtySum += qty;
+    }
+  }
+  if (qtySum > 0) return Math.round(weighted / qtySum);
+  if (positiveCosts.length) {
+    return Math.round(positiveCosts.reduce((s, c) => s + c, 0) / positiveCosts.length);
+  }
+  return 0;
+}
+
+/**
  * Resolve sell price for an option. Returns null when price must be entered at POS.
  */
 export function resolveOptionUnitPrice(

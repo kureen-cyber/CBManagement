@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import {
-  applyOptionQtyDelta,
   findOptionForVariantLabel,
   hasOptionStock,
   parseVariableOptions,
@@ -11,17 +10,35 @@ import {
 } from "@/lib/product-variables";
 
 /**
- * Deduct (or restore) stock for completed POS receipts that never wrote a matching
- * stock movement. Idempotent — safe to run on every inventory/POS page load.
+ * Ensure every completed POS sale has a matching stock movement, then rebuild
+ * on-hand quantities from the movement ledger so Inventory (option rows) matches
+ * what was actually sold.
  */
 export async function reconcileMissingSaleStock(companyId: string): Promise<{
   fixedLines: number;
+  rebuiltProducts: number;
 }> {
+  const fixedLines = await ensureSaleMovements(companyId);
+  const rebuiltProducts = await rebuildStockFromMovements(companyId);
+  return { fixedLines, rebuiltProducts };
+}
+
+/** Extract "Colour: Red" from movement notes like "POS sale (Colour: Red)". */
+export function extractVariantFromMovementNotes(notes: string | null | undefined): string | null {
+  const n = String(notes || "");
+  const matches = [...n.matchAll(/\(([^)]+)\)/g)];
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const inner = String(matches[i]![1] || "").trim();
+    if (inner.includes(":") && !/sum of variable/i.test(inner)) return inner;
+  }
+  return null;
+}
+
+async function ensureSaleMovements(companyId: string): Promise<number> {
   const [sales, movements] = await Promise.all([
     prisma.sale.findMany({
       where: { companyId, status: "COMPLETED" },
       select: {
-        id: true,
         number: true,
         isRefund: true,
         lines: {
@@ -50,14 +67,11 @@ export async function reconcileMissingSaleStock(companyId: string): Promise<{
     movedByKey.set(key, (movedByKey.get(key) || 0) + m.quantity);
   }
 
-  // Aggregate expected deltas per sale number + product + variant
   type Agg = {
     saleNumber: string;
     productId: string;
     variantLabel: string | null;
     expectedQty: number;
-    isRefund: boolean;
-    productName: string;
   };
   const expected = new Map<string, Agg>();
 
@@ -68,7 +82,7 @@ export async function reconcileMissingSaleStock(companyId: string): Promise<{
   ];
   const products = await prisma.product.findMany({
     where: { companyId, id: { in: productIds } },
-    include: { variables: { orderBy: { sortOrder: "asc" } } },
+    select: { id: true, name: true, trackStock: true, isService: true },
   });
   const productById = Object.fromEntries(products.map((p) => [p.id, p]));
 
@@ -85,28 +99,19 @@ export async function reconcileMissingSaleStock(companyId: string): Promise<{
       const key = `${sale.number}|${line.productId}|${variantLabel || ""}`;
       const signedQty = sale.isRefund ? line.quantity : -line.quantity;
       const prev = expected.get(key);
-      if (prev) {
-        prev.expectedQty += signedQty;
-      } else {
+      if (prev) prev.expectedQty += signedQty;
+      else {
         expected.set(key, {
           saleNumber: sale.number,
           productId: line.productId,
           variantLabel,
           expectedQty: signedQty,
-          isRefund: sale.isRefund,
-          productName: product.name,
         });
       }
     }
   }
 
-  let fixedLines = 0;
-
-  // Aggregate expected at sale+product (movements have no variant key)
-  const expectedBySaleProduct = new Map<
-    string,
-    { expectedQty: number; variants: Agg[] }
-  >();
+  const expectedBySaleProduct = new Map<string, { expectedQty: number; variants: Agg[] }>();
   for (const agg of expected.values()) {
     const key = `${agg.saleNumber}|${agg.productId}`;
     const prev = expectedBySaleProduct.get(key);
@@ -114,13 +119,11 @@ export async function reconcileMissingSaleStock(companyId: string): Promise<{
       prev.expectedQty += agg.expectedQty;
       prev.variants.push(agg);
     } else {
-      expectedBySaleProduct.set(key, {
-        expectedQty: agg.expectedQty,
-        variants: [agg],
-      });
+      expectedBySaleProduct.set(key, { expectedQty: agg.expectedQty, variants: [agg] });
     }
   }
 
+  let fixedLines = 0;
   for (const [key, group] of expectedBySaleProduct) {
     const movedQty = movedByKey.get(key) || 0;
     const missing = group.expectedQty - movedQty;
@@ -141,103 +144,144 @@ export async function reconcileMissingSaleStock(companyId: string): Promise<{
       remaining -= share;
       if (Math.abs(share) < 1e-9) continue;
 
-      await applyMissingStockDelta({
-        productId: v.productId,
-        quantityDelta: share,
-        variantLabel: v.variantLabel,
-        saleNumber: v.saleNumber,
+      await prisma.stockMovement.create({
+        data: {
+          productId: v.productId,
+          type: share < 0 ? "USAGE" : "RETURN",
+          quantity: share,
+          unitCost: 0,
+          reference: v.saleNumber,
+          notes: v.variantLabel
+            ? `Auto-reconcile stock for ${v.saleNumber} (${v.variantLabel})`
+            : `Auto-reconcile stock for ${v.saleNumber}`,
+        },
       });
       fixedLines += 1;
     }
-
-    movedByKey.set(key, (movedByKey.get(key) || 0) + missing);
   }
 
-  return { fixedLines };
+  return fixedLines;
 }
 
-async function applyMissingStockDelta(input: {
-  productId: string;
-  quantityDelta: number;
-  variantLabel: string | null;
-  saleNumber: string;
-}) {
-  const product = await prisma.product.findFirst({
-    where: { id: input.productId },
-    include: { variables: { orderBy: { sortOrder: "asc" } } },
+/**
+ * Replay every stock movement onto product + option quantities.
+ * Opening/purchases without a variant stay in an unallocated pool, then merge
+ * into option rows that were touched by sales — so POS deductions show on Inventory.
+ */
+async function rebuildStockFromMovements(companyId: string): Promise<number> {
+  const products = await prisma.product.findMany({
+    where: { companyId, trackStock: true, isService: false },
+    include: {
+      variables: { orderBy: { sortOrder: "asc" } },
+      stockMoves: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+    },
   });
-  if (!product || !product.trackStock || product.isService) return;
 
-  const variables: ProductVariableDef[] = product.variables.map((v) => ({
-    name: v.name,
-    options: parseVariableOptions(v.options),
-  }));
-  const tracksOptions = hasOptionStock(variables);
-  const variantLabel = String(input.variantLabel || "").trim();
+  let rebuilt = 0;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.stockMovement.create({
-      data: {
-        productId: input.productId,
-        type: input.quantityDelta < 0 ? "USAGE" : "RETURN",
-        quantity: input.quantityDelta,
-        unitCost: product.unitCost,
-        reference: input.saleNumber,
-        notes: variantLabel
-          ? `Auto-reconcile stock for ${input.saleNumber} (${variantLabel})`
-          : `Auto-reconcile stock for ${input.saleNumber}`,
-      },
-    });
+  for (const product of products) {
+    let variables: ProductVariableDef[] = product.variables.map((v) => ({
+      name: v.name,
+      options: parseVariableOptions(v.options).map((o) => ({ ...o, qty: 0 })),
+    }));
+    const tracksOptions = hasOptionStock(variables);
+    let unallocated = 0;
+    let optionTouched = false;
 
-    if (tracksOptions) {
-      const fallbackLabel =
-        variables[0]?.options.length === 1
-          ? `${variables[0]!.name}: ${variables[0]!.options[0]!.label}`
-          : "";
-      const labelToUse = variantLabel || fallbackLabel;
-      const applied = labelToUse
-        ? applyOptionQtyDelta(variables, labelToUse, input.quantityDelta)
-        : null;
-
-      if (applied) {
-        const optionsHadStock = variables[0]!.options.some((o) => o.qty > 0);
-        let nextVariables = applied;
-        let nextQty = sumOptionStock(applied);
-
-        if (!optionsHadStock && product.stockQty > 0) {
-          nextQty = Math.max(0, product.stockQty + input.quantityDelta);
-          const hit = findOptionForVariantLabel(applied, labelToUse);
-          nextVariables = applied.map((v, vi) => ({
-            ...v,
+    for (const m of product.stockMoves) {
+      const variant = extractVariantFromMovementNotes(m.notes);
+      if (tracksOptions && variant) {
+        const hit = findOptionForVariantLabel(variables, variant);
+        if (hit) {
+          optionTouched = true;
+          variables = variables.map((v, vi) => ({
+            name: v.name,
             options: v.options.map((o, oi) =>
-              hit && vi === hit.variableIndex && oi === hit.optionIndex
-                ? { ...o, qty: nextQty }
-                : { ...o, qty: vi === 0 ? 0 : o.qty },
+              vi === hit.variableIndex && oi === hit.optionIndex
+                ? { ...o, qty: o.qty + m.quantity }
+                : { ...o },
             ),
           }));
+          continue;
         }
-
-        for (const next of nextVariables) {
-          const row = product.variables.find((v) => v.name === next.name);
-          if (row) {
-            await tx.productVariable.update({
-              where: { id: row.id },
-              data: { options: serializeVariableOptions(next.options) },
-            });
-          }
-        }
-
-        await tx.product.update({
-          where: { id: input.productId },
-          data: { stockQty: nextQty },
-        });
-        return;
       }
+      unallocated += m.quantity;
     }
 
-    await tx.product.update({
-      where: { id: input.productId },
-      data: { stockQty: { increment: input.quantityDelta } },
+    let nextQty: number;
+    if (tracksOptions && optionTouched) {
+      if (Math.abs(unallocated) > 1e-9 && variables[0]?.options.length) {
+        variables = variables.map((v, vi) => {
+          if (vi !== 0) return v;
+          return {
+            ...v,
+            options: v.options.map((o, oi) =>
+              oi === 0 ? { ...o, qty: o.qty + unallocated } : o,
+            ),
+          };
+        });
+      }
+      variables = variables.map((v) => ({
+        ...v,
+        options: v.options.map((o) => ({ ...o, qty: Math.max(0, o.qty) })),
+      }));
+      nextQty = sumOptionStock(variables);
+    } else if (tracksOptions && variables[0]?.options.length) {
+      nextQty = Math.max(0, unallocated);
+      // Mirror product-level stock onto options proportionally if they had labels only,
+      // otherwise put everything on the first option so Inventory shows a number.
+      const primaryCount = variables[0]!.options.length;
+      if (primaryCount === 1) {
+        variables = variables.map((v, vi) =>
+          vi === 0
+            ? {
+                ...v,
+                options: v.options.map((o, oi) => (oi === 0 ? { ...o, qty: nextQty } : o)),
+              }
+            : v,
+        );
+      } else {
+        // Keep options at 0 but stockQty correct — Inventory shows option rows at 0;
+        // also set first option to nextQty so the list isn't misleading after sales rebuild
+        // when only product-level movements exist.
+        variables = variables.map((v, vi) =>
+          vi === 0
+            ? {
+                ...v,
+                options: v.options.map((o, oi) => (oi === 0 ? { ...o, qty: nextQty } : { ...o, qty: 0 })),
+              }
+            : v,
+        );
+        nextQty = sumOptionStock(variables);
+      }
+    } else {
+      nextQty = Math.max(0, unallocated);
+    }
+
+    const currentOptionJson = product.variables.map((v) => v.options).join("|");
+    const nextOptionJson = variables.map((v) => serializeVariableOptions(v.options)).join("|");
+    const changed =
+      Math.abs(product.stockQty - nextQty) > 1e-9 || currentOptionJson !== nextOptionJson;
+
+    if (!changed) continue;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: product.id },
+        data: { stockQty: nextQty },
+      });
+      for (const next of variables) {
+        const row = product.variables.find((v) => v.name === next.name);
+        if (row) {
+          await tx.productVariable.update({
+            where: { id: row.id },
+            data: { options: serializeVariableOptions(next.options) },
+          });
+        }
+      }
     });
-  });
+    rebuilt += 1;
+  }
+
+  return rebuilt;
 }

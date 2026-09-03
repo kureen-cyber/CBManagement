@@ -230,63 +230,17 @@ async function applyProductStockDelta(
       const hit = labelToUse ? findOptionForVariantLabel(variables, labelToUse) : null;
 
       if (hit) {
-        const optionsHadStock = variables[0]!.options.some((o) => o.qty > 0);
+        // Only the matched variant row changes — never other options.
+        nextVariables = variables.map((v, vi) => ({
+          name: v.name,
+          options: v.options.map((o, oi) => {
+            if (vi !== hit.variableIndex || oi !== hit.optionIndex) return { ...o };
+            return { ...o, qty: Math.max(0, o.qty + quantityDelta) };
+          }),
+        }));
+        nextQty = sumOptionStock(nextVariables);
 
-        if (optionsHadStock) {
-          // Reduce the matched option first; if it can't cover a sale, pull from other
-          // primary options so total on-hand always drops by the full amount sold.
-          let remainingToRemove = quantityDelta < 0 ? -quantityDelta : 0;
-          let remainingToAdd = quantityDelta > 0 ? quantityDelta : 0;
-
-          nextVariables = variables.map((v, vi) => ({
-            name: v.name,
-            options: v.options.map((o, oi) => {
-              if (vi !== hit.variableIndex || oi !== hit.optionIndex) return { ...o };
-              if (remainingToRemove > 0) {
-                const take = Math.min(o.qty, remainingToRemove);
-                remainingToRemove -= take;
-                return { ...o, qty: o.qty - take };
-              }
-              if (remainingToAdd > 0) {
-                const add = remainingToAdd;
-                remainingToAdd = 0;
-                return { ...o, qty: o.qty + add };
-              }
-              return { ...o };
-            }),
-          }));
-
-          if (remainingToRemove > 0 && nextVariables[0]) {
-            nextVariables = nextVariables.map((v, vi) => {
-              if (vi !== 0) return v;
-              return {
-                ...v,
-                options: v.options.map((o, oi) => {
-                  if (oi === hit.optionIndex) return o;
-                  if (remainingToRemove <= 0) return o;
-                  const take = Math.min(o.qty, remainingToRemove);
-                  remainingToRemove -= take;
-                  return { ...o, qty: o.qty - take };
-                }),
-              };
-            });
-          }
-
-          nextQty = sumOptionStock(nextVariables);
-        } else {
-          // Options exist but were never stocked — product.stockQty is the source of truth.
-          nextQty = Math.max(0, product.stockQty + quantityDelta);
-          nextVariables = variables.map((v, vi) => ({
-            name: v.name,
-            options: v.options.map((o, oi) =>
-              vi === hit.variableIndex && oi === hit.optionIndex
-                ? { ...o, qty: nextQty }
-                : { ...o, qty: vi === 0 ? 0 : o.qty },
-            ),
-          }));
-        }
-
-        for (const next of nextVariables!) {
+        for (const next of nextVariables) {
           const row = product.variables.find((v) => v.name === next.name);
           if (row) {
             await tx.productVariable.update({

@@ -1,18 +1,14 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader, Panel } from "@/components/ui";
-import { PaymentsAddTabs } from "@/components/PaymentsAddTabs";
+import { PaymentsWorkspace } from "@/components/PaymentsWorkspace";
 import { PeriodSelector } from "@/components/PeriodSelector";
-import { formatAppDate } from "@/lib/timezone";
 import {
   ensureDefaultLeadershipEmployees,
   employeeDisplayName,
   excludeSystemCustomers,
-  isSalaryPayment,
 } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +53,8 @@ export default async function PaymentsPage({
     .map((sale) => ({
       id: sale.id,
       number: sale.number,
-      customerId: sale.customerId || crmCustomers.find((c) => c.name === "Walk-in Customer")?.id || "",
+      customerId:
+        sale.customerId || crmCustomers.find((c) => c.name === "Walk-in Customer")?.id || "",
       customerName: sale.customer?.name || "Walk-in Customer",
       amountDue: Math.max(0, sale.total - sale.amountPaid),
     }))
@@ -67,16 +64,12 @@ export default async function PaymentsPage({
     <div className="stack">
       <PageHeader
         title="Payments"
-        description={`${range.label} · salary payments and operational customer/supplier payments.`}
+        description={`${range.label} · incoming POS/invoice receipts and outgoing salary & operational payments.`}
       />
       <Panel style={{ padding: "1.25rem" }}>
-        <PeriodSelector
-          basePath="/payments"
-          range={range}
-          isFree={isFreeTier(planTier)}
-        />
+        <PeriodSelector basePath="/payments" range={range} isFree={isFreeTier(planTier)} />
       </Panel>
-      <PaymentsAddTabs
+      <PaymentsWorkspace
         employees={employees.map((e) => ({
           id: e.id,
           name: employeeDisplayName(e),
@@ -94,57 +87,28 @@ export default async function PaymentsPage({
             amountDue: Math.max(0, inv.total - inv.amountPaid),
           }))}
         sales={openSales}
+        payments={payments.map((p) => ({
+          id: p.id,
+          paidAt: p.paidAt.toISOString(),
+          amount: p.amount,
+          method: p.method,
+          kind: p.kind,
+          notes: p.notes,
+          reference: p.reference,
+          employeeId: p.employeeId,
+          supplierId: p.supplierId,
+          customerId: p.customerId,
+          invoiceId: p.invoiceId,
+          saleId: p.saleId,
+          payee: p.employee
+            ? `${p.employee.firstName} ${p.employee.lastName}`.trim()
+            : p.supplier?.name || p.customer?.name || "—",
+          employeeSystemRole: p.employee?.systemRole ?? null,
+          customerName: p.customer?.name ?? null,
+          invoiceNumber: p.invoice?.number ?? null,
+          saleNumber: p.sale?.number ?? null,
+        }))}
       />
-      <Panel className="table-wrap list-dense">
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Payee</th>
-              <th>Reference</th>
-              <th>Method</th>
-              <th>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((p) => {
-              const salary = isSalaryPayment(p);
-              const payee =
-                p.employee
-                  ? `${p.employee.firstName} ${p.employee.lastName}`.trim()
-                  : p.supplier?.name || p.customer?.name || "—";
-              return (
-                <tr key={p.id}>
-                  <td>{formatAppDate(p.paidAt)}</td>
-                  <td>
-                    <span className="badge">{salary ? "Salary" : "Operational"}</span>
-                  </td>
-                  <td>{payee}</td>
-                  <td className="muted">
-                    {p.invoice?.number ?? p.sale?.number ?? p.reference ?? p.notes ?? "—"}
-                  </td>
-                  <td>{p.method}</td>
-                  <td className="money">{formatTTD(p.amount)}</td>
-                  <td>
-                    <Link className="btn btn-secondary btn-sm" href={`/payments/${p.id}`}>
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-            {payments.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="muted">
-                  No payments in this period.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </Panel>
     </div>
   );
 }

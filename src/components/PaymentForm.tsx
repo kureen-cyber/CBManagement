@@ -25,30 +25,43 @@ type PayeeOption =
   | { type: "supplier"; id: string; name: string };
 
 export function PaymentForm({
-  customers,
+  customers = [],
   suppliers = [],
-  invoices,
+  invoices = [],
   sales = [],
   initialInvoiceId = "",
   initialSaleId = "",
+  /** incoming = customer POS/Invoice; outgoing = supplier operational outflows */
+  mode = "all",
 }: {
-  customers: { id: string; name: string }[];
+  customers?: { id: string; name: string }[];
   suppliers?: { id: string; name: string }[];
-  invoices: InvoiceOption[];
+  invoices?: InvoiceOption[];
   sales?: SaleOption[];
   initialInvoiceId?: string;
   initialSaleId?: string;
+  mode?: "incoming" | "outgoing" | "all";
 }) {
+  const showCustomers = mode !== "outgoing";
+  const showSuppliers = mode !== "incoming";
+
   const payees = useMemo<PayeeOption[]>(() => {
     return [
-      ...customers.map((c) => ({ type: "customer" as const, id: c.id, name: c.name })),
-      ...suppliers.map((s) => ({ type: "supplier" as const, id: s.id, name: s.name })),
+      ...(showCustomers
+        ? customers.map((c) => ({ type: "customer" as const, id: c.id, name: c.name }))
+        : []),
+      ...(showSuppliers
+        ? suppliers.map((s) => ({ type: "supplier" as const, id: s.id, name: s.name }))
+        : []),
     ].sort((a, b) => a.name.localeCompare(b.name));
-  }, [customers, suppliers]);
+  }, [customers, suppliers, showCustomers, showSuppliers]);
 
   const [payeeKey, setPayeeKey] = useState("");
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId);
   const [saleId, setSaleId] = useState(initialSaleId);
+  const [incomingType, setIncomingType] = useState<"POS" | "Invoice">(
+    initialSaleId ? "POS" : "Invoice",
+  );
 
   const selectedPayee = useMemo(() => {
     if (!payeeKey) return null;
@@ -56,7 +69,7 @@ export function PaymentForm({
     return payees.find((p) => p.type === type && p.id === id) || null;
   }, [payeeKey, payees]);
 
-  const isSupplier = selectedPayee?.type === "supplier";
+  const isSupplier = selectedPayee?.type === "supplier" || mode === "outgoing";
 
   const selectedInvoice = useMemo(
     () => invoices.find((inv) => inv.id === invoiceId) || null,
@@ -68,7 +81,11 @@ export function PaymentForm({
     [sales, saleId],
   );
 
-  const selectedReceivable = !isSupplier ? selectedInvoice || selectedSale : null;
+  const selectedReceivable = !isSupplier
+    ? incomingType === "POS"
+      ? selectedSale
+      : selectedInvoice
+    : null;
 
   useEffect(() => {
     if (initialInvoiceId) {
@@ -76,6 +93,7 @@ export function PaymentForm({
       if (inv) {
         setInvoiceId(inv.id);
         setSaleId("");
+        setIncomingType("Invoice");
         setPayeeKey(`customer:${inv.customerId}`);
       }
     } else if (initialSaleId) {
@@ -83,6 +101,7 @@ export function PaymentForm({
       if (sale) {
         setSaleId(sale.id);
         setInvoiceId("");
+        setIncomingType("POS");
         setPayeeKey(`customer:${sale.customerId}`);
       }
     }
@@ -91,6 +110,7 @@ export function PaymentForm({
   function onInvoiceChange(id: string) {
     setInvoiceId(id);
     setSaleId("");
+    setIncomingType("Invoice");
     const inv = invoices.find((i) => i.id === id);
     if (inv) setPayeeKey(`customer:${inv.customerId}`);
   }
@@ -98,6 +118,7 @@ export function PaymentForm({
   function onSaleChange(id: string) {
     setSaleId(id);
     setInvoiceId("");
+    setIncomingType("POS");
     const sale = sales.find((s) => s.id === id);
     if (sale) setPayeeKey(`customer:${sale.customerId}`);
   }
@@ -114,69 +135,126 @@ export function PaymentForm({
     if (selectedSale && selectedSale.customerId !== id) setSaleId("");
   }
 
+  function onIncomingTypeChange(next: "POS" | "Invoice") {
+    setIncomingType(next);
+    if (next === "POS") setInvoiceId("");
+    else setSaleId("");
+  }
+
+  const payeeLabel =
+    mode === "incoming" ? "Customer" : mode === "outgoing" ? "Supplier" : "Customer / supplier";
+
   return (
     <form action={recordPayment} className="form-grid">
       <input type="hidden" name="kind" value="OPERATIONAL" />
       <input type="hidden" name="payeeKey" value={payeeKey} />
 
       <label className="field full">
-        Customer / supplier
-        <select name="payeeDisplay" required value={payeeKey} onChange={(e) => onPayeeChange(e.target.value)}>
+        {payeeLabel}
+        <select
+          name="payeeDisplay"
+          required
+          value={payeeKey}
+          onChange={(e) => onPayeeChange(e.target.value)}
+        >
           <option value="" disabled>
             Select
           </option>
-          {customers.length > 0 ? (
-            <optgroup label="Customers">
-              {customers.map((c) => (
+          {showCustomers && customers.length > 0 ? (
+            mode === "all" ? (
+              <optgroup label="Customers">
+                {customers.map((c) => (
+                  <option key={`customer:${c.id}`} value={`customer:${c.id}`}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              customers.map((c) => (
                 <option key={`customer:${c.id}`} value={`customer:${c.id}`}>
                   {c.name}
                 </option>
-              ))}
-            </optgroup>
+              ))
+            )
           ) : null}
-          {suppliers.length > 0 ? (
-            <optgroup label="Suppliers">
-              {suppliers.map((s) => (
+          {showSuppliers && suppliers.length > 0 ? (
+            mode === "all" ? (
+              <optgroup label="Suppliers">
+                {suppliers.map((s) => (
+                  <option key={`supplier:${s.id}`} value={`supplier:${s.id}`}>
+                    {s.name}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              suppliers.map((s) => (
                 <option key={`supplier:${s.id}`} value={`supplier:${s.id}`}>
                   {s.name}
                 </option>
-              ))}
-            </optgroup>
+              ))
+            )
           ) : null}
         </select>
       </label>
 
-      {!isSupplier ? (
+      {mode === "incoming" || (!isSupplier && mode === "all") ? (
         <>
           <label className="field">
-            Invoice (service)
-            <select name="invoiceId" value={invoiceId} onChange={(e) => onInvoiceChange(e.target.value)}>
-              <option value="">None</option>
-              {invoices.map((inv) => (
-                <option key={inv.id} value={inv.id}>
-                  {inv.number} — {inv.customerName} — {formatTTD(inv.amountDue)} due
-                </option>
-              ))}
+            Type
+            <select
+              value={incomingType}
+              onChange={(e) => onIncomingTypeChange(e.target.value as "POS" | "Invoice")}
+            >
+              <option value="Invoice">Invoice</option>
+              <option value="POS">POS</option>
             </select>
           </label>
-          <label className="field">
-            POS sale
-            <select name="saleId" value={saleId} onChange={(e) => onSaleChange(e.target.value)}>
-              <option value="">None</option>
-              {sales.map((sale) => (
-                <option key={sale.id} value={sale.id}>
-                  {sale.number} — {sale.customerName} — {formatTTD(sale.amountDue)} due
-                </option>
-              ))}
-            </select>
-          </label>
+          {incomingType === "Invoice" ? (
+            <label className="field">
+              Invoice (service / job)
+              <select
+                name="invoiceId"
+                value={invoiceId}
+                required={mode === "incoming"}
+                onChange={(e) => onInvoiceChange(e.target.value)}
+              >
+                <option value="">Select invoice</option>
+                {invoices.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.number} — {inv.customerName} — {formatTTD(inv.amountDue)} due
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="field">
+              POS sale
+              <select
+                name="saleId"
+                value={saleId}
+                required={mode === "incoming"}
+                onChange={(e) => onSaleChange(e.target.value)}
+              >
+                <option value="">Select POS sale</option>
+                {sales.map((sale) => (
+                  <option key={sale.id} value={sale.id}>
+                    {sale.number} — {sale.customerName} — {formatTTD(sale.amountDue)} due
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {incomingType === "Invoice" ? <input type="hidden" name="saleId" value="" /> : null}
+          {incomingType === "POS" ? <input type="hidden" name="invoiceId" value="" /> : null}
         </>
       ) : (
         <>
           <input type="hidden" name="invoiceId" value="" />
           <input type="hidden" name="saleId" value="" />
           <p className="muted full" style={{ margin: 0, fontSize: "0.85rem" }}>
-            Supplier payments are recorded as operational outflows (not customer income).
+            Supplier and stock-purchase payments are operational outflows (cash/bank). Rent and
+            similar running costs can also be recorded under Expenses so they land on the income
+            statement.
           </p>
         </>
       )}
@@ -209,7 +287,11 @@ export function PaymentForm({
       </label>
       <div className="full">
         <button className="btn btn-primary" type="submit">
-          {isSupplier ? "Record supplier payment" : "Save payment"}
+          {mode === "outgoing" || isSupplier
+            ? "Record outgoing payment"
+            : mode === "incoming"
+              ? "Record incoming payment"
+              : "Save payment"}
         </button>
       </div>
     </form>

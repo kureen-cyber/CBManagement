@@ -178,6 +178,7 @@ export function PosTerminal({
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [productPage, setProductPage] = useState(1);
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [honeyPersons, setHoneyPersons] = useState("");
@@ -224,6 +225,22 @@ export function PosTerminal({
       );
     });
   }, [products, query, categoryFilter]);
+
+  const productPageSize = 10;
+  const productTotalPages = Math.max(1, Math.ceil(filtered.length / productPageSize));
+  const currentProductPage = Math.min(productPage, productTotalPages);
+  const pageProducts = useMemo(() => {
+    const start = (currentProductPage - 1) * productPageSize;
+    return filtered.slice(start, start + productPageSize);
+  }, [filtered, currentProductPage, productPageSize]);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [query, categoryFilter]);
+
+  useEffect(() => {
+    if (productPage > productTotalPages) setProductPage(productTotalPages);
+  }, [productPage, productTotalPages]);
 
   const subtotal = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
   const discountAmount = Math.round(subtotal * (discountPercent / 100));
@@ -691,7 +708,7 @@ export function PosTerminal({
                 </select>
               </div>
               <div className={viewMode === "list" ? "product-list" : "product-grid"}>
-                {filtered.map((p) => {
+                {pageProducts.map((p) => {
                   const meta = [
                     p.category,
                     p.trackStock && !p.isService
@@ -768,6 +785,55 @@ export function PosTerminal({
                 })}
                 {filtered.length === 0 ? <div className="muted">No products match.</div> : null}
               </div>
+              {filtered.length > productPageSize ? (
+                <div
+                  className="row"
+                  style={{
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "0.75rem",
+                    marginTop: "0.75rem",
+                  }}
+                >
+                  <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+                    Showing {(currentProductPage - 1) * productPageSize + 1}–
+                    {Math.min(currentProductPage * productPageSize, filtered.length)} of{" "}
+                    {filtered.length}
+                  </p>
+                  <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={currentProductPage <= 1}
+                      onClick={() => setProductPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: productTotalPages }, (_, i) => i + 1).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        className={
+                          n === currentProductPage ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"
+                        }
+                        aria-current={n === currentProductPage ? "page" : undefined}
+                        onClick={() => setProductPage(n)}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={currentProductPage >= productTotalPages}
+                      onClick={() => setProductPage((p) => Math.min(productTotalPages, p + 1))}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="panel" style={{ padding: "1.1rem" }}>

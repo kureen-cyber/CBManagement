@@ -119,6 +119,39 @@ export function serializeVariableOptions(options: VariableOption[]): string {
   );
 }
 
+/**
+ * Fill blank option SKUs as `{parentSku}-01`, `{parentSku}-02`, …
+ * Manual SKUs are kept. `used` is updated so assignments stay unique.
+ */
+export function assignOptionSkus(
+  parentSku: string,
+  variables: ProductVariableDef[],
+  used: Set<string>,
+): ProductVariableDef[] {
+  const base = String(parentSku || "SKU").trim() || "SKU";
+  const parentKey = base.toUpperCase();
+  used.add(parentKey);
+
+  return variables.map((v) => ({
+    ...v,
+    options: v.options.map((o) => {
+      const existing = String(o.sku ?? "").trim();
+      if (existing) {
+        used.add(existing.toUpperCase());
+        return { ...o, sku: existing };
+      }
+      let n = 1;
+      let next = "";
+      do {
+        next = `${base}-${String(n).padStart(2, "0")}`;
+        n += 1;
+      } while (used.has(next.toUpperCase()));
+      used.add(next.toUpperCase());
+      return { ...o, sku: next };
+    }),
+  }));
+}
+
 /** Sum option qtys across variables (used when at least one option has qty tracking). */
 export function sumOptionStock(variables: ProductVariableDef[]): number {
   let sum = 0;

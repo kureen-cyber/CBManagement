@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { nextNumber, nextSku } from "@/lib/business";
+import { nextNumber, nextSku, usedInventorySkus } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
 import { DEFERRED_PAYMENT_CODE } from "@/lib/receivables";
@@ -23,6 +23,7 @@ import {
 } from "@/lib/owner-drawings";
 import {
   applyOptionQtyDelta,
+  assignOptionSkus,
   coerceVariableOption,
   findOptionForVariantLabel,
   hasOptionStock,
@@ -600,9 +601,11 @@ export async function createProduct(formData: FormData) {
     return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
-  const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
+  const rawVariables = parseProductVariables(String(formData.get("variablesJson") || ""));
   const manualSku = String(formData.get("sku") || "").trim();
   const sku = manualSku || (await nextSku(companyId));
+  const usedSkus = await usedInventorySkus(companyId);
+  const variables = assignOptionSkus(sku, rawVariables, usedSkus);
   const optionStockTotal = hasOptionStock(variables) ? sumOptionStock(variables) : null;
   const resolvedOpening =
     isService ? 0 : optionStockTotal != null ? optionStockTotal : opening;
@@ -696,7 +699,10 @@ export async function updateProduct(formData: FormData) {
     return { error: err instanceof Error ? err.message : "Could not upload photo" };
   }
 
-  const variables = parseProductVariables(String(formData.get("variablesJson") || ""));
+  const rawVariables = parseProductVariables(String(formData.get("variablesJson") || ""));
+  const sku = String(formData.get("sku") || "").trim() || existing.sku || (await nextSku(companyId));
+  const usedSkus = await usedInventorySkus(companyId, id);
+  const variables = assignOptionSkus(sku, rawVariables, usedSkus);
   const optionStockTotal = hasOptionStock(variables) ? sumOptionStock(variables) : null;
   const nextStockQty = isService
     ? 0
@@ -711,7 +717,7 @@ export async function updateProduct(formData: FormData) {
       where: { id },
       data: {
         name: String(formData.get("name") || "").trim(),
-        sku: String(formData.get("sku") || "") || null,
+        sku,
         category,
         unit: String(formData.get("unit") || "each"),
         unitCost: dollarsToCents(formData.get("unitCost")),

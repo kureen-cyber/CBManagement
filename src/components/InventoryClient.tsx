@@ -111,6 +111,7 @@ function VariantTable({
         <thead>
           <tr>
             <th>{first.name}</th>
+            <th>SKU</th>
             <th>Price</th>
             <th>Cost</th>
             <th>Margin %</th>
@@ -136,6 +137,7 @@ function VariantTable({
                 <td>
                   <strong>{o.label}</strong>
                 </td>
+                <td className="muted">{o.sku || "—"}</td>
                 <td className="money">{price != null ? formatTTD(price) : "At POS"}</td>
                 <td className="money">{costCents != null ? formatTTD(costCents) : "—"}</td>
                 <td>{marginLabel(costCents, price)}</td>

@@ -1079,6 +1079,7 @@ export function PosTerminal({
                     {v.options.map((o) => (
                       <option key={o.label} value={o.label}>
                         {o.label}
+                        {o.sku ? ` · ${o.sku}` : ""}
                         {addModal.product.trackStock && !addModal.product.isService
                           ? ` (${o.qty} in stock)`
                           : ""}

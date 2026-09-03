@@ -34,6 +34,33 @@ export async function nextSku(companyId: string): Promise<string> {
   return `SKU-${String(maxSeq + 1).padStart(4, "0")}`;
 }
 
+/** All product and variant SKUs already in use for a company. */
+export async function usedInventorySkus(
+  companyId: string,
+  exceptProductId?: string,
+): Promise<Set<string>> {
+  const { parseVariableOptions } = await import("@/lib/product-variables");
+  const products = await prisma.product.findMany({
+    where: {
+      companyId,
+      ...(exceptProductId ? { id: { not: exceptProductId } } : {}),
+    },
+    select: { sku: true, variables: { select: { options: true } } },
+  });
+  const used = new Set<string>();
+  for (const p of products) {
+    const sku = String(p.sku || "").trim();
+    if (sku) used.add(sku.toUpperCase());
+    for (const v of p.variables) {
+      for (const o of parseVariableOptions(v.options)) {
+        const optionSku = String(o.sku || "").trim();
+        if (optionSku) used.add(optionSku.toUpperCase());
+      }
+    }
+  }
+  return used;
+}
+
 export type JobProfitability = {
   contractValue: number;
   labourCost: number;

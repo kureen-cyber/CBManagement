@@ -96,10 +96,8 @@ export function VariableOptionsEditor({
       </div>
       <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
         Example: name <em>Colour</em>, options <em>Red, Blue, Black</em>
-        {showQty
-          ? ", then set cost, price, stock, and SKU for each option in the table below."
-          : "."}{" "}
-        Names you save appear in the dropdown next time.
+        {showQty ? ", then set cost, price, stock, and SKU for each option." : ", then set a SKU for each option."}{" "}
+        Leave SKU blank to auto-generate from the item SKU (e.g. SKU-0001-01). Names you save appear in the dropdown next time.
       </p>
       {vars.map((v, idx) => (
         <div key={idx} className="stack" style={{ gap: "0.5rem" }}>
@@ -133,22 +131,27 @@ export function VariableOptionsEditor({
               Remove
             </button>
           </div>
-          {showQty && v.options.length > 0 ? (
+          {v.options.length > 0 ? (
             <div className="stack" style={{ gap: "0.35rem" }}>
               <span className="muted" style={{ fontSize: "0.82rem" }}>
-                {v.name || "Option"} details — opening stock totals automatically
+                {v.name || "Option"} details
+                {showQty ? " — opening stock totals automatically" : " — each option gets its own SKU"}
               </span>
               <div className="table-wrap">
                 <table className="data" style={{ fontSize: "0.82rem" }}>
                   <thead>
                     <tr>
                       <th>Option</th>
-                      <th>Cost</th>
-                      <th>Price</th>
-                      <th>In stock</th>
-                      <th>Low stock</th>
-                      <th>Optimal</th>
                       <th>SKU</th>
+                      {showQty ? (
+                        <>
+                          <th>Cost</th>
+                          <th>Price</th>
+                          <th>In stock</th>
+                          <th>Low stock</th>
+                          <th>Optimal</th>
+                        </>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -157,6 +160,21 @@ export function VariableOptionsEditor({
                         <td>
                           <strong>{o.label}</strong>
                         </td>
+                        <td>
+                          <input
+                            type="text"
+                            value={o.sku ?? ""}
+                            placeholder="Auto if blank"
+                            onChange={(e) =>
+                              setVars((prev) =>
+                                updateOption(prev, idx, oi, { sku: e.target.value }),
+                              )
+                            }
+                            style={{ width: "7.5rem" }}
+                          />
+                        </td>
+                        {showQty ? (
+                          <>
                         <td>
                           <input
                             type="number"
@@ -239,19 +257,8 @@ export function VariableOptionsEditor({
                             style={{ width: "4.5rem" }}
                           />
                         </td>
-                        <td>
-                          <input
-                            type="text"
-                            value={o.sku ?? ""}
-                            placeholder="SKU"
-                            onChange={(e) =>
-                              setVars((prev) =>
-                                updateOption(prev, idx, oi, { sku: e.target.value }),
-                              )
-                            }
-                            style={{ width: "6.5rem" }}
-                          />
-                        </td>
+                          </>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>

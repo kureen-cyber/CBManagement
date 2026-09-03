@@ -12,15 +12,35 @@ import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { payablesTotal, fetchOutstandingPayables } from "@/lib/payables";
 import {
   parseVariableOptions,
+  parseVariantFromDescription,
   resolveSaleUnitCost,
   type ProductVariableDef,
 } from "@/lib/product-variables";
 
 export const dynamic = "force-dynamic";
 
-function itemDisplayName(description: string, productName?: string | null) {
-  const raw = (productName || description || "").replace(/^Refund:\s*/i, "").trim();
-  return raw || description;
+function itemBaseName(description: string, productName?: string | null) {
+  const desc = String(description || "").replace(/^Refund:\s*/i, "").trim();
+  const product = String(productName || "").trim();
+  if (product) return product;
+  // Strip trailing "(Colour: Red)" style suffix from free-text descriptions.
+  return desc.replace(/\s*\([^)]*:\s*[^)]+\)\s*$/, "").trim() || desc;
+}
+
+function lineVariantLabel(
+  description: string,
+  productName: string | null | undefined,
+  variantLabel: string | null | undefined,
+): string {
+  const stored = String(variantLabel || "").trim();
+  if (stored) return stored;
+  const product = String(productName || "").trim();
+  if (product) {
+    return parseVariantFromDescription(product, description)?.trim() || "";
+  }
+  const desc = String(description || "").replace(/^Refund:\s*/i, "").trim();
+  const match = desc.match(/\(([^)]*:\s*[^)]+)\)\s*$/);
+  return match?.[1]?.trim() || "";
 }
 
 function productVariables(
@@ -136,6 +156,7 @@ export default async function ReportsPage({
     string,
     {
       name: string;
+      variant: string | null;
       category: string;
       qty: number;
       netSales: number;
@@ -164,10 +185,13 @@ export default async function ReportsPage({
 
     const category =
       line.product?.category || (service ? "Service — fixed price" : "General");
-    const name = itemDisplayName(line.description, line.product?.name);
-    const key = `${name}::${category}`;
+    const name = itemBaseName(line.description, line.product?.name);
+    const variant =
+      lineVariantLabel(line.description, line.product?.name, line.variantLabel) || null;
+    const key = `${name}::${variant || ""}::${category}`;
     const existing = itemMap.get(key) || {
       name,
+      variant,
       category,
       qty: 0,
       netSales: 0,

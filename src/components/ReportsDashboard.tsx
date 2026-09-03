@@ -47,6 +47,7 @@ export type ReportsData = {
   incomeByCategory: { category: string; amount: number; kind: string }[];
   salesByItem: {
     name: string;
+    variant: string | null;
     category: string;
     qty: number;
     netSales: number;
@@ -458,6 +459,7 @@ export function ReportsDashboard({
     return data.salesByItem.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
+        (r.variant || "").toLowerCase().includes(q) ||
         r.category.toLowerCase().includes(q),
     );
   }, [data.salesByItem, itemQuery]);
@@ -727,13 +729,20 @@ export function ReportsDashboard({
       {tab === "by-item" ? (
         <Panel className="report-tab-panel">
           <h3>Sales by item</h3>
-          <p className="muted">Item name, category, qty sold, net sales, cost of goods, and gross profit.</p>
-          <SearchBar value={itemQuery} onChange={setItemQuery} placeholder="Search item name or category…" />
+          <p className="muted">
+            Item name, sold variant, category, qty sold, net sales, cost of goods, and gross profit.
+          </p>
+          <SearchBar
+            value={itemQuery}
+            onChange={setItemQuery}
+            placeholder="Search item, variant, or category…"
+          />
           <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
                 <tr>
                   <th>Item name</th>
+                  <th>Variant</th>
                   <th>Category</th>
                   <th>Qty sold</th>
                   <th>Net sales</th>
@@ -743,13 +752,14 @@ export function ReportsDashboard({
               </thead>
               <tbody>
                 {filteredItems.map((r) => (
-                  <tr key={`${r.name}-${r.category}`}>
+                  <tr key={`${r.name}-${r.variant || ""}-${r.category}`}>
                     <td>
                       <strong>{r.name}</strong>
                       <div className="muted" style={{ fontSize: "0.75rem" }}>
                         {r.isService ? "Service" : "Retail"}
                       </div>
                     </td>
+                    <td>{r.variant || "—"}</td>
                     <td>{r.category}</td>
                     <td>{r.qty}</td>
                     <td className="money">{formatTTD(r.netSales)}</td>
@@ -759,7 +769,7 @@ export function ReportsDashboard({
                 ))}
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
+                    <td colSpan={7} className="muted">
                       No matching items this period.
                     </td>
                   </tr>
@@ -838,14 +848,18 @@ export function ReportsDashboard({
                       {open
                         ? items.map((item) => (
                             <tr
-                              key={`${r.category}-${item.name}`}
+                              key={`${r.category}-${item.name}-${item.variant || ""}`}
                               className="category-item-row"
                             >
                               <td />
                               <td style={{ paddingLeft: "1.25rem" }}>
                                 <span>{item.name}</span>
                                 <div className="muted" style={{ fontSize: "0.72rem" }}>
-                                  {item.isService ? "Service" : "Retail"}
+                                  {item.variant
+                                    ? item.variant
+                                    : item.isService
+                                      ? "Service"
+                                      : "Retail"}
                                 </div>
                               </td>
                               <td>{item.qty}</td>

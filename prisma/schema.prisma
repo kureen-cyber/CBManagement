@@ -384,6 +384,8 @@ model Employee {
   email               String?
   phone               String?
   role                String?
+  /// Default leadership position: OWNER | MANAGER (at most one of each per company)
+  systemRole          String?
   hourlyRate          Int       @default(0)
   dateOfEngagement    DateTime?
   dateOfTermination   DateTime?
@@ -403,6 +405,7 @@ model Employee {
   payslips           EmployeePayslip[]
   payments           Payment[]
 
+  @@unique([companyId, systemRole])
   @@index([companyId])
 }
 

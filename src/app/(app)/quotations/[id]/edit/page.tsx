@@ -6,6 +6,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { PageHeader, Panel } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
 import { parseSupplyLinesJson } from "@/lib/supply-lines";
+import { excludeSystemCustomers } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,8 @@ export default async function QuotationEditPage({
         ? [{ name: "Other", amount: quote.otherCost }]
         : [];
 
+  const crmCustomers = excludeSystemCustomers(customers);
+
   return (
     <div className="stack">
       <PageHeader
@@ -56,7 +59,7 @@ export default async function QuotationEditPage({
       />
       <Panel style={{ padding: "1.25rem" }}>
         <QuotationForm
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
           supplyCatalog={supplyItems.map((i) => ({
             id: i.id,
             name: i.name,

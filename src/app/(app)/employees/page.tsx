@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { createEmployee } from "@/app/actions";
+import { ensureDefaultLeadershipEmployees, isSystemEmployee } from "@/lib/owner-drawings";
 import { AddEntityTab } from "@/components/AddEntityTab";
 import { EmployeeFormFields } from "@/components/EmployeeFormFields";
 import { PageHeader, Panel } from "@/components/ui";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EmployeesPage() {
   const { companyId } = await requireCompany();
+  await ensureDefaultLeadershipEmployees(companyId);
   const employees = await prisma.employee.findMany({
     where: { companyId },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -54,6 +56,11 @@ export default async function EmployeesPage() {
                       {e.firstName} {e.lastName}
                     </strong>
                   </Link>
+                  {isSystemEmployee(e) ? (
+                    <span className="badge badge-muted" style={{ marginLeft: "0.35rem" }}>
+                      Default
+                    </span>
+                  ) : null}
                 </td>
                 <td>{e.role ?? "—"}</td>
                 <td className="muted">

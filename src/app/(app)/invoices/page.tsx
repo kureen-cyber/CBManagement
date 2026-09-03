@@ -10,6 +10,7 @@ import { AddEntityTab } from "@/components/AddEntityTab";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
+import { excludeSystemCustomers } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,8 @@ export default async function InvoicesPage({
     }),
   ]);
 
+  const crmCustomers = excludeSystemCustomers(customers);
+
   return (
     <div className="stack">
       <PageHeader
@@ -60,7 +63,7 @@ export default async function InvoicesPage({
               <option value="" disabled>
                 Select
               </option>
-              {customers.map((c) => (
+              {crmCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

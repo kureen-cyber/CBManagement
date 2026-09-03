@@ -3,6 +3,7 @@ import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
+import { crmCustomerCountWhere } from "@/lib/owner-drawings";
 import { parsePlanTier, receiptVisibleSince } from "@/lib/tier";
 import { PageHeader, Panel } from "@/components/ui";
 import { formatAppDateTime } from "@/lib/timezone";
@@ -31,7 +32,7 @@ export async function RetailDashboard() {
         soldAt: { gte: todayStart, lte: todayEnd },
       },
     }),
-    prisma.customer.count({ where: { companyId } }),
+    prisma.customer.count({ where: crmCustomerCountWhere(companyId) }),
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.findMany({
       where: {

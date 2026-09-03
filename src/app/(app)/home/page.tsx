@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { getBusinessType } from "@/lib/session-business";
 import { requireCompany } from "@/lib/company";
+import { crmCustomerCountWhere } from "@/lib/owner-drawings";
 import { isRetailOnly, isServiceOnly } from "@/lib/business-type";
 import { parseHomeLayout } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
@@ -114,7 +115,7 @@ export default async function DashboardPage() {
       where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
       select: { total: true, amountPaid: true, dueDate: true },
     }),
-    prisma.customer.count({ where: { companyId } }),
+    prisma.customer.count({ where: crmCustomerCountWhere(companyId) }),
     prisma.employee.count({ where: { companyId, active: true } }),
     prisma.product.findMany({ where: { companyId, trackStock: true, isService: false } }),
     prisma.sale.findMany({

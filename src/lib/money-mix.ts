@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { categorizeOutflow } from "@/lib/bank-ledger";
-import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
+import { isOwnerDrawingPayment } from "@/lib/owner-drawings";
 
 export type MoneyMixBucket = "expenses" | "materials" | "growth" | "reserve" | "drawings";
 
@@ -75,6 +75,7 @@ export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlic
         employeeId: true,
         supplierId: true,
         customer: { select: { name: true } },
+        employee: { select: { systemRole: true } },
       },
     }),
   ]);
@@ -96,7 +97,7 @@ export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlic
     totals.materials += p.totalCost;
   }
   for (const pay of salaryPayments) {
-    if (isOwnerDrawingsCustomer(pay.customer?.name) || (String(pay.kind || "").toUpperCase() === "SALARY" && !pay.employeeId && !pay.supplierId)) {
+    if (isOwnerDrawingPayment(pay)) {
       totals.drawings += pay.amount;
     } else if (pay.employeeId || String(pay.notes || "").toLowerCase().startsWith("salary")) {
       totals.expenses += pay.amount;

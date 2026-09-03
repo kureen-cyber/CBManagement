@@ -11,6 +11,7 @@ import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { QuotationForm } from "@/components/QuotationForm";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
+import { excludeSystemCustomers } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export default async function QuotationsPage({
     }),
   ]);
 
+  const crmCustomers = excludeSystemCustomers(customers);
+
   return (
     <div className="stack">
       <PageHeader
@@ -53,7 +56,7 @@ export default async function QuotationsPage({
       </Panel>
       <AddEntityTab label="Add quotation" title="New quotation" wide>
         <QuotationForm
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
           supplyCatalog={supplyItems.map((i) => ({
             id: i.id,
             name: i.name,

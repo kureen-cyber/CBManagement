@@ -9,7 +9,8 @@ import { PaymentsAddTabs } from "@/components/PaymentsAddTabs";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
 import {
-  ensureManagerOwnerCustomer,
+  ensureDefaultLeadershipEmployees,
+  employeeDisplayName,
   excludeSystemCustomers,
   isSalaryPayment,
 } from "@/lib/owner-drawings";
@@ -25,7 +26,7 @@ export default async function PaymentsPage({
   const planTier = parsePlanTier(company.planTier);
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
 
-  const managerOwner = await ensureManagerOwnerCustomer(companyId);
+  await ensureDefaultLeadershipEmployees(companyId);
 
   const [customers, suppliers, employees, invoices, payments, sales] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
@@ -76,10 +77,10 @@ export default async function PaymentsPage({
         />
       </Panel>
       <PaymentsAddTabs
-        managerOwnerCustomerId={managerOwner.id}
         employees={employees.map((e) => ({
           id: e.id,
-          name: `${e.firstName} ${e.lastName}`.trim(),
+          name: employeeDisplayName(e),
+          systemRole: e.systemRole,
         }))}
         customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}

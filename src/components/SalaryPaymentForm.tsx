@@ -1,21 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { recordSalaryPayment } from "@/app/actions";
-import { MANAGER_OWNER_CUSTOMER_NAME, MANAGER_OWNER_PAYEE_ID } from "@/lib/owner-drawings";
+import {
+  MANAGER_POSITION_LABEL,
+  MANAGER_SYSTEM_ROLE,
+  OWNER_POSITION_LABEL,
+  OWNER_SYSTEM_ROLE,
+} from "@/lib/owner-drawings";
 
-export function SalaryPaymentForm({
-  employees,
-  managerOwnerCustomerId,
-}: {
-  employees: { id: string; name: string }[];
-  managerOwnerCustomerId: string;
-}) {
+type EmployeeOption = {
+  id: string;
+  name: string;
+  systemRole?: string | null;
+};
+
+export function SalaryPaymentForm({ employees }: { employees: EmployeeOption[] }) {
   const [payeeId, setPayeeId] = useState("");
+
+  const { owner, manager, staff } = useMemo(() => {
+    const ownerEmp = employees.find((e) => e.systemRole === OWNER_SYSTEM_ROLE);
+    const managerEmp = employees.find((e) => e.systemRole === MANAGER_SYSTEM_ROLE);
+    const regular = employees.filter(
+      (e) => e.systemRole !== OWNER_SYSTEM_ROLE && e.systemRole !== MANAGER_SYSTEM_ROLE,
+    );
+    return { owner: ownerEmp, manager: managerEmp, staff: regular };
+  }, [employees]);
+
+  const isOwnerDrawing = payeeId === owner?.id;
 
   return (
     <form action={recordSalaryPayment} className="form-grid">
-      <input type="hidden" name="managerOwnerCustomerId" value={managerOwnerCustomerId} />
       <label className="field full">
         Employee
         <select
@@ -27,14 +42,23 @@ export function SalaryPaymentForm({
           <option value="" disabled>
             Select
           </option>
-          <optgroup label="Owner / manager">
-            <option value={MANAGER_OWNER_PAYEE_ID}>
-              {MANAGER_OWNER_CUSTOMER_NAME} — owner drawings
-            </option>
-          </optgroup>
-          {employees.length > 0 ? (
+          {owner || manager ? (
+            <optgroup label="Leadership">
+              {owner ? (
+                <option value={owner.id}>
+                  {owner.name || OWNER_POSITION_LABEL} — owner drawings
+                </option>
+              ) : null}
+              {manager ? (
+                <option value={manager.id}>
+                  {manager.name || MANAGER_POSITION_LABEL} — salary
+                </option>
+              ) : null}
+            </optgroup>
+          ) : null}
+          {staff.length > 0 ? (
             <optgroup label="Employees">
-              {employees.map((e) => (
+              {staff.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name}
                 </option>
@@ -43,7 +67,8 @@ export function SalaryPaymentForm({
           ) : null}
         </select>
         <span className="muted" style={{ fontSize: "0.78rem", marginTop: "0.25rem" }}>
-          Salary and owner drawings are recorded under Salary Payments — not as customer income.
+          Owner drawings are recorded only from the Owner position. Manager and other staff
+          payments count as salary.
         </span>
       </label>
       <label className="field">
@@ -66,7 +91,7 @@ export function SalaryPaymentForm({
       </label>
       <div className="full">
         <button className="btn btn-primary" type="submit">
-          {payeeId === MANAGER_OWNER_PAYEE_ID ? "Record owner drawing" : "Record salary payment"}
+          {isOwnerDrawing ? "Record owner drawing" : "Record salary payment"}
         </button>
       </div>
     </form>

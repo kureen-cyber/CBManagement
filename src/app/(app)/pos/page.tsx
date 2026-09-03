@@ -18,6 +18,7 @@ import {
 import { parseInventoryViewMode } from "@/lib/settings";
 import { parseVariableOptions } from "@/lib/product-variables";
 import { resolveRegisterAccess } from "@/lib/register-access";
+import { excludeSystemCustomers } from "@/lib/owner-drawings";
 import {
   readActiveRegisterIdFromCookies,
   readActiveStoreIdFromCookies,
@@ -186,7 +187,7 @@ export default async function PosPage() {
             options: parseVariableOptions(v.options),
           })),
         }))}
-        customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+        customers={excludeSystemCustomers(customers).map((c) => ({ id: c.id, name: c.name }))}
       />
 
       <Panel className="table-wrap list-dense">

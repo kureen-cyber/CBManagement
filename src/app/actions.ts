@@ -11,10 +11,13 @@ import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } 
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 import {
-  ensureManagerOwnerCustomer,
+  ensureDefaultLeadershipEmployees,
   isOwnerDrawingsCustomer,
+  isOwnerEmployee,
+  isOwnerDrawingPayment,
+  isSystemEmployee,
   MANAGER_OWNER_CUSTOMER_NAME,
-  MANAGER_OWNER_PAYEE_ID,
+  OWNER_POSITION_LABEL,
   PAYMENT_KIND_OPERATIONAL,
   PAYMENT_KIND_SALARY,
 } from "@/lib/owner-drawings";
@@ -934,13 +937,18 @@ export async function updateEmployee(formData: FormData) {
 
   const profile = employeeProfileFromForm(formData);
   if (!profile.firstName || !profile.lastName) {
-    throw new Error("First and last name are required");
+    if (!isSystemEmployee(existing)) {
+      throw new Error("First and last name are required");
+    }
   }
 
   await prisma.employee.update({
     where: { id },
     data: {
       ...profile,
+      firstName: profile.firstName || existing.firstName,
+      lastName: isSystemEmployee(existing) ? "" : profile.lastName,
+      role: isSystemEmployee(existing) ? existing.role : profile.role,
       active: formData.get("active") === "on",
     },
   });
@@ -1629,47 +1637,28 @@ export async function recordSalaryPayment(formData: FormData) {
   const amount = dollarsToCents(formData.get("amount"));
   const method = String(formData.get("method") || "BANK");
   const paidAt = new Date(String(formData.get("paidAt") || new Date().toISOString()));
-  const managerOwnerCustomerId = String(formData.get("managerOwnerCustomerId") || "");
 
   if (amount <= 0) throw new Error("Amount must be greater than zero");
-  if (!payeeId) throw new Error("Select an employee or Manager/Owner");
+  if (!payeeId) throw new Error("Select an employee");
 
-  if (payeeId === MANAGER_OWNER_PAYEE_ID) {
-    const manager =
-      (managerOwnerCustomerId
-        ? await prisma.customer.findFirst({ where: { id: managerOwnerCustomerId, companyId } })
-        : null) || (await ensureManagerOwnerCustomer(companyId));
+  const employee = await prisma.employee.findFirst({ where: { id: payeeId, companyId } });
+  if (!employee) throw new Error("Employee not found");
 
-    await prisma.payment.create({
-      data: {
-        companyId,
-        kind: PAYMENT_KIND_SALARY,
-        customerId: manager.id,
-        amount,
-        method,
-        paidAt,
-        notes: "Owner drawing",
-        reference: MANAGER_OWNER_CUSTOMER_NAME,
-      },
-    });
-  } else {
-    const employee = await prisma.employee.findFirst({ where: { id: payeeId, companyId } });
-    if (!employee) throw new Error("Employee not found");
-    const name = `${employee.firstName} ${employee.lastName}`.trim();
+  const name = `${employee.firstName} ${employee.lastName}`.trim() || employee.role || "Employee";
+  const ownerDrawing = isOwnerEmployee(employee);
 
-    await prisma.payment.create({
-      data: {
-        companyId,
-        kind: PAYMENT_KIND_SALARY,
-        employeeId: employee.id,
-        amount,
-        method,
-        paidAt,
-        notes: `Salary — ${name}`,
-        reference: name,
-      },
-    });
-  }
+  await prisma.payment.create({
+    data: {
+      companyId,
+      kind: PAYMENT_KIND_SALARY,
+      employeeId: employee.id,
+      amount,
+      method,
+      paidAt,
+      notes: ownerDrawing ? "Owner drawing" : `Salary — ${name}`,
+      reference: ownerDrawing ? OWNER_POSITION_LABEL : name,
+    },
+  });
 
   revalidatePath("/payments");
   revalidatePath("/employees");

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isSalaryPayment } from "@/lib/owner-drawings";
+import { isOwnerDrawingPayment, isSalaryPayment } from "@/lib/owner-drawings";
 
 export type BankMovement = {
   id: string;
@@ -75,6 +75,7 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
   const raw: Raw[] = [];
 
   for (const p of payments) {
+    const ownerDrawing = isOwnerDrawingPayment(p);
     const salary = isSalaryPayment(p);
     const supplierOut = Boolean(p.supplierId);
     const isOut = salary || supplierOut;
@@ -85,27 +86,29 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
     raw.push({
       id: `pay-${p.id}`,
       date: p.paidAt,
-      description: salary
-        ? employeeName
-          ? `Salary — ${employeeName}`
-          : "Owner/manager drawing"
-        : supplierOut
-          ? `Supplier payment — ${p.supplier?.name || "Supplier"}`
-          : p.invoice
-            ? `Payment — invoice ${p.invoice.number}`
-            : p.sale
-              ? `Payment — receipt ${p.sale.number}`
-              : `Payment — ${p.customer?.name || "Customer"}`,
+      description: ownerDrawing
+        ? "Owner drawing"
+        : salary
+          ? employeeName
+            ? `Salary — ${employeeName}`
+            : "Salary payment"
+          : supplierOut
+            ? `Supplier payment — ${p.supplier?.name || "Supplier"}`
+            : p.invoice
+              ? `Payment — invoice ${p.invoice.number}`
+              : p.sale
+                ? `Payment — receipt ${p.sale.number}`
+                : `Payment — ${p.customer?.name || "Customer"}`,
       reference: p.reference || p.id.slice(-8).toUpperCase(),
       type: isOut ? "out" : "in",
       amount: p.amount,
-      category: salary
-        ? employeeName
+      category: ownerDrawing
+        ? "drawings"
+        : salary
           ? "expenses"
-          : "drawings"
-        : supplierOut
-          ? "expenses"
-          : "Payment received",
+          : supplierOut
+            ? "expenses"
+            : "Payment received",
     });
   }
 

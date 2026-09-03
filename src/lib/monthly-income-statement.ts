@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isOwnerDrawingsCustomer, isSalaryPayment } from "@/lib/owner-drawings";
+import { isOwnerDrawingPayment, isSalaryPayment } from "@/lib/owner-drawings";
 
 export const INCOME_STATEMENT_MONTHS = [
   "Jan",
@@ -184,6 +184,7 @@ export async function fetchMonthlyIncomeStatement(
         reference: true,
         notes: true,
         customer: { select: { name: true } },
+        employee: { select: { systemRole: true } },
       },
     }),
     prisma.supplierPurchase.findMany({
@@ -256,11 +257,11 @@ export async function fetchMonthlyIncomeStatement(
   }
 
   for (const pay of payments) {
-    if (isOwnerDrawingsCustomer(pay.customer?.name) || (isSalaryPayment(pay) && !pay.employeeId)) {
+    if (isOwnerDrawingPayment(pay)) {
       addToMonth(ownersWithdrawal, pay.paidAt, pay.amount);
       continue;
     }
-    if (pay.employeeId) {
+    if (pay.employeeId || isSalaryPayment(pay)) {
       addToMonth(salariesWages, pay.paidAt, pay.amount);
       continue;
     }
@@ -547,7 +548,7 @@ export async function fetchMonthlyIncomeStatement(
       "Owner's Withdrawal",
       ownersWithdrawal,
       "line",
-      "Manager/Owner drawings and owner withdrawal expenses",
+      "Owner drawings and owner withdrawal expenses",
     ),
     line(
       "totalCashPaidOut",

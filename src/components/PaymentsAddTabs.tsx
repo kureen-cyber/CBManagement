@@ -22,14 +22,12 @@ type SaleOption = {
 
 export function PaymentsAddTabs({
   employees,
-  managerOwnerCustomerId,
   customers,
   suppliers,
   invoices,
   sales,
 }: {
-  employees: { id: string; name: string }[];
-  managerOwnerCustomerId: string;
+  employees: { id: string; name: string; systemRole?: string | null }[];
   customers: { id: string; name: string }[];
   suppliers: { id: string; name: string }[];
   invoices: InvoiceOption[];
@@ -110,10 +108,7 @@ export function PaymentsAddTabs({
             </div>
 
             {tab === "salary" ? (
-              <SalaryPaymentForm
-                employees={employees}
-                managerOwnerCustomerId={managerOwnerCustomerId}
-              />
+              <SalaryPaymentForm employees={employees} />
             ) : (
               <PaymentForm
                 customers={customers}

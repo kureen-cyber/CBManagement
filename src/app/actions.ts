@@ -11,10 +11,8 @@ import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } 
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
 import {
-  ensureDefaultLeadershipEmployees,
   isOwnerDrawingsCustomer,
   isOwnerEmployee,
-  isOwnerDrawingPayment,
   isSystemEmployee,
   MANAGER_OWNER_CUSTOMER_NAME,
   OWNER_POSITION_LABEL,
@@ -229,7 +227,7 @@ async function applyProductStockDelta(
           ? `${variables[0]!.name}: ${variables[0]!.options[0]!.label}`
           : "";
       const labelToUse = variantLabel || fallbackLabel;
-      let applied = labelToUse
+      const applied = labelToUse
         ? applyOptionQtyDelta(variables, labelToUse, quantityDelta)
         : null;
 
@@ -2546,7 +2544,7 @@ export async function completePosSale(input: {
 
 /** Issue a full refund for a completed sale (both POS registers). Restores stock. */
 export async function refundPosSale(saleId: string, posRegisterId?: string | null) {
-  const { companyId, company } = await requireCompany();
+  const { companyId } = await requireCompany();
   const original = await prisma.sale.findFirst({
     where: { id: saleId, companyId, status: "COMPLETED", isRefund: false },
     include: { lines: true },

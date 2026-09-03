@@ -195,7 +195,7 @@ async function applyMissingStockDelta(input: {
           ? `${variables[0]!.name}: ${variables[0]!.options[0]!.label}`
           : "";
       const labelToUse = variantLabel || fallbackLabel;
-      let applied = labelToUse
+      const applied = labelToUse
         ? applyOptionQtyDelta(variables, labelToUse, input.quantityDelta)
         : null;
 

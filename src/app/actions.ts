@@ -195,7 +195,9 @@ async function applyProductStockDelta(
     where: { id: productId },
     include: { variables: { orderBy: { sortOrder: "asc" } } },
   });
-  if (!product || !product.trackStock || product.isService) return;
+  if (!product || !product.trackStock || product.isService) {
+    return { stockQty: product?.stockQty ?? 0, variables: null as ProductVariableDef[] | null };
+  }
 
   const variables: ProductVariableDef[] = product.variables.map((v) => ({
     name: v.name,
@@ -203,6 +205,9 @@ async function applyProductStockDelta(
   }));
   const tracksOptions = hasOptionStock(variables);
   const variantLabel = String(opts?.variantLabel || "").trim();
+
+  let nextVariables: ProductVariableDef[] | null = null;
+  let nextQty = product.stockQty;
 
   await prisma.$transaction(async (tx) => {
     if (opts?.movement) {
@@ -218,32 +223,70 @@ async function applyProductStockDelta(
       });
     }
 
-    if (tracksOptions && variantLabel) {
-      const applied = applyOptionQtyDelta(variables, variantLabel, quantityDelta);
+    if (tracksOptions) {
+      const fallbackLabel =
+        variables[0]?.options.length === 1
+          ? `${variables[0]!.name}: ${variables[0]!.options[0]!.label}`
+          : "";
+      const labelToUse = variantLabel || fallbackLabel;
+      let applied = labelToUse
+        ? applyOptionQtyDelta(variables, labelToUse, quantityDelta)
+        : null;
+
       if (applied) {
-        const nextQty = sumOptionStock(applied);
+        const optionsHadStock = variables[0]!.options.some((o) => o.qty > 0);
+        if (!optionsHadStock && product.stockQty > 0) {
+          // Option rows exist but were never stocked — product.stockQty is the source of truth.
+          nextQty = Math.max(0, product.stockQty + quantityDelta);
+          const hit = findOptionForVariantLabel(applied, labelToUse);
+          nextVariables = applied.map((v, vi) => ({
+            ...v,
+            options: v.options.map((o, oi) =>
+              hit && vi === hit.variableIndex && oi === hit.optionIndex
+                ? { ...o, qty: nextQty }
+                : { ...o, qty: vi === 0 ? 0 : o.qty },
+            ),
+          }));
+        } else {
+          nextVariables = applied;
+          nextQty = sumOptionStock(applied);
+        }
+
+        for (const next of nextVariables!) {
+          const row = product.variables.find((v) => v.name === next.name);
+          if (row) {
+            await tx.productVariable.update({
+              where: { id: row.id },
+              data: { options: serializeVariableOptions(next.options) },
+            });
+          } else {
+            await tx.productVariable.create({
+              data: {
+                productId,
+                name: next.name,
+                options: serializeVariableOptions(next.options),
+                sortOrder: product.variables.length,
+              },
+            });
+          }
+        }
+
         await tx.product.update({
           where: { id: productId },
           data: { stockQty: nextQty },
-        });
-        await tx.productVariable.deleteMany({ where: { productId } });
-        await tx.productVariable.createMany({
-          data: applied.map((v, i) => ({
-            productId,
-            name: v.name,
-            options: serializeVariableOptions(v.options),
-            sortOrder: i,
-          })),
         });
         return;
       }
     }
 
+    nextQty = product.stockQty + quantityDelta;
     await tx.product.update({
       where: { id: productId },
       data: { stockQty: { increment: quantityDelta } },
     });
   });
+
+  return { stockQty: nextQty, variables: nextVariables };
 }
 
 /** Attach a product category name to the active store's category list. */
@@ -864,15 +907,24 @@ export async function adjustProductStock(formData: FormData) {
       },
     });
     if (tracksOptions) {
-      await tx.productVariable.deleteMany({ where: { productId: id } });
-      await tx.productVariable.createMany({
-        data: nextVariables.map((v, i) => ({
-          productId: id,
-          name: v.name,
-          options: serializeVariableOptions(v.options),
-          sortOrder: i,
-        })),
-      });
+      for (const next of nextVariables) {
+        const row = product.variables.find((v) => v.name === next.name);
+        if (row) {
+          await tx.productVariable.update({
+            where: { id: row.id },
+            data: { options: serializeVariableOptions(next.options) },
+          });
+        } else {
+          await tx.productVariable.create({
+            data: {
+              productId: id,
+              name: next.name,
+              options: serializeVariableOptions(next.options),
+              sortOrder: product.variables.length,
+            },
+          });
+        }
+      }
     }
   });
 
@@ -2381,43 +2433,69 @@ export async function completePosSale(input: {
     });
   }
 
-  for (const line of built) {
-    if (!line.trackStock) continue;
-    await applyProductStockDelta(line.productId!, -line.quantity, {
-      variantLabel: line.variantLabel,
-      movement: {
-        type: "USAGE",
-        quantity: -line.quantity,
-        unitCost: byId[line.productId!]?.unitCost ?? 0,
-        reference: sale.number,
-        notes: line.variantLabel ? `POS sale (${line.variantLabel})` : "POS sale",
-      },
-    });
+  const stockUpdates: {
+    productId: string;
+    stockQty: number;
+    variables: ProductVariableDef[] | null;
+  }[] = [];
 
-    // Low-stock email when feature enabled and item crosses min threshold
-    if (company.featureLowStockEmail) {
-      const updated = await prisma.product.findUnique({ where: { id: line.productId! } });
-      if (updated && updated.stockQty <= updated.minStock) {
-        const ownerEmail =
-          user && "email" in user ? String((user as { email?: string | null }).email || "") : "";
-        if (ownerEmail) {
-          const { sendEmail } = await import("@/lib/email");
-          await sendEmail({
-            to: ownerEmail,
-            subject: `[CBManagement] Low stock — ${updated.name}`,
-            text: [
-              `Business: ${company.name}`,
-              ``,
-              `${updated.name} is low or out of stock.`,
-              `Quantity on hand: ${updated.stockQty}`,
-              `Minimum: ${updated.minStock}`,
-              ``,
-              `— Complete Business Management (CBManagement)`,
-            ].join("\n"),
-          });
+  try {
+    for (const line of built) {
+      if (!line.trackStock) continue;
+      const updated = await applyProductStockDelta(line.productId!, -line.quantity, {
+        variantLabel: line.variantLabel,
+        movement: {
+          type: "USAGE",
+          quantity: -line.quantity,
+          unitCost: byId[line.productId!]?.unitCost ?? 0,
+          reference: sale.number,
+          notes: line.variantLabel ? `POS sale (${line.variantLabel})` : "POS sale",
+        },
+      });
+      stockUpdates.push({
+        productId: line.productId!,
+        stockQty: updated.stockQty,
+        variables: updated.variables,
+      });
+
+      // Low-stock email when feature enabled and item crosses min threshold
+      if (company.featureLowStockEmail) {
+        const updatedProduct = await prisma.product.findUnique({
+          where: { id: line.productId! },
+        });
+        if (updatedProduct && updatedProduct.stockQty <= updatedProduct.minStock) {
+          const ownerEmail =
+            user && "email" in user ? String((user as { email?: string | null }).email || "") : "";
+          if (ownerEmail) {
+            const { sendEmail } = await import("@/lib/email");
+            await sendEmail({
+              to: ownerEmail,
+              subject: `[CBManagement] Low stock — ${updatedProduct.name}`,
+              text: [
+                `Business: ${company.name}`,
+                ``,
+                `${updatedProduct.name} is low or out of stock.`,
+                `Quantity on hand: ${updatedProduct.stockQty}`,
+                `Minimum: ${updatedProduct.minStock}`,
+                ``,
+                `— Complete Business Management (CBManagement)`,
+              ].join("\n"),
+            });
+          }
         }
       }
     }
+  } catch (err) {
+    // Sale already committed — return it but surface the stock failure so the cashier knows.
+    return {
+      error: `Sale ${sale.number} was saved but stock could not be updated: ${
+        err instanceof Error ? err.message : "unknown error"
+      }. Open Inventory to refresh, or contact support.`,
+      saleId: sale.id,
+      number: sale.number,
+      total,
+      method: saleMethod,
+    };
   }
 
   let paymentCustomerId = input.customerId || null;
@@ -2457,7 +2535,13 @@ export async function completePosSale(input: {
   revalidatePath("/receivables");
   revalidatePath("/");
 
-  return { saleId: sale.id, number: sale.number, total, method: saleMethod };
+  return {
+    saleId: sale.id,
+    number: sale.number,
+    total,
+    method: saleMethod,
+    stockUpdates,
+  };
 }
 
 /** Issue a full refund for a completed sale (both POS registers). Restores stock. */

@@ -520,8 +520,32 @@ export function PosTerminal({
               method,
             },
       );
+      if (result && "stockUpdates" in result && Array.isArray(result.stockUpdates)) {
+        for (const upd of result.stockUpdates) {
+          setProducts((prev) =>
+            prev.map((p) =>
+              p.id === upd.productId
+                ? {
+                    ...p,
+                    stockQty: upd.stockQty,
+                    ...(upd.variables
+                      ? {
+                          variables: upd.variables.map((v) => ({
+                            name: v.name,
+                            options: v.options,
+                          })),
+                        }
+                      : {}),
+                  }
+                : p,
+            ),
+          );
+        }
+      }
       if ("error" in result && result.error) {
         setError(result.error);
+        if (result.saleId) setReceiptHref(`/pos/receipt/${result.saleId}`);
+        router.refresh();
         return;
       }
       clearTicket();

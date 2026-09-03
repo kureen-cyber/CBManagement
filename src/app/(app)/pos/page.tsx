@@ -31,6 +31,8 @@ export const dynamic = "force-dynamic";
 
 export default async function PosPage() {
   const { companyId, company } = await requireCompany();
+  const { reconcileMissingSaleStock } = await import("@/lib/stock-reconcile");
+  await reconcileMissingSaleStock(companyId);
   await ensureDefaultPaymentTypes(companyId);
   const stores = await ensureStoresForCompany(companyId);
   const cookieStoreId = await readActiveStoreIdFromCookies();

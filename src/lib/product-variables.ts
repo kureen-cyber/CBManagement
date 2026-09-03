@@ -152,17 +152,11 @@ export function assignOptionSkus(
   }));
 }
 
-/** Sum option qtys across variables (used when at least one option has qty tracking). */
+/** Sum option qtys on the primary (first) variable — the stock-keeping dimension. */
 export function sumOptionStock(variables: ProductVariableDef[]): number {
-  let sum = 0;
-  let anyQty = false;
-  for (const v of variables) {
-    for (const o of v.options) {
-      if (o.qty > 0) anyQty = true;
-      sum += o.qty;
-    }
-  }
-  return anyQty || variables.some((v) => v.options.length) ? sum : 0;
+  const primary = variables[0];
+  if (!primary?.options.length) return 0;
+  return primary.options.reduce((s, o) => s + nonNeg(o.qty), 0);
 }
 
 export function hasOptionStock(variables: ProductVariableDef[]): boolean {

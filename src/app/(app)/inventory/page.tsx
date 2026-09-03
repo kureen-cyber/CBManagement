@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
   const { companyId } = await requireCompany();
+  const { reconcileMissingSaleStock } = await import("@/lib/stock-reconcile");
+  await reconcileMissingSaleStock(companyId);
   const stores = await ensureStoresForCompany(companyId);
   const cookieStoreId = await readActiveStoreIdFromCookies();
   const activeStore = stores.find((s) => s.id === cookieStoreId) || stores[0] || null;

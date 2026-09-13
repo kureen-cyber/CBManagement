@@ -2115,7 +2115,7 @@ export async function saveOpenTicket(input: {
     if (!reg) posRegisterId = null;
   }
 
-  let customerId = input.customerId || null;
+  const customerId = input.customerId || null;
   if (customerId) {
     const customer = await prisma.customer.findFirst({
       where: { id: customerId, companyId },

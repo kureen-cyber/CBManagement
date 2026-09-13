@@ -40,6 +40,7 @@ export const SUPPLY_TYPES = [
   { value: "MATERIAL", label: "Material" },
   { value: "EQUIPMENT", label: "Equipment" },
   { value: "EQUIPMENT_RENTAL", label: "Equipment rental" },
+  { value: "STOCK_ITEM", label: "Stock item" },
 ] as const;
 
 export type SupplyType = (typeof SUPPLY_TYPES)[number]["value"];

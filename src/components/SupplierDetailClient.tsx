@@ -199,8 +199,8 @@ export function SupplierDetailClient({
           <AddEntityTab label="Add supply item" title="Add to supply database" wide>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
               In-house cost reference for this supplier — used when building quotations. Classify
-              each item as material, equipment, equipment rental, or an additional cost category you
-              define.
+              each item as material, equipment, equipment rental, stock item, or an additional cost
+              category you define.
             </p>
 
             <div className="panel" style={{ padding: "1rem", marginBottom: "1rem" }}>

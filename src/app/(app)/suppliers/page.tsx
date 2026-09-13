@@ -20,7 +20,7 @@ export default async function SuppliersPage() {
     <div className="stack">
       <PageHeader
         title="Suppliers"
-        description="Register vendors, keep a supply cost database for quotations, and track purchases. Open a supplier to classify items as material, equipment, or equipment rental."
+        description="Register vendors, keep a supply cost database for quotations, and track purchases. Open a supplier to classify items as material, equipment, equipment rental, or stock item."
       />
       <AddEntityTab label="Add supplier" title="Register supplier">
         <form action={createSupplier} className="form-grid" autoComplete="off">

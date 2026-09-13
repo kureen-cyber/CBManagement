@@ -104,7 +104,7 @@ export function QuotationForm({
         supplyType,
       },
     ]);
-    if (supplyType === "MATERIAL") {
+    if (supplyType === "MATERIAL" || supplyType === "STOCK_ITEM") {
       const current = toCents(Number(materials) || 0);
       setMaterials(centsToInput(current + lineCost));
     } else {
@@ -118,7 +118,7 @@ export function QuotationForm({
     const row = pickedLines.find((l) => l.key === key);
     if (!row) return;
     setPickedLines((prev) => prev.filter((l) => l.key !== key));
-    if (row.supplyType === "MATERIAL") {
+    if (row.supplyType === "MATERIAL" || row.supplyType === "STOCK_ITEM") {
       const current = toCents(Number(materials) || 0);
       setMaterials(centsToInput(Math.max(0, current - row.lineCost)));
     } else {
@@ -316,7 +316,8 @@ export function QuotationForm({
                   disabled={!selectedSupply}
                   onClick={addFromSupply}
                 >
-                  {selectedSupply?.supplyType === "MATERIAL"
+                  {selectedSupply?.supplyType === "MATERIAL" ||
+                  selectedSupply?.supplyType === "STOCK_ITEM"
                     ? "Add to materials"
                     : selectedSupply?.supplyType === "EQUIPMENT_RENTAL"
                       ? "Add to equipment (rental)"

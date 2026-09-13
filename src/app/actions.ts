@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { nextNumber, nextSku, usedInventorySkus } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
-import { DEFERRED_PAYMENT_CODE } from "@/lib/receivables";
+import { DEFERRED_PAYMENT_CODE, ensureWalkInCustomer } from "@/lib/receivables";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
@@ -2094,9 +2094,6 @@ export async function saveOpenTicket(input: {
   posRegisterId?: string | null;
 }) {
   const { companyId, company } = await requireCompany();
-  if (!company.featureOpenTickets) {
-    return { error: "Open tickets are disabled. Enable them in Settings → Features." };
-  }
   if (!input.lines.length) return { error: "Cart is empty" };
 
   const builtResult = await buildPosLines(companyId, input.lines);
@@ -2118,6 +2115,15 @@ export async function saveOpenTicket(input: {
     if (!reg) posRegisterId = null;
   }
 
+  let customerId = input.customerId || null;
+  if (customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: customerId, companyId },
+    });
+    if (!customer) return { error: "Customer not found" };
+  }
+  // Saved tickets stay on POS only — no Walk-in Customer / receivables until charged.
+
   if (input.ticketId) {
     const existing = await prisma.sale.findFirst({
       where: { id: input.ticketId, companyId, status: "OPEN" },
@@ -2127,7 +2133,7 @@ export async function saveOpenTicket(input: {
     const sale = await prisma.sale.update({
       where: { id: existing.id },
       data: {
-        customerId: input.customerId || null,
+        customerId,
         posRegisterId,
         method: input.method || existing.method || "CASH",
         notes: input.notes || null,
@@ -2157,7 +2163,7 @@ export async function saveOpenTicket(input: {
     data: {
       companyId,
       number: await nextNumber("TKT", "sale", companyId),
-      customerId: input.customerId || null,
+      customerId,
       posRegisterId,
       status: "OPEN",
       subtotal,
@@ -2335,8 +2341,10 @@ export async function completePosSale(input: {
     .filter((p) => p.method !== DEFERRED_PAYMENT_CODE)
     .reduce((s, p) => s + p.amount, 0);
 
-  if (hasDeferred && !input.customerId) {
-    return { error: "Select a customer for deferred payment" };
+  // Deferred / unpaid split balance needs a customer for receivables (Walk-in if none selected).
+  let customerId = input.customerId || null;
+  if (!customerId && amountPaid < total) {
+    customerId = (await ensureWalkInCustomer(companyId)).id;
   }
 
   const saleMethod =
@@ -2368,7 +2376,7 @@ export async function completePosSale(input: {
     sale = await prisma.sale.update({
       where: { id: existing.id },
       data: {
-        customerId: input.customerId || null,
+        customerId,
         posRegisterId,
         status: "COMPLETED",
         subtotal,
@@ -2404,7 +2412,7 @@ export async function completePosSale(input: {
       data: {
         companyId,
         number: await nextNumber("POS", "sale", companyId),
-        customerId: input.customerId || null,
+        customerId,
         posRegisterId,
         status: "COMPLETED",
         subtotal,
@@ -2506,19 +2514,7 @@ export async function completePosSale(input: {
     };
   }
 
-  let paymentCustomerId = input.customerId || null;
-  if (!paymentCustomerId) {
-    let walkIn = await prisma.customer.findFirst({
-      where: { companyId, name: "Walk-in Customer" },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!walkIn) {
-      walkIn = await prisma.customer.create({
-        data: { companyId, name: "Walk-in Customer", notes: "Auto-created for POS walk-ins" },
-      });
-    }
-    paymentCustomerId = walkIn.id;
-  }
+  const paymentCustomerId = customerId;
 
   for (const line of paymentLines) {
     if (line.method === DEFERRED_PAYMENT_CODE || line.amount <= 0) continue;

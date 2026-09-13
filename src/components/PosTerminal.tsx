@@ -505,10 +505,6 @@ export function PosTerminal({
         setError("Split payment amounts must equal the sale total");
         return;
       }
-      if (hasDeferredSplit && !customerId) {
-        setError("Select a customer for deferred payment");
-        return;
-      }
     }
     startTransition(async () => {
       const payload = {
@@ -1084,16 +1080,14 @@ export function PosTerminal({
                 >
                   {pending ? "Processing…" : "Charge & generate receipt"}
                 </button>
-                {openTicketsEnabled ? (
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    disabled={!cart.length || pending}
-                    onClick={holdTicket}
-                  >
-                    {openTicketId ? "Update saved ticket" : "Save as open ticket"}
-                  </button>
-                ) : null}
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  disabled={!cart.length || pending}
+                  onClick={holdTicket}
+                >
+                  {openTicketId ? "Update saved ticket" : "Save ticket"}
+                </button>
                 <button className="btn btn-secondary" type="button" onClick={clearTicket}>
                   Clear cart
                 </button>

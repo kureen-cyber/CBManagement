@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export const DEFERRED_PAYMENT_CODE = "DEFERRED";
 export const DEFERRED_PAYMENT_LABEL = "Deferred payment";
+export const WALK_IN_CUSTOMER_NAME = "Walk-in Customer";
 
 export type ReceivableSource = "POS" | "SERVICE";
 
@@ -17,6 +18,22 @@ export type ReceivableRow = {
   dueDate: Date | null;
   updatedAt: Date;
 };
+
+/** Ensure the company has a Walk-in Customer row for deferred POS receivables. */
+export async function ensureWalkInCustomer(companyId: string) {
+  const existing = await prisma.customer.findFirst({
+    where: { companyId, name: WALK_IN_CUSTOMER_NAME },
+    orderBy: { createdAt: "asc" },
+  });
+  if (existing) return existing;
+  return prisma.customer.create({
+    data: {
+      companyId,
+      name: WALK_IN_CUSTOMER_NAME,
+      notes: "Auto-created for POS walk-ins",
+    },
+  });
+}
 
 export async function fetchOutstandingReceivables(companyId: string): Promise<ReceivableRow[]> {
   const [invoices, sales] = await Promise.all([
@@ -60,7 +77,7 @@ export async function fetchOutstandingReceivables(companyId: string): Promise<Re
       source: "POS" as const,
       number: sale.number,
       customerId: sale.customerId || "",
-      customerName: sale.customer?.name || "Walk-in Customer",
+      customerName: sale.customer?.name || WALK_IN_CUSTOMER_NAME,
       total: sale.total,
       amountPaid: sale.amountPaid,
       balance: Math.max(0, sale.total - sale.amountPaid),

@@ -87,14 +87,12 @@ export default async function PosPage() {
       },
       orderBy: { name: "asc" },
     }),
-    company.featureOpenTickets
-      ? prisma.sale.findMany({
-          where: { companyId, status: "OPEN" },
-          orderBy: { updatedAt: "desc" },
-          include: { customer: true, lines: true },
-          take: 50,
-        })
-      : Promise.resolve([]),
+    prisma.sale.findMany({
+      where: { companyId, status: "OPEN" },
+      orderBy: { updatedAt: "desc" },
+      include: { customer: true, lines: true },
+      take: 50,
+    }),
     prisma.discountPreset.findMany({
       where: { companyId, active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -137,7 +135,7 @@ export default async function PosPage() {
 
       <PosTerminal
         requireRegister={isFreeRetailTier(planTier)}
-        openTicketsEnabled={company.featureOpenTickets}
+        openTicketsEnabled={true}
         outOfStockWarn={company.featureOutOfStockWarn}
         canVoidTickets={access.canVoidTickets}
         canManageInventory={access.canManageInventory}

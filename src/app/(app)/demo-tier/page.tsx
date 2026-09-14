@@ -45,7 +45,7 @@ export default async function DemoTierPage() {
     ),
   ]);
 
-  const blockedOk = ["/quotations", "/jobs", "/invoices", "/expenses"].map(
+  const blockedOk = ["/quotations", "/jobs", "/invoices"].map(
     (path) => ({
       path,
       blocked: !isPathAllowedForTier(planTier, path),

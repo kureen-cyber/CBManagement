@@ -23,10 +23,15 @@ export function ExpensesClient({
   jobs,
   expenses,
   categorySuggestions,
+  showAddForm = true,
+  title,
 }: {
   jobs: { id: string; number: string }[];
   expenses: ExpenseRow[];
   categorySuggestions: string[];
+  /** When false, only the expense list/edit UI is shown (add form lives on Payments). */
+  showAddForm?: boolean;
+  title?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -92,67 +97,71 @@ export function ExpensesClient({
         </div>
       ) : null}
 
-      <AddEntityTab label="Add expense">
-        <form className="form-grid" onSubmit={onCreate} autoComplete="off">
-          <label className="field">
-            Category
-            <CategoryInput
-              name="category"
-              defaultValue="Materials"
-              suggestions={categorySuggestions}
-              listId="expense-category-suggestions"
-              placeholder="e.g. Materials, Fuel, Packaging"
-            />
-          </label>
-          <label className="field">
-            Amount (TT$)
-            <input name="amount" type="number" step="0.01" required />
-          </label>
-          <label className="field">
-            Job
-            <select name="jobId" defaultValue="">
-              <option value="">Not job-related</option>
-              {jobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.number}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            Purchase date
-            <input
-              name="date"
-              type="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
-            />
-          </label>
-          <label className="field">
-            Payment method
-            <select name="paymentMethod" defaultValue="CASH">
-              <option value="CASH">Cash</option>
-              <option value="BANK">Bank</option>
-              <option value="CARD">Card</option>
-            </select>
-          </label>
-          <label className="field full">
-            Description
-            <input name="description" />
-          </label>
-          <label className="field full">
-            Sales receipt
-            <input name="receipt" type="file" accept="image/*,.pdf,application/pdf" />
-            <span className="muted" style={{ fontSize: "0.78rem" }}>
-              PNG, JPEG, WebP, or PDF
-            </span>
-          </label>
-          <div className="full">
-            <button className="btn btn-primary" type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save expense"}
-            </button>
-          </div>
-        </form>
-      </AddEntityTab>
+      {showAddForm ? (
+        <AddEntityTab label="Add expense">
+          <form className="form-grid" onSubmit={onCreate} autoComplete="off">
+            <label className="field">
+              Category
+              <CategoryInput
+                name="category"
+                defaultValue="Materials"
+                suggestions={categorySuggestions}
+                listId="expense-category-suggestions"
+                placeholder="e.g. Materials, Fuel, Packaging"
+              />
+            </label>
+            <label className="field">
+              Amount (TT$)
+              <input name="amount" type="number" step="0.01" required />
+            </label>
+            <label className="field">
+              Job
+              <select name="jobId" defaultValue="">
+                <option value="">Not job-related</option>
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.number}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Purchase date
+              <input
+                name="date"
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+              />
+            </label>
+            <label className="field">
+              Payment method
+              <select name="paymentMethod" defaultValue="CASH">
+                <option value="CASH">Cash</option>
+                <option value="BANK">Bank</option>
+                <option value="CARD">Card</option>
+              </select>
+            </label>
+            <label className="field full">
+              Description
+              <input name="description" />
+            </label>
+            <label className="field full">
+              Sales receipt
+              <input name="receipt" type="file" accept="image/*,.pdf,application/pdf" />
+              <span className="muted" style={{ fontSize: "0.78rem" }}>
+                PNG, JPEG, WebP, or PDF
+              </span>
+            </label>
+            <div className="full">
+              <button className="btn btn-primary" type="submit" disabled={pending}>
+                {pending ? "Saving…" : "Save expense"}
+              </button>
+            </div>
+          </form>
+        </AddEntityTab>
+      ) : null}
+
+      {title ? <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem" }}>{title}</h2> : null}
 
       <Panel className="table-wrap list-dense">
         <table className="data">

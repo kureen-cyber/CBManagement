@@ -33,7 +33,6 @@ export const FREE_RETAIL_NAV = [
   { href: "/customers", label: "Customers" },
   { href: "/payments", label: "Payments" },
   { href: "/employees", label: "Employees" },
-  { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ] as const;
@@ -45,7 +44,6 @@ export const FREE_RETAIL_BLOCKED_PREFIXES = [
   "/quotations",
   "/jobs",
   "/invoices",
-  "/expenses",
   "/suppliers",
 ] as const;
 

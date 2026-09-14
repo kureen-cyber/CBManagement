@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { recordPayment } from "@/app/actions";
+import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD, fromCents } from "@/lib/money";
 
 type InvoiceOption = {
@@ -29,6 +30,8 @@ export function PaymentForm({
   suppliers = [],
   invoices = [],
   sales = [],
+  jobs = [],
+  categorySuggestions = [],
   initialInvoiceId = "",
   initialSaleId = "",
   /** incoming = customer POS/Invoice; outgoing = supplier operational outflows */
@@ -38,12 +41,15 @@ export function PaymentForm({
   suppliers?: { id: string; name: string }[];
   invoices?: InvoiceOption[];
   sales?: SaleOption[];
+  jobs?: { id: string; number: string }[];
+  categorySuggestions?: string[];
   initialInvoiceId?: string;
   initialSaleId?: string;
   mode?: "incoming" | "outgoing" | "all";
 }) {
   const showCustomers = mode !== "outgoing";
   const showSuppliers = mode !== "incoming";
+  const isOutgoing = mode === "outgoing";
 
   const payees = useMemo<PayeeOption[]>(() => {
     return [
@@ -69,7 +75,7 @@ export function PaymentForm({
     return payees.find((p) => p.type === type && p.id === id) || null;
   }, [payeeKey, payees]);
 
-  const isSupplier = selectedPayee?.type === "supplier" || mode === "outgoing";
+  const isSupplier = selectedPayee?.type === "supplier" || isOutgoing;
 
   const selectedInvoice = useMemo(
     () => invoices.find((inv) => inv.id === invoiceId) || null,
@@ -144,12 +150,19 @@ export function PaymentForm({
   const payeeLabel =
     mode === "incoming" ? "Customer" : mode === "outgoing" ? "Supplier" : "Customer / supplier";
 
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
-    <form action={recordPayment} className="form-grid">
+    <form
+      action={recordPayment}
+      className="form-grid"
+      encType={isOutgoing ? "multipart/form-data" : undefined}
+      autoComplete="off"
+    >
       <input type="hidden" name="kind" value="OPERATIONAL" />
       <input type="hidden" name="payeeKey" value={payeeKey} />
 
-      <label className="field full">
+      <label className="field">
         {payeeLabel}
         <select
           name="payeeDisplay"
@@ -196,6 +209,19 @@ export function PaymentForm({
           ) : null}
         </select>
       </label>
+
+      {isOutgoing ? (
+        <label className="field">
+          Category
+          <CategoryInput
+            name="category"
+            defaultValue="Materials"
+            suggestions={categorySuggestions}
+            listId="operational-expense-category-suggestions"
+            placeholder="e.g. Materials, Fuel, Packaging"
+          />
+        </label>
+      ) : null}
 
       {mode === "incoming" || (!isSupplier && mode === "all") ? (
         <>
@@ -251,11 +277,6 @@ export function PaymentForm({
         <>
           <input type="hidden" name="invoiceId" value="" />
           <input type="hidden" name="saleId" value="" />
-          <p className="muted full" style={{ margin: 0, fontSize: "0.85rem" }}>
-            Supplier and stock-purchase payments are operational outflows (cash/bank). Rent and
-            similar running costs can also be recorded under Expenses so they land on the income
-            statement.
-          </p>
         </>
       )}
 
@@ -271,20 +292,57 @@ export function PaymentForm({
           defaultValue={selectedReceivable ? fromCents(selectedReceivable.amountDue) : ""}
         />
       </label>
+
+      {isOutgoing ? (
+        <label className="field">
+          Job
+          <select name="jobId" defaultValue="">
+            <option value="">Not job-related</option>
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.number}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <label className="field">
-        Method
-        <select name="method" defaultValue="BANK">
-          <option value="BANK">Bank</option>
+        {isOutgoing ? "Payment method" : "Method"}
+        <select name="method" defaultValue={isOutgoing ? "CASH" : "BANK"}>
           <option value="CASH">Cash</option>
+          <option value="BANK">Bank</option>
           <option value="CARD">Card</option>
-          <option value="DEBIT">Debit card</option>
-          <option value="CREDIT">Credit card</option>
+          {!isOutgoing ? (
+            <>
+              <option value="DEBIT">Debit card</option>
+              <option value="CREDIT">Credit card</option>
+            </>
+          ) : null}
         </select>
       </label>
+
       <label className="field">
-        Date
-        <input name="paidAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+        {isOutgoing ? "Purchase date" : "Date"}
+        <input name="paidAt" type="date" defaultValue={today} />
       </label>
+
+      {isOutgoing ? (
+        <>
+          <label className="field full">
+            Description
+            <input name="description" />
+          </label>
+          <label className="field full">
+            Sales receipt
+            <input name="receipt" type="file" accept="image/*,.pdf,application/pdf" />
+            <span className="muted" style={{ fontSize: "0.78rem" }}>
+              PNG, JPEG, WebP, or PDF
+            </span>
+          </label>
+        </>
+      ) : null}
+
       <div className="full">
         <button className="btn btn-primary" type="submit">
           {mode === "outgoing" || isSupplier

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SalaryPaymentForm } from "@/components/SalaryPaymentForm";
 import { PaymentForm } from "@/components/PaymentForm";
+import { ExpensesClient } from "@/components/ExpensesClient";
 import { Panel } from "@/components/ui";
 import { formatTTD } from "@/lib/money";
 import { formatAppDate } from "@/lib/timezone";
@@ -50,6 +51,16 @@ export type PaymentRow = {
   saleNumber: string | null;
 };
 
+type ExpenseRow = {
+  id: string;
+  date: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  jobNumber: string | null;
+  receiptData: string | null;
+};
+
 type Direction = "incoming" | "outgoing";
 type AddModal = "incoming" | "salary" | "operational" | null;
 
@@ -60,6 +71,9 @@ export function PaymentsWorkspace({
   invoices,
   sales,
   payments,
+  jobs = [],
+  expenses = [],
+  categorySuggestions = [],
 }: {
   employees: { id: string; name: string; systemRole?: string | null }[];
   customers: { id: string; name: string }[];
@@ -67,6 +81,9 @@ export function PaymentsWorkspace({
   invoices: InvoiceOption[];
   sales: SaleOption[];
   payments: PaymentRow[];
+  jobs?: { id: string; number: string }[];
+  expenses?: ExpenseRow[];
+  categorySuggestions?: string[];
 }) {
   const [direction, setDirection] = useState<Direction>("incoming");
   const [addModal, setAddModal] = useState<AddModal>(null);
@@ -154,7 +171,7 @@ export function PaymentsWorkspace({
         <p className="muted" style={{ margin: "0 0 0.75rem", fontSize: "0.85rem" }}>
           {direction === "incoming"
             ? "POS till and receivable payments, plus invoice receipts for jobs and services."
-            : "Salary and owner drawings, plus supplier/stock and other operational outflows."}
+            : "Salary and owner drawings, plus supplier/stock and categorized operational expenses."}
         </p>
         <table className="data">
           <thead>
@@ -198,6 +215,16 @@ export function PaymentsWorkspace({
           </tbody>
         </table>
       </Panel>
+
+      {direction === "outgoing" ? (
+        <ExpensesClient
+          showAddForm={false}
+          title="Operational expenses"
+          jobs={jobs}
+          expenses={expenses}
+          categorySuggestions={categorySuggestions}
+        />
+      ) : null}
 
       {addModal ? (
         <div
@@ -260,7 +287,12 @@ export function PaymentsWorkspace({
             ) : null}
             {addModal === "salary" ? <SalaryPaymentForm employees={employees} /> : null}
             {addModal === "operational" ? (
-              <PaymentForm mode="outgoing" suppliers={suppliers} />
+              <PaymentForm
+                mode="outgoing"
+                suppliers={suppliers}
+                jobs={jobs}
+                categorySuggestions={categorySuggestions}
+              />
             ) : null}
           </div>
         </div>

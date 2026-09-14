@@ -11,7 +11,6 @@ export const NAV_ITEMS = [
   { href: "/receivables", label: "Receivables" },
   { href: "/payables", label: "Payables" },
   { href: "/employees", label: "Employees" },
-  { href: "/expenses", label: "Expenses" },
   { href: "/reports", label: "Reports" },
   { href: "/marketing", label: "Marketing" },
   { href: "/analytics", label: "Analytics" },

@@ -296,7 +296,6 @@ export async function addPaymentType(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/pos");
   revalidatePath("/payments");
-  revalidatePath("/expenses");
   return { ok: true as const };
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { EXPENSE_CATEGORIES } from "@/lib/constants";
 import { requireCompany } from "@/lib/company";
 import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
@@ -24,29 +25,36 @@ export default async function PaymentsPage({
 
   await ensureDefaultLeadershipEmployees(companyId);
 
-  const [customers, suppliers, employees, invoices, payments, sales] = await Promise.all([
-    prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    prisma.employee.findMany({
-      where: { companyId, active: true },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    }),
-    prisma.invoice.findMany({
-      where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
-      include: { customer: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.payment.findMany({
-      where: { companyId, paidAt: { gte: range.start, lte: range.end } },
-      orderBy: { paidAt: "desc" },
-      include: { customer: true, invoice: true, sale: true, employee: true, supplier: true },
-    }),
-    prisma.sale.findMany({
-      where: { companyId, status: "COMPLETED", isRefund: false },
-      include: { customer: true },
-      orderBy: { soldAt: "desc" },
-    }),
-  ]);
+  const [customers, suppliers, employees, invoices, payments, sales, jobs, expenses] =
+    await Promise.all([
+      prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+      prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+      prisma.employee.findMany({
+        where: { companyId, active: true },
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+      prisma.invoice.findMany({
+        where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE"] } },
+        include: { customer: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.payment.findMany({
+        where: { companyId, paidAt: { gte: range.start, lte: range.end } },
+        orderBy: { paidAt: "desc" },
+        include: { customer: true, invoice: true, sale: true, employee: true, supplier: true },
+      }),
+      prisma.sale.findMany({
+        where: { companyId, status: "COMPLETED", isRefund: false },
+        include: { customer: true },
+        orderBy: { soldAt: "desc" },
+      }),
+      prisma.job.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
+      prisma.expense.findMany({
+        where: { companyId, date: { gte: range.start, lte: range.end } },
+        orderBy: { date: "desc" },
+        include: { job: { select: { number: true } } },
+      }),
+    ]);
 
   const crmCustomers = excludeSystemCustomers(customers);
   const openSales = sales
@@ -59,6 +67,12 @@ export default async function PaymentsPage({
       amountDue: Math.max(0, sale.total - sale.amountPaid),
     }))
     .filter((sale) => sale.amountDue > 0 && sale.customerId);
+
+  const categorySuggestions = [
+    ...EXPENSE_CATEGORIES,
+    "Equipment rental",
+    ...expenses.map((e) => e.category),
+  ];
 
   return (
     <div className="stack">
@@ -77,6 +91,17 @@ export default async function PaymentsPage({
         }))}
         customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
         suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
+        jobs={jobs.map((j) => ({ id: j.id, number: j.number }))}
+        expenses={expenses.map((e) => ({
+          id: e.id,
+          date: e.date.toISOString(),
+          category: e.category,
+          description: e.description,
+          amount: e.amount,
+          jobNumber: e.job?.number ?? null,
+          receiptData: e.receiptData,
+        }))}
+        categorySuggestions={categorySuggestions}
         invoices={invoices
           .filter((inv) => crmCustomers.some((c) => c.id === inv.customerId))
           .map((inv) => ({

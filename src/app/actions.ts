@@ -482,7 +482,7 @@ export async function deleteSupplier(formData: FormData) {
 
   revalidatePath("/suppliers");
   revalidatePath("/inventory");
-  revalidatePath("/expenses");
+  revalidatePath("/payments");
   revalidatePath("/quotations");
 }
 
@@ -1043,7 +1043,7 @@ export async function createExpense(formData: FormData) {
       ...(receiptData !== undefined ? { receiptData } : {}),
     },
   });
-  revalidatePath("/expenses");
+  revalidatePath("/payments");
   revalidatePath("/jobs");
   revalidatePath("/");
 }
@@ -1074,7 +1074,7 @@ export async function updateExpense(formData: FormData) {
       ...(receiptData !== undefined ? { receiptData } : {}),
     },
   });
-  revalidatePath("/expenses");
+  revalidatePath("/payments");
   if (existing.jobId) revalidatePath(`/jobs/${existing.jobId}`);
   revalidatePath("/jobs");
   revalidatePath("/");
@@ -1089,7 +1089,7 @@ export async function deleteExpense(formData: FormData) {
   if (!existing) throw new Error("Expense not found");
 
   await prisma.expense.delete({ where: { id } });
-  revalidatePath("/expenses");
+  revalidatePath("/payments");
   if (existing.jobId) revalidatePath(`/jobs/${existing.jobId}`);
   revalidatePath("/jobs");
   revalidatePath("/");
@@ -1460,7 +1460,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
   revalidatePath(`/jobs/${job.id}`);
   revalidatePath("/invoices");
   revalidatePath("/inventory");
-  revalidatePath("/expenses");
+  revalidatePath("/payments");
   revalidatePath("/");
 
   redirect(`/jobs/${job.id}`);
@@ -1592,6 +1592,27 @@ export async function recordPayment(formData: FormData) {
     const supplier = await prisma.supplier.findFirst({ where: { id: payeeId, companyId } });
     if (!supplier) throw new Error("Supplier not found");
 
+    const category = String(formData.get("category") || "Other").trim() || "Other";
+    const description = String(formData.get("description") || "").trim() || null;
+    const jobId = String(formData.get("jobId") || "") || null;
+    if (jobId) {
+      const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+      if (!job) throw new Error("Job not found");
+    }
+
+    let receiptData: string | null | undefined;
+    try {
+      receiptData = await receiptFromForm(formData);
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : "Could not upload receipt");
+    }
+
+    const noteParts = [
+      `Supplier payment — ${supplier.name}`,
+      category ? `Category: ${category}` : null,
+      description,
+    ].filter(Boolean);
+
     await prisma.payment.create({
       data: {
         companyId,
@@ -1600,8 +1621,22 @@ export async function recordPayment(formData: FormData) {
         amount,
         method,
         paidAt,
-        notes: `Supplier payment — ${supplier.name}`,
+        notes: noteParts.join(" · "),
         reference: supplier.name,
+      },
+    });
+
+    await prisma.expense.create({
+      data: {
+        companyId,
+        category,
+        description,
+        amount,
+        date: paidAt,
+        paymentMethod: method,
+        jobId,
+        supplierId: supplier.id,
+        ...(receiptData !== undefined ? { receiptData } : {}),
       },
     });
   } else {
@@ -1686,6 +1721,7 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/receivables");
   revalidatePath("/financial-reports");
   revalidatePath("/pos");
+  revalidatePath("/jobs");
   revalidatePath("/");
 }
 

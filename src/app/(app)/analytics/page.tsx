@@ -3,10 +3,12 @@ import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { fetchPeriodSummary } from "@/lib/period-summary";
 import { fetchCustomerLoyalty } from "@/lib/customer-loyalty";
+import { fetchSalesVolumePatterns } from "@/lib/sales-volume-patterns";
 import { PageHeader, Panel } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { PeriodSummaryCards } from "@/components/PeriodSummaryCards";
 import { CustomerLoyaltyChart } from "@/components/CustomerLoyaltyChart";
+import { SalesVolumeCharts } from "@/components/SalesVolumeCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,10 @@ export default async function AnalyticsPage({
   const { companyId, company } = await requireCompany();
   const planTier = parsePlanTier(company.planTier);
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
-  const [summary, loyalty] = await Promise.all([
+  const [summary, loyalty, salesVolume] = await Promise.all([
     fetchPeriodSummary(companyId, range.start, range.end),
     fetchCustomerLoyalty(companyId, range.start, range.end),
+    fetchSalesVolumePatterns(companyId, range.start, range.end),
   ]);
 
   return (
@@ -34,6 +37,9 @@ export default async function AnalyticsPage({
       </Panel>
       <Panel style={{ padding: "1.25rem" }}>
         <CustomerLoyaltyChart data={loyalty} />
+      </Panel>
+      <Panel style={{ padding: "1.25rem" }}>
+        <SalesVolumeCharts data={salesVolume} />
       </Panel>
       <Panel style={{ padding: "1.25rem" }}>
         <h3 style={{ marginTop: 0 }}>Period summary</h3>

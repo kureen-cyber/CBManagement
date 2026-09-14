@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { isIncomingPayment } from "@/lib/payment-direction";
 
 export async function fetchPeriodSummary(companyId: string, start: Date, end: Date) {
   const [
-    paymentSum,
+    payments,
     expenseSum,
     salesAgg,
     refundAgg,
@@ -10,11 +11,24 @@ export async function fetchPeriodSummary(companyId: string, start: Date, end: Da
     jobCount,
     quotationCount,
     expenseCount,
-    paymentCount,
   ] = await Promise.all([
-    prisma.payment.aggregate({
+    prisma.payment.findMany({
       where: { companyId, paidAt: { gte: start, lte: end } },
-      _sum: { amount: true },
+      select: {
+        amount: true,
+        kind: true,
+        notes: true,
+        reference: true,
+        employeeId: true,
+        supplierId: true,
+        customerId: true,
+        invoiceId: true,
+        saleId: true,
+        employee: { select: { systemRole: true } },
+        customer: { select: { name: true } },
+        sale: { select: { number: true } },
+        invoice: { select: { number: true } },
+      },
     }),
     prisma.expense.aggregate({
       where: { companyId, date: { gte: start, lte: end } },
@@ -50,12 +64,10 @@ export async function fetchPeriodSummary(companyId: string, start: Date, end: Da
     prisma.expense.count({
       where: { companyId, date: { gte: start, lte: end } },
     }),
-    prisma.payment.count({
-      where: { companyId, paidAt: { gte: start, lte: end } },
-    }),
   ]);
 
-  const income = paymentSum._sum.amount ?? 0;
+  const incoming = payments.filter((p) => isIncomingPayment(p));
+  const income = incoming.reduce((sum, p) => sum + p.amount, 0);
   const expenses = expenseSum._sum.amount ?? 0;
   const grossSales = salesAgg._sum.total ?? 0;
   const refunds = Math.abs(refundAgg._sum.total ?? 0);
@@ -71,6 +83,6 @@ export async function fetchPeriodSummary(companyId: string, start: Date, end: Da
     jobCount,
     quotationCount,
     expenseCount,
-    paymentCount,
+    paymentCount: incoming.length,
   };
 }

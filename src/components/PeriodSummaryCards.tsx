@@ -58,7 +58,7 @@ export function PeriodSummaryCards({
         <div className="label">Cash received</div>
         <div className="value money">{formatTTD(summary.income)}</div>
         <div className="muted" style={{ fontSize: "0.78rem" }}>
-          {summary.paymentCount} payments
+          {summary.paymentCount} incoming payments
         </div>
       </div>
       <div className="report-stat accent">

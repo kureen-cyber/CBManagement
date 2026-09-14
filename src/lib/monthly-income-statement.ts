@@ -403,7 +403,7 @@ export async function fetchMonthlyIncomeStatement(
       addToMonth(insurance, expense.date, amount);
     } else if (matchCategory(cat, [/subscri/i])) {
       addToMonth(subscription, expense.date, amount);
-    } else if (matchCategory(cat, [/^materials?$/i])) {
+    } else if (matchCategory(cat, [/^materials?$/i, /^stock$/i])) {
       addToMonth(purchasesMonths, expense.date, amount);
     } else {
       addToMonth(miscellaneousExpenses, expense.date, amount);

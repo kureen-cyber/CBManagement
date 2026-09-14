@@ -47,6 +47,7 @@ export type IncomeStatementLineId =
   | "marketingAdvertising"
   | "maintenance"
   | "insurance"
+  | "subscription"
   | "miscellaneousExpenses"
   | "totalOperatingExpenses"
   | "netProfit"
@@ -290,6 +291,7 @@ export async function fetchMonthlyIncomeStatement(
   const marketingAdvertising = emptyMonths();
   const maintenance = emptyMonths();
   const insurance = emptyMonths();
+  const subscription = emptyMonths();
   const miscellaneousExpenses = emptyMonths();
   const loanPrincipalPayment = emptyMonths();
   const capitalPurchase = emptyMonths();
@@ -399,6 +401,8 @@ export async function fetchMonthlyIncomeStatement(
       addToMonth(maintenance, expense.date, amount);
     } else if (matchCategory(cat, [/insur/i])) {
       addToMonth(insurance, expense.date, amount);
+    } else if (matchCategory(cat, [/subscri/i])) {
+      addToMonth(subscription, expense.date, amount);
     } else if (matchCategory(cat, [/^materials?$/i])) {
       addToMonth(purchasesMonths, expense.date, amount);
     } else {
@@ -477,6 +481,7 @@ export async function fetchMonthlyIncomeStatement(
       marketingAdvertising[m]! +
       maintenance[m]! +
       insurance[m]! +
+      subscription[m]! +
       miscellaneousExpenses[m]!;
     netProfit[m] = grossProfit[m]! - totalOperatingExpenses[m]!;
 
@@ -605,11 +610,8 @@ export async function fetchMonthlyIncomeStatement(
     line("marketingAdvertising", "Marketing/Advertising", marketingAdvertising),
     line("maintenance", "Maintenance", maintenance),
     line("insurance", "Insurance", insurance),
-    line(
-      "miscellaneousExpenses",
-      "Miscellaneous Expenses (Subscription)",
-      miscellaneousExpenses,
-    ),
+    line("subscription", "Subscription", subscription),
+    line("miscellaneousExpenses", "Miscellaneous Expenses", miscellaneousExpenses),
     line(
       "totalOperatingExpenses",
       "Total Operating Expenses",

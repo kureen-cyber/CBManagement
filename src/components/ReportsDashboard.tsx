@@ -32,6 +32,8 @@ export type ReportsData = {
   posService: number;
   serviceIncome: number;
   otherIncome: number;
+  /** Invoices issued in the selected period (paid + unpaid). */
+  serviceBilled: number;
   posReceivables: number;
   serviceReceivables: number;
   totalRevenue: number;
@@ -425,7 +427,7 @@ export function ReportsDashboard({
     () => [
       { label: "POS retail", value: data.posRetail, color: "#0e7cc0" },
       { label: "POS / service sales", value: data.posService, color: "#5b4db8" },
-      { label: "Service income", value: data.otherIncome, color: "#1f7a4d" },
+      { label: "Service invoices", value: data.serviceBilled, color: "#1f7a4d" },
       { label: "Expenses", value: data.expenses, color: EXPENSE_COLOR },
       { label: "Receivables", value: data.receivables, color: "#b45309" },
     ],
@@ -435,13 +437,14 @@ export function ReportsDashboard({
   const incomeTabSlices = useMemo(
     () => [
       { label: "POS income", value: data.pos, color: "#0e7cc0" },
-      { label: "Service income", value: data.otherIncome, color: "#1f7a4d" },
+      { label: "Service invoices", value: data.serviceBilled, color: "#1f7a4d" },
     ],
     [data],
   );
 
-  const posRevenueWithAr = data.pos + data.posReceivables;
-  const serviceRevenueWithAr = data.otherIncome + data.serviceReceivables;
+  // Sales/invoice totals already include unpaid balances — do not add payments or AR again.
+  const posRevenueWithAr = data.pos;
+  const serviceRevenueWithAr = data.serviceBilled;
 
   const expenseSlices = useMemo(
     () =>
@@ -543,12 +546,12 @@ export function ReportsDashboard({
         <MetricStrip
           items={[
             {
-              label: "POS revenue (includes receivables)",
+              label: "POS revenue",
               value: formatTTD(posRevenueWithAr),
               tone: "#0e7cc0",
             },
             {
-              label: "Service revenue (includes receivables)",
+              label: "Service revenue",
               value: formatTTD(serviceRevenueWithAr),
               tone: "#1f7a4d",
             },
@@ -638,11 +641,11 @@ export function ReportsDashboard({
             </div>
             <div className="report-stat sea">
               <div className="label">Service income</div>
-              <div className="value money">{formatTTD(data.otherIncome)}</div>
+              <div className="value money">{formatTTD(data.serviceBilled)}</div>
             </div>
             <div className="report-stat purple">
               <div className="label">Total income</div>
-              <div className="value money">{formatTTD(data.pos + data.otherIncome)}</div>
+              <div className="value money">{formatTTD(data.totalRevenue)}</div>
             </div>
           </div>
           <div style={{ marginTop: "1rem" }}>

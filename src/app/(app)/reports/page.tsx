@@ -10,6 +10,7 @@ import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { payablesTotal, fetchOutstandingPayables } from "@/lib/payables";
+import { isIncomingPayment } from "@/lib/payment-direction";
 import {
   parseVariableOptions,
   parseVariantFromDescription,
@@ -52,6 +53,18 @@ function productVariables(
   }));
 }
 
+function looksLikePosPayment(p: {
+  reference?: string | null;
+  notes?: string | null;
+  saleId?: string | null;
+}): boolean {
+  if (p.saleId) return true;
+  const ref = String(p.reference || "").trim();
+  if (/^POS/i.test(ref)) return true;
+  const blob = `${ref} ${p.notes || ""}`.toLowerCase();
+  return blob.includes("pos");
+}
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -62,19 +75,15 @@ export default async function ReportsPage({
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
-  const [payments, expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales, payablesRows] =
+  const [expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales, payablesRows] =
     await Promise.all([
-      prisma.payment.aggregate({
-        _sum: { amount: true },
-        where: { companyId, paidAt: { gte: rangeStart, lte: rangeEnd } },
-      }),
       prisma.expense.aggregate({
         _sum: { amount: true },
         where: { companyId, date: { gte: rangeStart, lte: rangeEnd } },
       }),
       prisma.invoice.findMany({
         where: { companyId, status: { in: ["SENT", "PARTIAL", "OVERDUE", "PAID"] } },
-        select: { total: true, amountPaid: true, status: true },
+        select: { total: true, amountPaid: true, status: true, issueDate: true },
       }),
       prisma.expense.findMany({
         where: { companyId, date: { gte: rangeStart, lte: rangeEnd } },
@@ -82,7 +91,22 @@ export default async function ReportsPage({
       }),
       prisma.payment.findMany({
         where: { companyId, paidAt: { gte: rangeStart, lte: rangeEnd } },
-        select: { method: true, amount: true, reference: true, notes: true },
+        select: {
+          method: true,
+          amount: true,
+          reference: true,
+          notes: true,
+          kind: true,
+          employeeId: true,
+          supplierId: true,
+          customerId: true,
+          invoiceId: true,
+          saleId: true,
+          employee: { select: { systemRole: true } },
+          customer: { select: { name: true } },
+          sale: { select: { number: true } },
+          invoice: { select: { number: true } },
+        },
       }),
       prisma.saleLine.findMany({
         where: {
@@ -212,17 +236,21 @@ export default async function ReportsPage({
   const pos = posRetail + posService;
   const grossProfit = netSales - Math.max(0, cogsTotal);
 
-  const posPaymentTotal = paymentRows
-    .filter(
-      (p) =>
-        (p.reference || "").startsWith("POS") ||
-        (p.notes || "").toLowerCase().includes("pos"),
-    )
+  // Cash collections for the Income tab — incoming only (never outgoing operational/salary).
+  const incomingPayments = paymentRows.filter((p) => isIncomingPayment(p));
+  const otherIncome = incomingPayments
+    .filter((p) => !looksLikePosPayment(p))
     .reduce((s, p) => s + p.amount, 0);
-  const otherIncome = Math.max(0, (payments._sum.amount ?? 0) - posPaymentTotal);
-  const income = Math.max(0, netSales) + otherIncome;
-  const totalRevenue = Math.max(0, pos) + otherIncome + posReceivables + serviceReceivables;
-  const serviceIncome = Math.max(0, posService) + otherIncome;
+
+  // Service revenue this period = invoices issued in range (paid + unpaid). Do not use payments.
+  const serviceBilled = invoices
+    .filter((i) => i.issueDate >= rangeStart && i.issueDate <= rangeEnd)
+    .reduce((s, i) => s + i.total, 0);
+
+  // POS sales totals already include deferred/unpaid balances — do not add payments or AR again.
+  const income = Math.max(0, netSales) + serviceBilled;
+  const totalRevenue = Math.max(0, pos) + serviceBilled;
+  const serviceIncome = Math.max(0, posService) + serviceBilled;
 
   const expenseByCategoryMap = new Map<string, number>();
   for (const row of expenseRows) {
@@ -233,7 +261,7 @@ export default async function ReportsPage({
     .sort((a, b) => b.amount - a.amount);
 
   const methodMap = new Map<string, number>();
-  for (const row of paymentRows) {
+  for (const row of incomingPayments) {
     methodMap.set(row.method, (methodMap.get(row.method) ?? 0) + row.amount);
   }
   const paymentMethods = [...methodMap.entries()]
@@ -249,11 +277,11 @@ export default async function ReportsPage({
     cur.amount += row.netSales;
     incomeByCategoryMap.set(key, cur);
   }
-  if (otherIncome > 0) {
-    incomeByCategoryMap.set("Other::Payments", {
-      category: "Other payments / invoices",
-      amount: otherIncome,
-      kind: "Service / other",
+  if (serviceBilled > 0) {
+    incomeByCategoryMap.set("Service::Invoices", {
+      category: "Service invoices",
+      amount: serviceBilled,
+      kind: "Service / invoices",
     });
   }
   const incomeByCategory = [...incomeByCategoryMap.values()].sort((a, b) => b.amount - a.amount);
@@ -369,6 +397,7 @@ export default async function ReportsPage({
           posService,
           serviceIncome,
           otherIncome,
+          serviceBilled,
           posReceivables,
           serviceReceivables,
           totalRevenue,

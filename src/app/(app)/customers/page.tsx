@@ -5,6 +5,7 @@ import { requireCompany } from "@/lib/company";
 import { createCustomer } from "@/app/actions";
 import { AddEntityTab } from "@/components/AddEntityTab";
 import { DeleteCustomerButton } from "@/components/DeleteCustomerButton";
+import { EditCustomerButton } from "@/components/EditCustomerButton";
 import { PageHeader, Panel } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -83,9 +84,21 @@ export default async function CustomersPage() {
               return (
                 <tr key={c.id}>
                   <td>
-                    <Link href={`/customers/${c.id}`}>
-                      <strong>{c.name}</strong>
-                    </Link>
+                    <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                      <Link href={`/customers/${c.id}`}>
+                        <strong>{c.name}</strong>
+                      </Link>
+                      <EditCustomerButton
+                        customer={{
+                          id: c.id,
+                          name: c.name,
+                          phone: c.phone,
+                          email: c.email,
+                          address: c.address,
+                          notes: c.notes,
+                        }}
+                      />
+                    </div>
                   </td>
                   <td className="muted">
                     {[c.phone, c.email].filter(Boolean).join(" · ") || "—"}

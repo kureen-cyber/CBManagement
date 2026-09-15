@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { CustomerSummaryDiagram } from "@/components/CustomerSummaryDiagram";
+import { EditCustomerButton } from "@/components/EditCustomerButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { formatAppDate } from "@/lib/timezone";
 
@@ -117,9 +118,21 @@ export default async function CustomerDetailPage({
         title={customer.name}
         description={[customer.phone, customer.email, customer.address].filter(Boolean).join(" · ")}
         actions={
-          <Link className="btn btn-secondary" href="/customers">
-            Back
-          </Link>
+          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+            <EditCustomerButton
+              customer={{
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                email: customer.email,
+                address: customer.address,
+                notes: customer.notes,
+              }}
+            />
+            <Link className="btn btn-secondary" href="/customers">
+              Back
+            </Link>
+          </div>
         }
       />
       <div className="kpi-grid kpi-grid-6">

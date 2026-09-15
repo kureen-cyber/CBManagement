@@ -402,6 +402,40 @@ export async function createCustomer(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function updateCustomer(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("customerId") || "").trim();
+  if (!id) throw new Error("Missing customer");
+
+  const existing = await prisma.customer.findFirst({ where: { id, companyId } });
+  if (!existing) throw new Error("Customer not found");
+  if (isOwnerDrawingsCustomer(existing.name)) {
+    throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be edited`);
+  }
+
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("Name is required");
+  if (isOwnerDrawingsCustomer(name)) {
+    throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be used as a customer name`);
+  }
+
+  await prisma.customer.update({
+    where: { id },
+    data: {
+      name,
+      email: String(formData.get("email") || "") || null,
+      phone: String(formData.get("phone") || "") || null,
+      address: String(formData.get("address") || "") || null,
+      notes: String(formData.get("notes") || "") || null,
+    },
+  });
+
+  revalidatePath("/customers");
+  revalidatePath(`/customers/${id}`);
+  revalidatePath("/pos");
+  revalidatePath("/");
+}
+
 export async function deleteCustomer(formData: FormData) {
   const { companyId } = await requireCompany();
   const id = String(formData.get("customerId") || "").trim();

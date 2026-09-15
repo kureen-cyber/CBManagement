@@ -84,10 +84,18 @@ export default async function CustomersPage() {
               return (
                 <tr key={c.id}>
                   <td>
-                    <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                      <Link href={`/customers/${c.id}`}>
-                        <strong>{c.name}</strong>
-                      </Link>
+                    <Link href={`/customers/${c.id}`}>
+                      <strong>{c.name}</strong>
+                    </Link>
+                  </td>
+                  <td className="muted">
+                    {[c.phone, c.email].filter(Boolean).join(" · ") || "—"}
+                  </td>
+                  <td>{c.quotations.length}</td>
+                  <td>{c.jobs.length}</td>
+                  <td className="money">{formatTTD(outstanding)}</td>
+                  <td>
+                    <div className="row" style={{ gap: "0.4rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
                       <EditCustomerButton
                         customer={{
                           id: c.id,
@@ -98,16 +106,8 @@ export default async function CustomersPage() {
                           notes: c.notes,
                         }}
                       />
+                      <DeleteCustomerButton customerId={c.id} customerName={c.name} />
                     </div>
-                  </td>
-                  <td className="muted">
-                    {[c.phone, c.email].filter(Boolean).join(" · ") || "—"}
-                  </td>
-                  <td>{c.quotations.length}</td>
-                  <td>{c.jobs.length}</td>
-                  <td className="money">{formatTTD(outstanding)}</td>
-                  <td>
-                    <DeleteCustomerButton customerId={c.id} customerName={c.name} />
                   </td>
                 </tr>
               );

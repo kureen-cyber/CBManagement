@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { nextNumber, nextSku, usedInventorySkus } from "@/lib/business";
+import {
+  isUniqueConstraintError,
+  nextNumber,
+  nextSku,
+  retryOnUniqueConstraint,
+  usedInventorySkus,
+} from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
 import { DEFERRED_PAYMENT_CODE, ensureWalkInCustomer } from "@/lib/receivables";
@@ -2229,33 +2235,35 @@ export async function saveOpenTicket(input: {
     return { ticketId: sale.id, number: sale.number };
   }
 
-  const sale = await prisma.sale.create({
-    data: {
-      companyId,
-      number: await nextNumber("TKT", "sale", companyId),
-      customerId,
-      posRegisterId,
-      status: "OPEN",
-      subtotal,
-      taxAmount,
-      total,
-      amountPaid: 0,
-      method: input.method || "CASH",
-      notes: input.notes || null,
-      lines: {
-        create: built.map(
-          ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
-            productId,
-            description,
-            quantity,
-            unitPrice,
-            lineTotal,
-            variantLabel: variantLabel ?? null,
-          }),
-        ),
+  const sale = await retryOnUniqueConstraint(async () =>
+    prisma.sale.create({
+      data: {
+        companyId,
+        number: await nextNumber("TKT", "sale", companyId),
+        customerId,
+        posRegisterId,
+        status: "OPEN",
+        subtotal,
+        taxAmount,
+        total,
+        amountPaid: 0,
+        method: input.method || "CASH",
+        notes: input.notes || null,
+        lines: {
+          create: built.map(
+            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+              productId,
+              description,
+              quantity,
+              unitPrice,
+              lineTotal,
+              variantLabel: variantLabel ?? null,
+            }),
+          ),
+        },
       },
-    },
-  });
+    }),
+  );
 
   revalidatePath("/pos");
   return { ticketId: sale.id, number: sale.number };
@@ -2436,79 +2444,84 @@ export async function completePosSale(input: {
       ? String(input.honeyPersons || "").trim() || null
       : null;
 
+  const lineCreate = built.map(
+    ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
+      productId,
+      description,
+      quantity,
+      unitPrice,
+      lineTotal,
+      variantLabel: variantLabel ?? null,
+    }),
+  );
+
   let sale;
-  if (input.ticketId) {
-    const existing = await prisma.sale.findFirst({
-      where: { id: input.ticketId, companyId, status: "OPEN" },
-    });
-    if (!existing) return { error: "Open ticket not found" };
-    await prisma.saleLine.deleteMany({ where: { saleId: existing.id } });
-    sale = await prisma.sale.update({
-      where: { id: existing.id },
-      data: {
-        customerId,
-        posRegisterId,
-        status: "COMPLETED",
-        subtotal,
-        taxAmount,
-        total,
-        amountPaid,
-        discountPercent,
-        discountAmount,
-        method: saleMethod,
-        dueDate,
-        notes: input.notes || null,
-        honeyPersons,
-        soldAt: new Date(),
-        number: existing.number.startsWith("TKT")
-          ? await nextNumber("POS", "sale", companyId)
-          : existing.number,
-        lines: {
-          create: built.map(
-            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
-              productId,
-              description,
-              quantity,
-              unitPrice,
-              lineTotal,
-              variantLabel: variantLabel ?? null,
-            }),
-          ),
-        },
-      },
-    });
-  } else {
-    sale = await prisma.sale.create({
-      data: {
-        companyId,
-        number: await nextNumber("POS", "sale", companyId),
-        customerId,
-        posRegisterId,
-        status: "COMPLETED",
-        subtotal,
-        taxAmount,
-        total,
-        amountPaid,
-        discountPercent,
-        discountAmount,
-        method: saleMethod,
-        dueDate,
-        notes: input.notes || null,
-        honeyPersons,
-        lines: {
-          create: built.map(
-            ({ productId, description, quantity, unitPrice, lineTotal, variantLabel }) => ({
-              productId,
-              description,
-              quantity,
-              unitPrice,
-              lineTotal,
-              variantLabel: variantLabel ?? null,
-            }),
-          ),
-        },
-      },
-    });
+  try {
+    if (input.ticketId) {
+      const existing = await prisma.sale.findFirst({
+        where: { id: input.ticketId, companyId, status: "OPEN" },
+      });
+      if (!existing) return { error: "Open ticket not found" };
+      sale = await retryOnUniqueConstraint(() =>
+        prisma.$transaction(async (tx) => {
+          await tx.saleLine.deleteMany({ where: { saleId: existing.id } });
+          return tx.sale.update({
+            where: { id: existing.id },
+            data: {
+              customerId,
+              posRegisterId,
+              status: "COMPLETED",
+              subtotal,
+              taxAmount,
+              total,
+              amountPaid,
+              discountPercent,
+              discountAmount,
+              method: saleMethod,
+              dueDate,
+              notes: input.notes || null,
+              honeyPersons,
+              soldAt: new Date(),
+              number: existing.number.startsWith("TKT")
+                ? await nextNumber("POS", "sale", companyId)
+                : existing.number,
+              lines: { create: lineCreate },
+            },
+          });
+        }),
+      );
+    } else {
+      sale = await retryOnUniqueConstraint(async () =>
+        prisma.sale.create({
+          data: {
+            companyId,
+            number: await nextNumber("POS", "sale", companyId),
+            customerId,
+            posRegisterId,
+            status: "COMPLETED",
+            subtotal,
+            taxAmount,
+            total,
+            amountPaid,
+            discountPercent,
+            discountAmount,
+            method: saleMethod,
+            dueDate,
+            notes: input.notes || null,
+            honeyPersons,
+            lines: { create: lineCreate },
+          },
+        }),
+      );
+    }
+  } catch (err) {
+    return {
+      error: isUniqueConstraintError(err)
+        ? "Could not assign a receipt number. Try charging again."
+        : err instanceof Error
+          ? err.message
+          : "Could not complete sale",
+    };
   }
 
   const stockUpdates: {
@@ -2586,21 +2599,33 @@ export async function completePosSale(input: {
 
   const paymentCustomerId = customerId;
 
-  for (const line of paymentLines) {
-    if (line.method === DEFERRED_PAYMENT_CODE || line.amount <= 0) continue;
-    await prisma.payment.create({
-      data: {
-        companyId,
-        kind: PAYMENT_KIND_OPERATIONAL,
-        customerId: paymentCustomerId,
-        saleId: sale.id,
-        amount: line.amount,
-        method: line.method,
-        reference: sale.number,
-        notes: paymentLines.length > 1 ? "POS split payment" : "POS sale",
-        paidAt: new Date(),
-      },
-    });
+  try {
+    for (const line of paymentLines) {
+      if (line.method === DEFERRED_PAYMENT_CODE || line.amount <= 0) continue;
+      await prisma.payment.create({
+        data: {
+          companyId,
+          kind: PAYMENT_KIND_OPERATIONAL,
+          customerId: paymentCustomerId,
+          saleId: sale.id,
+          amount: line.amount,
+          method: line.method,
+          reference: sale.number,
+          notes: paymentLines.length > 1 ? "POS split payment" : "POS sale",
+          paidAt: new Date(),
+        },
+      });
+    }
+  } catch (err) {
+    return {
+      error: `Sale ${sale.number} was saved but payment could not be recorded: ${
+        err instanceof Error ? err.message : "unknown error"
+      }. Open Payments to add it, or contact support.`,
+      saleId: sale.id,
+      number: sale.number,
+      total,
+      method: saleMethod,
+    };
   }
 
   revalidatePath("/pos");
@@ -2638,35 +2663,37 @@ export async function refundPosSale(saleId: string, posRegisterId?: string | nul
     if (!reg) registerId = null;
   }
 
-  const refund = await prisma.sale.create({
-    data: {
-      companyId,
-      number: await nextNumber("REF", "sale", companyId),
-      customerId: original.customerId,
-      posRegisterId: registerId,
-      status: "COMPLETED",
-      subtotal: -Math.abs(original.subtotal),
-      taxAmount: -Math.abs(original.taxAmount),
-      total: -Math.abs(original.total),
-      amountPaid: -Math.abs(original.total),
-      discountPercent: original.discountPercent,
-      discountAmount: -Math.abs(original.discountAmount),
-      method: original.method,
-      notes: `Refund of ${original.number}`,
-      isRefund: true,
-      refundOfSaleId: original.id,
-      lines: {
-        create: original.lines.map((l) => ({
-          productId: l.productId,
-          description: `Refund: ${l.description}`,
-          quantity: l.quantity,
-          unitPrice: -Math.abs(l.unitPrice),
-          lineTotal: -Math.abs(l.lineTotal),
-          variantLabel: l.variantLabel,
-        })),
+  const refund = await retryOnUniqueConstraint(async () =>
+    prisma.sale.create({
+      data: {
+        companyId,
+        number: await nextNumber("REF", "sale", companyId),
+        customerId: original.customerId,
+        posRegisterId: registerId,
+        status: "COMPLETED",
+        subtotal: -Math.abs(original.subtotal),
+        taxAmount: -Math.abs(original.taxAmount),
+        total: -Math.abs(original.total),
+        amountPaid: -Math.abs(original.total),
+        discountPercent: original.discountPercent,
+        discountAmount: -Math.abs(original.discountAmount),
+        method: original.method,
+        notes: `Refund of ${original.number}`,
+        isRefund: true,
+        refundOfSaleId: original.id,
+        lines: {
+          create: original.lines.map((l) => ({
+            productId: l.productId,
+            description: `Refund: ${l.description}`,
+            quantity: l.quantity,
+            unitPrice: -Math.abs(l.unitPrice),
+            lineTotal: -Math.abs(l.lineTotal),
+            variantLabel: l.variantLabel,
+          })),
+        },
       },
-    },
-  });
+    }),
+  );
 
   for (const line of original.lines) {
     if (!line.productId) continue;

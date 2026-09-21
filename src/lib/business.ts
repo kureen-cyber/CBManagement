@@ -1,22 +1,74 @@
 import { prisma } from "./prisma";
 
+export function isUniqueConstraintError(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: unknown }).code === "P2002",
+  );
+}
+
+/** Retry a write when a unique number was claimed by a concurrent request. */
+export async function retryOnUniqueConstraint<T>(
+  fn: () => Promise<T>,
+  attempts = 6,
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (!isUniqueConstraintError(err) || i === attempts - 1) throw err;
+    }
+  }
+  throw last;
+}
+
+function nextSeqFromNumbers(numbers: string[], prefix: string, year: number): string {
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^${escaped}-${year}-(\\d+)$`);
+  let maxSeq = 0;
+  for (const number of numbers) {
+    const match = re.exec(String(number || "").trim());
+    if (match) maxSeq = Math.max(maxSeq, Number(match[1]));
+  }
+  return `${prefix}-${year}-${String(maxSeq + 1).padStart(4, "0")}`;
+}
+
 export async function nextNumber(
   prefix: string,
   model: "quotation" | "invoice" | "job" | "sale",
   companyId: string,
 ): Promise<string> {
   const year = new Date().getFullYear();
-  const where = { companyId };
-  const count =
+  const startsWith = `${prefix}-${year}-`;
+  const rows =
     model === "quotation"
-      ? await prisma.quotation.count({ where })
+      ? await prisma.quotation.findMany({
+          where: { companyId, number: { startsWith } },
+          select: { number: true },
+        })
       : model === "invoice"
-        ? await prisma.invoice.count({ where })
+        ? await prisma.invoice.findMany({
+            where: { companyId, number: { startsWith } },
+            select: { number: true },
+          })
         : model === "sale"
-          ? await prisma.sale.count({ where })
-          : await prisma.job.count({ where });
-  const seq = String(count + 1).padStart(4, "0");
-  return `${prefix}-${year}-${seq}`;
+          ? await prisma.sale.findMany({
+              where: { companyId, number: { startsWith } },
+              select: { number: true },
+            })
+          : await prisma.job.findMany({
+              where: { companyId, number: { startsWith } },
+              select: { number: true },
+            });
+  return nextSeqFromNumbers(
+    rows.map((r) => r.number),
+    prefix,
+    year,
+  );
 }
 
 /** Next inventory SKU for a company, e.g. SKU-0001. */

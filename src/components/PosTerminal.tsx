@@ -517,22 +517,28 @@ export function PosTerminal({
         dueDate: hasDeferredSplit ? deferredDueDate || null : null,
       };
 
-      const result = await completePosSale(
-        splitPayment
-          ? {
-              ...payload,
-              payments: splitRows
-                .map((row) => ({
-                  method: row.method,
-                  amount: toCents(Number(row.amount) || 0),
-                }))
-                .filter((row) => row.amount > 0),
-            }
-          : {
-              ...payload,
-              method,
-            },
-      );
+      let result: Awaited<ReturnType<typeof completePosSale>>;
+      try {
+        result = await completePosSale(
+          splitPayment
+            ? {
+                ...payload,
+                payments: splitRows
+                  .map((row) => ({
+                    method: row.method,
+                    amount: toCents(Number(row.amount) || 0),
+                  }))
+                  .filter((row) => row.amount > 0),
+              }
+            : {
+                ...payload,
+                method,
+              },
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not complete sale. Try again.");
+        return;
+      }
       if (result && "stockUpdates" in result && Array.isArray(result.stockUpdates)) {
         for (const upd of result.stockUpdates) {
           setProducts((prev) =>

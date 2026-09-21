@@ -4,31 +4,45 @@ import { useState } from "react";
 import { formatTTD } from "@/lib/money";
 import type { SalesVolumeBar, SalesVolumePatterns } from "@/lib/sales-volume-patterns";
 
+function truncateLabel(label: string, max = 16) {
+  const t = label.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1)}…`;
+}
+
 function VolumeBarChart({
   title,
   description,
   bars,
   ariaLabel,
   compactLabels = false,
+  rotateLabels = false,
+  fill = "var(--sea)",
+  fillHot = "var(--accent)",
+  emptyMessage = "No sales in this period",
 }: {
   title: string;
   description: string;
   bars: SalesVolumeBar[];
   ariaLabel: string;
   compactLabels?: boolean;
+  rotateLabels?: boolean;
+  fill?: string;
+  fillHot?: string;
+  emptyMessage?: string;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const width = 640;
-  const height = 200;
+  const height = rotateLabels ? 228 : 200;
   const padL = 52;
   const padR = 12;
   const padT = 18;
-  const padB = 36;
+  const padB = rotateLabels ? 64 : 36;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const max = Math.max(1, ...bars.map((b) => b.amount));
   const gap = bars.length > 12 ? 2 : 6;
-  const barW = Math.max(4, (innerW - gap * (bars.length - 1)) / bars.length);
+  const barW = Math.max(4, bars.length ? (innerW - gap * (bars.length - 1)) / bars.length : innerW);
   const totalAmount = bars.reduce((s, b) => s + b.amount, 0);
   const totalCount = bars.reduce((s, b) => s + b.count, 0);
   const active = hovered != null ? bars[hovered] : null;
@@ -38,7 +52,19 @@ function VolumeBarChart({
   return (
     <div className="stack" style={{ gap: "0.75rem" }}>
       <div>
-        <h3 style={{ margin: 0 }}>{title}</h3>
+        <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span
+            aria-hidden
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 3,
+              background: fill,
+              flexShrink: 0,
+            }}
+          />
+          {title}
+        </h3>
         <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.88rem", lineHeight: 1.45 }}>
           {description}
         </p>
@@ -78,7 +104,12 @@ function VolumeBarChart({
             const y = padT + innerH - h;
             const isHot = hovered === i;
             const showLabel =
-              !compactLabels || i % 2 === 0 || i === bars.length - 1 || isHot;
+              rotateLabels ||
+              !compactLabels ||
+              i % 2 === 0 ||
+              i === bars.length - 1 ||
+              isHot;
+            const label = rotateLabels ? truncateLabel(bar.label) : bar.label;
             return (
               <g
                 key={bar.key}
@@ -86,32 +117,39 @@ function VolumeBarChart({
                 onMouseLeave={() => setHovered(null)}
                 style={{ cursor: "default" }}
               >
-                <rect
-                  x={x}
-                  y={padT}
-                  width={barW}
-                  height={innerH}
-                  fill="transparent"
-                />
+                <rect x={x} y={padT} width={barW} height={innerH} fill="transparent" />
                 <rect
                   x={x}
                   y={y}
                   width={barW}
                   height={Math.max(bar.amount > 0 ? 2 : 0, h)}
                   rx={3}
-                  fill={isHot ? "var(--accent)" : "var(--sea)"}
+                  fill={isHot ? fillHot : fill}
                   opacity={bar.amount > 0 ? 1 : 0.25}
                 />
                 {showLabel ? (
-                  <text
-                    x={x + barW / 2}
-                    y={height - 12}
-                    textAnchor="middle"
-                    fill="var(--muted)"
-                    fontSize={compactLabels ? "9" : "11"}
-                  >
-                    {bar.label}
-                  </text>
+                  rotateLabels ? (
+                    <text
+                      x={0}
+                      y={0}
+                      transform={`translate(${x + barW / 2}, ${height - 8}) rotate(-42)`}
+                      textAnchor="end"
+                      fill="var(--ink)"
+                      fontSize="10"
+                    >
+                      {label}
+                    </text>
+                  ) : (
+                    <text
+                      x={x + barW / 2}
+                      y={height - 12}
+                      textAnchor="middle"
+                      fill="var(--muted)"
+                      fontSize={compactLabels ? "9" : "11"}
+                    >
+                      {label}
+                    </text>
+                  )
                 ) : null}
               </g>
             );
@@ -126,7 +164,7 @@ function VolumeBarChart({
               fill="var(--muted)"
               fontSize="12"
             >
-              No sales in this period
+              {emptyMessage}
             </text>
           ) : null}
         </svg>
@@ -143,6 +181,12 @@ function VolumeBarChart({
           <>
             Period total · {formatTTD(totalAmount)} · {totalCount} sale
             {totalCount === 1 ? "" : "s"}
+            {rotateLabels && bars.length ? (
+              <>
+                {" "}
+                · {bars.length} customer{bars.length === 1 ? "" : "s"}
+              </>
+            ) : null}
           </>
         )}
       </div>
@@ -152,25 +196,39 @@ function VolumeBarChart({
 
 export function SalesVolumeCharts({ data }: { data: SalesVolumePatterns }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: "1.5rem",
-        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-      }}
-    >
+    <div className="stack" style={{ gap: "1.5rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: "1.5rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        }}
+      >
+        <VolumeBarChart
+          title="Sales by day of week"
+          description="Completed POS sales totals by weekday in Trinidad & Tobago time."
+          bars={data.byWeekday}
+          ariaLabel="Sales volume by day of the week"
+        />
+        <VolumeBarChart
+          title="Sales by time of day"
+          description="Completed POS sales totals by hour of day in Trinidad & Tobago time."
+          bars={data.byHour}
+          ariaLabel="Sales volume by time of day"
+          compactLabels
+          fill="var(--chart-time)"
+          fillHot="var(--chart-time-hot)"
+        />
+      </div>
       <VolumeBarChart
-        title="Sales by day of week"
-        description="Completed POS sales totals by weekday in Trinidad & Tobago time."
-        bars={data.byWeekday}
-        ariaLabel="Sales volume by day of the week"
-      />
-      <VolumeBarChart
-        title="Sales by time of day"
-        description="Completed POS sales totals by hour of day in Trinidad & Tobago time."
-        bars={data.byHour}
-        ariaLabel="Sales volume by time of day"
-        compactLabels
+        title="Sales by customer"
+        description="Completed POS sales totals for customers who bought in this period. Unnamed tickets are grouped as Walk-in."
+        bars={data.byCustomer}
+        ariaLabel="Sales volume by customer"
+        rotateLabels={data.byCustomer.length > 0}
+        fill="var(--chart-customer)"
+        fillHot="var(--chart-customer-hot)"
+        emptyMessage="No customer sales in this period"
       />
     </div>
   );

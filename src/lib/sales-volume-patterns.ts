@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { isOwnerDrawingsCustomer } from "@/lib/owner-drawings";
+import { WALK_IN_CUSTOMER_NAME } from "@/lib/receivables";
 import { APP_TIMEZONE } from "@/lib/timezone";
 
 export type SalesVolumeBar = {
@@ -13,6 +15,8 @@ export type SalesVolumeBar = {
 export type SalesVolumePatterns = {
   byWeekday: SalesVolumeBar[];
   byHour: SalesVolumeBar[];
+  /** Only customers (including Walk-in) with sales in the period. */
+  byCustomer: SalesVolumeBar[];
 };
 
 const WEEKDAY_ORDER = [
@@ -57,8 +61,25 @@ function hourLabel(hour: number): string {
   return `${hour - 12}p`;
 }
 
+function customerBarIdentity(name: string | null | undefined, customerId: string | null): {
+  key: string;
+  label: string;
+} | null {
+  const trimmed = String(name || "").trim();
+  if (isOwnerDrawingsCustomer(trimmed)) return null;
+  if (
+    !customerId ||
+    !trimmed ||
+    trimmed.toLowerCase() === WALK_IN_CUSTOMER_NAME.toLowerCase() ||
+    trimmed.toLowerCase() === "walk-in"
+  ) {
+    return { key: "walk-in", label: "Walk-in" };
+  }
+  return { key: customerId, label: trimmed };
+}
+
 /**
- * Aggregate completed POS sales by weekday and hour of day (Trinidad time).
+ * Aggregate completed POS sales by weekday, hour of day, and customer (Trinidad time).
  */
 export async function fetchSalesVolumePatterns(
   companyId: string,
@@ -72,13 +93,14 @@ export async function fetchSalesVolumePatterns(
       isRefund: false,
       soldAt: { gte: start, lte: end },
     },
-    select: { soldAt: true, total: true },
+    select: { soldAt: true, total: true, customerId: true, customer: { select: { name: true } } },
   });
 
   const weekdayTotals = new Map<string, { amount: number; count: number }>();
   for (const w of WEEKDAY_ORDER) weekdayTotals.set(w.key, { amount: 0, count: 0 });
 
   const hourTotals = Array.from({ length: 24 }, () => ({ amount: 0, count: 0 }));
+  const customerTotals = new Map<string, { label: string; amount: number; count: number }>();
 
   for (const sale of sales) {
     const { weekday, hour } = appWeekdayAndHour(sale.soldAt);
@@ -90,7 +112,26 @@ export async function fetchSalesVolumePatterns(
     const slot = hourTotals[hour]!;
     slot.amount += sale.total;
     slot.count += 1;
+
+    const identity = customerBarIdentity(sale.customer?.name, sale.customerId);
+    if (!identity) continue;
+    const prev = customerTotals.get(identity.key);
+    if (prev) {
+      prev.amount += sale.total;
+      prev.count += 1;
+    } else {
+      customerTotals.set(identity.key, {
+        label: identity.label,
+        amount: sale.total,
+        count: 1,
+      });
+    }
   }
+
+  const byCustomer = [...customerTotals.entries()]
+    .filter(([, t]) => t.count > 0)
+    .sort((a, b) => b[1].amount - a[1].amount || a[1].label.localeCompare(b[1].label))
+    .map(([key, t]) => ({ key, label: t.label, amount: t.amount, count: t.count }));
 
   return {
     byWeekday: WEEKDAY_ORDER.map((w) => {
@@ -103,5 +144,6 @@ export async function fetchSalesVolumePatterns(
       amount: t.amount,
       count: t.count,
     })),
+    byCustomer,
   };
 }

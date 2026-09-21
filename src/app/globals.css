@@ -26,6 +26,10 @@
   --sidebar-from: #C41E3A;
   --sidebar-mid: #9E1830;
   --sidebar-to: #6E1020;
+  --chart-time: #FF8A00;
+  --chart-time-hot: #FF5A00;
+  --chart-customer: #4F46E5;
+  --chart-customer-hot: #3730A3;
 }
 
 [data-theme="red-white-black-dark"] {

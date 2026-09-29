@@ -2,9 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build",
-  "env": {
-    "TZ": "America/Port_of_Spain"
-  },
   "crons": [
     {
       "path": "/api/cron/low-stock",

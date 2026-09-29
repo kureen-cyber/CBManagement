@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import type { ResolvedDateRange } from "@/lib/date-range";
@@ -918,6 +919,7 @@ export function ReportsDashboard({
                   <th>Customer</th>
                   <th>Type</th>
                   <th>Total</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -931,11 +933,16 @@ export function ReportsDashboard({
                     <td>{r.customerDisplay}</td>
                     <td>{r.type}</td>
                     <td className="money">{formatTTD(r.total)}</td>
+                    <td>
+                      <Link className="btn btn-secondary btn-sm" href={`/pos/receipt/${r.id}`}>
+                        View
+                      </Link>
+                    </td>
                   </tr>
                 ))}
                 {filteredReceipts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
+                    <td colSpan={7} className="muted">
                       No receipts this period.
                     </td>
                   </tr>

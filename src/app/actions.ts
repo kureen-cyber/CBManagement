@@ -92,6 +92,21 @@ function optionalFormString(value: FormDataEntryValue | null): string | null {
   return raw || null;
 }
 
+function customerResidenceFromForm(formData: FormData) {
+  const dateOfBirth = optionalFormDate(formData.get("dateOfBirth"));
+  if (dateOfBirth) {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    if (dateOfBirth > today) {
+      throw new Error("Date of birth cannot be in the future");
+    }
+  }
+  return {
+    dateOfBirth,
+    country: optionalFormString(formData.get("country")),
+  };
+}
+
 function employeeProfileFromForm(formData: FormData) {
   return {
     firstName: String(formData.get("firstName") || "").trim(),
@@ -393,6 +408,7 @@ export async function createCustomer(formData: FormData) {
   if (isOwnerDrawingsCustomer(name)) {
     throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be added as a customer`);
   }
+  const residence = customerResidenceFromForm(formData);
   await prisma.customer.create({
     data: {
       companyId,
@@ -400,6 +416,8 @@ export async function createCustomer(formData: FormData) {
       email: String(formData.get("email") || "") || null,
       phone: String(formData.get("phone") || "") || null,
       address: String(formData.get("address") || "") || null,
+      dateOfBirth: residence.dateOfBirth,
+      country: residence.country,
       notes: String(formData.get("notes") || "") || null,
     },
   });
@@ -425,6 +443,7 @@ export async function updateCustomer(formData: FormData) {
     throw new Error(`${MANAGER_OWNER_CUSTOMER_NAME} is a system payee and cannot be used as a customer name`);
   }
 
+  const residence = customerResidenceFromForm(formData);
   await prisma.customer.update({
     where: { id },
     data: {
@@ -432,6 +451,8 @@ export async function updateCustomer(formData: FormData) {
       email: String(formData.get("email") || "") || null,
       phone: String(formData.get("phone") || "") || null,
       address: String(formData.get("address") || "") || null,
+      dateOfBirth: residence.dateOfBirth,
+      country: residence.country,
       notes: String(formData.get("notes") || "") || null,
     },
   });

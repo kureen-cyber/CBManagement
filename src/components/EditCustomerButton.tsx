@@ -3,6 +3,23 @@
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateCustomer } from "@/app/actions";
+import { CountrySelect } from "@/components/CountrySelect";
+import { APP_TIMEZONE } from "@/lib/timezone";
+
+function dateInputValue(value?: string | Date | null) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return value.slice(0, 10);
+}
+
+function todayIsoDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 export function EditCustomerButton({
   customer,
@@ -13,6 +30,8 @@ export function EditCustomerButton({
     phone: string | null;
     email: string | null;
     address: string | null;
+    dateOfBirth: string | Date | null;
+    country: string | null;
     notes: string | null;
   };
 }) {
@@ -128,6 +147,20 @@ export function EditCustomerButton({
               <label className="field">
                 Address
                 <input name="address" defaultValue={customer.address ?? ""} autoComplete="off" />
+              </label>
+              <label className="field">
+                Date of birth
+                <input
+                  name="dateOfBirth"
+                  type="date"
+                  defaultValue={dateInputValue(customer.dateOfBirth)}
+                  max={todayIsoDate()}
+                  autoComplete="bday"
+                />
+              </label>
+              <label className="field">
+                Country of residence
+                <CountrySelect defaultValue={customer.country} />
               </label>
               <label className="field full">
                 Notes

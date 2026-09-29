@@ -33,11 +33,11 @@ function VolumeBarChart({
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const width = 640;
-  const height = rotateLabels ? 228 : 200;
-  const padL = 52;
-  const padR = 12;
+  const padL = rotateLabels ? 64 : 52;
+  const padR = rotateLabels ? 36 : 12;
   const padT = 18;
-  const padB = rotateLabels ? 64 : 36;
+  const padB = rotateLabels ? 118 : 36;
+  const height = rotateLabels ? 282 : 200;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const max = Math.max(1, ...bars.map((b) => b.amount));
@@ -71,7 +71,13 @@ function VolumeBarChart({
       </div>
 
       <div className="line-chart">
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={ariaLabel}>
+        <svg
+          width="100%"
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={ariaLabel}
+          overflow="visible"
+        >
           {yTicks.map((tick) => {
             const y = padT + innerH - (tick / max) * innerH;
             return (
@@ -109,7 +115,7 @@ function VolumeBarChart({
               i % 2 === 0 ||
               i === bars.length - 1 ||
               isHot;
-            const label = rotateLabels ? truncateLabel(bar.label) : bar.label;
+            const label = rotateLabels ? truncateLabel(bar.label, 22) : bar.label;
             return (
               <g
                 key={bar.key}
@@ -130,12 +136,13 @@ function VolumeBarChart({
                 {showLabel ? (
                   rotateLabels ? (
                     <text
-                      x={0}
-                      y={0}
-                      transform={`translate(${x + barW / 2}, ${height - 8}) rotate(-42)`}
+                      x={x + barW / 2}
+                      y={height - 16}
+                      transform={`rotate(-50 ${x + barW / 2} ${height - 16})`}
                       textAnchor="end"
+                      dominantBaseline="middle"
                       fill="var(--ink)"
-                      fontSize="10"
+                      fontSize="11"
                     >
                       {label}
                     </text>

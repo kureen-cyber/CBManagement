@@ -140,8 +140,11 @@ export default async function ReportsPage({
           total: true,
           subtotal: true,
           discountAmount: true,
+          discountPercent: true,
+          method: true,
           isRefund: true,
           customer: { select: { name: true } },
+          lines: { select: { description: true, quantity: true, lineTotal: true } },
         },
         orderBy: { soldAt: "desc" },
       }),
@@ -371,6 +374,21 @@ export default async function ReportsPage({
     total: s.total,
   }));
 
+  const discountReceipts = salesInRange
+    .filter((s) => !s.isRefund && s.discountAmount > 0)
+    .map((s) => ({
+      id: s.id,
+      soldAt: s.soldAt.toISOString(),
+      number: s.number,
+      customerName: s.customer?.name?.trim() || null,
+      method: s.method,
+      subtotal: s.subtotal,
+      discountPercent: s.discountPercent,
+      discountAmount: s.discountAmount,
+      total: s.total,
+      items: s.lines.map((l) => itemBaseName(l.description, null)).filter(Boolean),
+    }));
+
   return (
     <div className="stack">
       <PageHeader
@@ -443,6 +461,7 @@ export default async function ReportsPage({
             purchasedAt: r.purchasedAt.toISOString(),
           })),
           receipts,
+          discountReceipts,
           saleLines: saleLines.map((l) => ({
             id: l.id,
             description: l.description,

@@ -84,6 +84,18 @@ export type ReportsData = {
     type: string;
     total: number;
   }[];
+  discountReceipts: {
+    id: string;
+    soldAt: string;
+    number: string;
+    customerName: string | null;
+    method: string;
+    subtotal: number;
+    discountPercent: number;
+    discountAmount: number;
+    total: number;
+    items: string[];
+  }[];
   saleLines: SaleLineReport[];
   dailyEarnings: { label: string; amount: number; date: string }[];
   salesSummaryByDay: {
@@ -109,7 +121,8 @@ type TabId =
   | "by-category"
   | "receipts"
   | "sales-summary"
-  | "refunds";
+  | "refunds"
+  | "discounts";
 
 const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "period", label: "Period", color: "#0a6b6e" },
@@ -124,6 +137,7 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "receipts", label: "Receipts", color: "#475569" },
   { id: "sales-summary", label: "Sales summary", color: "#0f766e" },
   { id: "refunds", label: "Refunds", color: "#b42318" },
+  { id: "discounts", label: "Discounts", color: "#c45c26" },
 ];
 
 const TAB_IDS = new Set(TABS.map((t) => t.id));
@@ -487,6 +501,7 @@ export function ReportsDashboard({
   const [itemQuery, setItemQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [refundQuery, setRefundQuery] = useState("");
+  const [discountQuery, setDiscountQuery] = useState("");
   const [receiptQuery, setReceiptQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
@@ -501,6 +516,12 @@ export function ReportsDashboard({
   const receiptsReturnTo = useMemo(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", "receipts");
+    return `/reports?${params.toString()}`;
+  }, [searchParams]);
+
+  const discountsReturnTo = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "discounts");
     return `/reports?${params.toString()}`;
   }, [searchParams]);
 
@@ -609,6 +630,22 @@ export function ReportsDashboard({
     const nums = new Set(refundLines.map((r) => r.saleNumber));
     return nums.size;
   }, [refundLines]);
+
+  const filteredDiscounts = useMemo(() => {
+    const q = discountQuery.trim().toLowerCase();
+    const rows = data.discountReceipts.map((r) => ({
+      ...r,
+      customerDisplay: r.customerName?.trim() || "Walk-in customer",
+    }));
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.number.toLowerCase().includes(q) ||
+        r.customerDisplay.toLowerCase().includes(q) ||
+        r.method.toLowerCase().includes(q) ||
+        r.items.some((item) => item.toLowerCase().includes(q)),
+    );
+  }, [data.discountReceipts, discountQuery]);
 
   return (
     <div className="stack reports-dashboard">
@@ -1417,6 +1454,138 @@ export function ReportsDashboard({
                   <tr>
                     <td colSpan={7} className="muted">
                       No refunds this period.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "discounts" ? (
+        <Panel className="report-tab-panel">
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Discounts</h3>
+              <p className="muted">
+                POS receipts in <strong>{periodLabel}</strong> that included a discount. Open a
+                receipt for the full ticket.
+              </p>
+            </div>
+            <ReportActions
+              title="Discounts"
+              filename={reportFileSlug(periodLabel, "discounts")}
+              sheetName="Discounts"
+              headers={[
+                "Date",
+                "Receipt",
+                "Customer",
+                "Items",
+                "Method",
+                "Subtotal (TTD)",
+                "Discount %",
+                "Discount (TTD)",
+                "Total (TTD)",
+              ]}
+              rows={filteredDiscounts.map((r) => [
+                formatAppDateTime(r.soldAt),
+                r.number,
+                r.customerDisplay,
+                r.items.join("; "),
+                r.method,
+                fromCents(r.subtotal),
+                r.discountPercent,
+                fromCents(r.discountAmount),
+                fromCents(r.total),
+              ])}
+            />
+          </div>
+          <div className="kpi-grid sales-summary-kpis" style={{ marginTop: "0.85rem" }}>
+            <div className="report-stat accent">
+              <div className="label">Discount total</div>
+              <div className="value money">{formatTTD(data.discounts)}</div>
+            </div>
+            <div className="report-stat purple">
+              <div className="label">Discounted receipts</div>
+              <div className="value">{data.discountReceipts.length}</div>
+            </div>
+            <div className="report-stat blue">
+              <div className="label">Average discount</div>
+              <div className="value">
+                {data.discountReceipts.length
+                  ? `${(
+                      data.discountReceipts.reduce((s, r) => s + r.discountPercent, 0) /
+                      data.discountReceipts.length
+                    ).toFixed(1)}%`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+          <SearchBar
+            value={discountQuery}
+            onChange={setDiscountQuery}
+            placeholder="Search receipt, customer, item, or method…"
+          />
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Receipt</th>
+                  <th>Customer</th>
+                  <th>Items</th>
+                  <th>Discount</th>
+                  <th>Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDiscounts.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatAppDateTime(r.soldAt)}</td>
+                    <td>
+                      <strong>{r.number}</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>
+                        {r.method} · Subtotal {formatTTD(r.subtotal)}
+                      </span>
+                    </td>
+                    <td>{r.customerDisplay}</td>
+                    <td>
+                      {r.items.length ? (
+                        r.items.map((item, i) => (
+                          <div key={`${r.id}-${i}`} style={{ fontSize: "0.88rem" }}>
+                            {item}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <strong className="money">−{formatTTD(r.discountAmount)}</strong>
+                      <span className="muted" style={{ display: "block", fontSize: "0.75rem" }}>
+                        {r.discountPercent ? `${r.discountPercent}%` : "Amount off"}
+                      </span>
+                    </td>
+                    <td className="money">{formatTTD(r.total)}</td>
+                    <td>
+                      <Link
+                        className="btn btn-secondary btn-sm"
+                        href={`/pos/receipt/${r.id}?from=reports&returnTo=${encodeURIComponent(discountsReturnTo)}`}
+                      >
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {filteredDiscounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted">
+                      No discounted receipts this period.
                     </td>
                   </tr>
                 ) : null}

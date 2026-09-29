@@ -106,6 +106,10 @@ export function PeriodSelector({
   }, [range]);
 
   function navigate(params: URLSearchParams) {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab) params.set("tab", tab);
+    }
     const q = params.toString();
     router.push(q ? `${basePath}?${q}` : basePath);
   }

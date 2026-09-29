@@ -7,6 +7,7 @@ import { enforceTierPath } from "@/lib/tier-guard";
 import { receiptFooterText } from "@/lib/settings";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import { InvoiceDetailTabs } from "@/components/InvoiceDetailTabs";
+import { EditInvoiceButton } from "@/components/EditInvoiceButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
@@ -27,7 +28,8 @@ export default async function InvoiceViewPage({
       where: { id, companyId },
       include: {
         customer: true,
-        job: true,
+        job: { include: { quotation: { select: { number: true, total: true } } } },
+        quotation: { select: { number: true, total: true } },
         lines: true,
         payments: true,
         employeeAssignments: {
@@ -43,6 +45,7 @@ export default async function InvoiceViewPage({
   ]);
   if (!invoice) notFound();
 
+  const quote = invoice.quotation ?? invoice.job?.quotation ?? null;
   const footer = receiptFooterText(company);
   const canPrint = company.receiptPrinting !== false;
   const balance = invoice.total - invoice.amountPaid;
@@ -160,6 +163,28 @@ export default async function InvoiceViewPage({
         description={invoice.number}
         actions={
           <>
+            {invoice.status !== "VOID" && invoice.status !== "CANCELLED" ? (
+              <EditInvoiceButton
+                size="md"
+                invoice={{
+                  id: invoice.id,
+                  number: invoice.number,
+                  status: invoice.status,
+                  taxAmount: invoice.taxAmount,
+                  amountPaid: invoice.amountPaid,
+                  notes: invoice.notes,
+                  dueDate: invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : null,
+                  quotationNumber: quote?.number ?? null,
+                  quotationTotal: quote?.total ?? null,
+                  lines: invoice.lines.map((l) => ({
+                    id: l.id,
+                    description: l.description,
+                    quantity: l.quantity,
+                    unitPrice: l.unitPrice,
+                  })),
+                }}
+              />
+            ) : null}
             <PrintButton enabled={canPrint} />
             <EmailDocumentButton
               kind="invoice"

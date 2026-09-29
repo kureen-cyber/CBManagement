@@ -16,7 +16,7 @@ export default async function PayablesPage() {
     <div className="stack">
       <PageHeader
         title="Payables"
-        description="Amounts owed to suppliers from purchase records."
+        description="Amounts owed to suppliers from purchase records and deferred outgoing payments."
         actions={
           <Link className="btn btn-secondary" href="/suppliers">
             Suppliers

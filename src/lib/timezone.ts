@@ -61,8 +61,11 @@ export function endOfAppMonth(now = new Date()): Date {
 }
 
 /** Parse a YYYY-MM-DD form value as noon in Trinidad & Tobago (avoids UTC midnight shifting the date). */
-export function parseFormDate(value: DateInput): Date | null {
-  const raw = String(value || "").trim();
+export function parseFormDate(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  if (typeof File !== "undefined" && value instanceof File) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const raw = String(value).trim();
   if (!raw) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     const d = new Date(`${raw}T12:00:00${APP_UTC_OFFSET}`);
@@ -71,7 +74,7 @@ export function parseFormDate(value: DateInput): Date | null {
   return asDate(raw);
 }
 
-export function parseFormDateOrNow(value: DateInput): Date {
+export function parseFormDateOrNow(value: unknown): Date {
   return parseFormDate(value) ?? new Date();
 }
 

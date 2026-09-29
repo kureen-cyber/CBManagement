@@ -12,7 +12,11 @@ import {
 } from "@/lib/business";
 import { requireCompany } from "@/lib/company";
 import { toCents } from "@/lib/money";
-import { DEFERRED_PAYMENT_CODE, ensureWalkInCustomer } from "@/lib/receivables";
+import {
+  DEFERRED_PAYMENT_CODE,
+  DEFERRED_PAYMENT_LABEL,
+  ensureWalkInCustomer,
+} from "@/lib/receivables";
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
@@ -1731,8 +1735,14 @@ export async function recordPayment(formData: FormData) {
     throw new Error("Select a customer or supplier");
   }
 
-  const method = String(formData.get("method") || "BANK");
-  const paidAt = new Date(String(formData.get("paidAt") || new Date().toISOString()));
+  const rawMethod = String(formData.get("method") || "BANK").trim();
+  const method =
+    rawMethod.toUpperCase() === DEFERRED_PAYMENT_CODE || rawMethod === DEFERRED_PAYMENT_LABEL
+      ? DEFERRED_PAYMENT_CODE
+      : rawMethod;
+  const isDeferred = method === DEFERRED_PAYMENT_CODE;
+  const paidAtRaw = new Date(String(formData.get("paidAt") || new Date().toISOString()));
+  const paidAt = Number.isNaN(paidAtRaw.getTime()) ? new Date() : paidAtRaw;
 
   if (payeeType === "supplier") {
     if (invoiceId || saleId) {
@@ -1744,9 +1754,40 @@ export async function recordPayment(formData: FormData) {
     const category = String(formData.get("category") || "Other").trim() || "Other";
     const description = String(formData.get("description") || "").trim() || null;
     const jobId = String(formData.get("jobId") || "") || null;
+    let jobNumber: string | null = null;
     if (jobId) {
       const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
       if (!job) throw new Error("Job not found");
+      jobNumber = job.number;
+    }
+
+    if (isDeferred) {
+      const noteParts = [
+        DEFERRED_PAYMENT_LABEL,
+        category ? `Category: ${category}` : null,
+        description,
+        jobNumber ? `Job: ${jobNumber}` : null,
+      ].filter(Boolean);
+      await prisma.supplierPurchase.create({
+        data: {
+          companyId,
+          supplierId: supplier.id,
+          name: description || `${DEFERRED_PAYMENT_LABEL} — ${category}`,
+          unit: "each",
+          quantity: 1,
+          unitCost: amount,
+          totalCost: amount,
+          purchasedAt: paidAt,
+          notes: noteParts.join(" · "),
+        },
+      });
+      revalidatePath("/payments");
+      revalidatePath("/payables");
+      revalidatePath("/suppliers");
+      revalidatePath(`/suppliers/${supplier.id}`);
+      revalidatePath("/financial-reports");
+      revalidatePath("/");
+      redirect("/payables");
     }
 
     let receiptData: string | null | undefined;
@@ -1795,6 +1836,43 @@ export async function recordPayment(formData: FormData) {
       throw new Error(
         `${MANAGER_OWNER_CUSTOMER_NAME} belongs under Salary Payments — use Add Salary Payments`,
       );
+    }
+
+    if (isDeferred) {
+      await retryOnUniqueConstraint(async () => {
+        const number = await nextNumber("INV", "invoice", companyId);
+        return prisma.invoice.create({
+          data: {
+            companyId,
+            number,
+            customerId: customer.id,
+            status: "SENT",
+            issueDate: paidAt,
+            dueDate: paidAt,
+            subtotal: amount,
+            taxAmount: 0,
+            total: amount,
+            amountPaid: 0,
+            notes: `${DEFERRED_PAYMENT_LABEL} recorded on Payments`,
+            lines: {
+              create: [
+                {
+                  description: DEFERRED_PAYMENT_LABEL,
+                  quantity: 1,
+                  unitPrice: amount,
+                  lineTotal: amount,
+                },
+              ],
+            },
+          },
+        });
+      });
+      revalidatePath("/payments");
+      revalidatePath("/receivables");
+      revalidatePath("/invoices");
+      revalidatePath("/financial-reports");
+      revalidatePath("/");
+      redirect("/receivables");
     }
 
     if (invoiceId) {
@@ -1868,6 +1946,7 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/payments");
   revalidatePath("/invoices");
   revalidatePath("/receivables");
+  revalidatePath("/payables");
   revalidatePath("/financial-reports");
   revalidatePath("/pos");
   revalidatePath("/jobs");

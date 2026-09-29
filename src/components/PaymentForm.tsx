@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { recordPayment } from "@/app/actions";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD, fromCents } from "@/lib/money";
+import { DEFERRED_PAYMENT_CODE, DEFERRED_PAYMENT_LABEL } from "@/lib/receivables";
 
 type InvoiceOption = {
   id: string;
@@ -50,6 +51,7 @@ export function PaymentForm({
   const showCustomers = mode !== "outgoing";
   const showSuppliers = mode !== "incoming";
   const isOutgoing = mode === "outgoing";
+  const allowDeferred = mode === "incoming" || mode === "outgoing";
 
   const payees = useMemo<PayeeOption[]>(() => {
     return [
@@ -68,6 +70,8 @@ export function PaymentForm({
   const [incomingType, setIncomingType] = useState<"POS" | "Invoice">(
     initialSaleId ? "POS" : "Invoice",
   );
+  const [method, setMethod] = useState(isOutgoing ? "CASH" : "BANK");
+  const isDeferred = method === DEFERRED_PAYMENT_CODE;
 
   const selectedPayee = useMemo(() => {
     if (!payeeKey) return null;
@@ -223,7 +227,7 @@ export function PaymentForm({
         </label>
       ) : null}
 
-      {mode === "incoming" || (!isSupplier && mode === "all") ? (
+      {!isDeferred && !isSupplier && (mode === "incoming" || mode === "all") ? (
         <>
           <label className="field">
             Type
@@ -288,8 +292,8 @@ export function PaymentForm({
           step="0.01"
           min="0.01"
           required
-          key={selectedReceivable?.id ?? payeeKey ?? "unallocated"}
-          defaultValue={selectedReceivable ? fromCents(selectedReceivable.amountDue) : ""}
+          key={isDeferred ? `${payeeKey}-deferred` : selectedReceivable?.id ?? payeeKey ?? "unallocated"}
+          defaultValue={!isDeferred && selectedReceivable ? fromCents(selectedReceivable.amountDue) : ""}
         />
       </label>
 
@@ -309,7 +313,18 @@ export function PaymentForm({
 
       <label className="field">
         {isOutgoing ? "Payment method" : "Method"}
-        <select name="method" defaultValue={isOutgoing ? "CASH" : "BANK"}>
+        <select
+          name="method"
+          value={method}
+          onChange={(e) => {
+            const next = e.target.value;
+            setMethod(next);
+            if (next === DEFERRED_PAYMENT_CODE) {
+              setInvoiceId("");
+              setSaleId("");
+            }
+          }}
+        >
           <option value="CASH">Cash</option>
           <option value="BANK">Bank</option>
           <option value="CARD">Card</option>
@@ -319,7 +334,17 @@ export function PaymentForm({
               <option value="CREDIT">Credit card</option>
             </>
           ) : null}
+          {allowDeferred ? (
+            <option value={DEFERRED_PAYMENT_CODE}>{DEFERRED_PAYMENT_LABEL}</option>
+          ) : null}
         </select>
+        {isDeferred ? (
+          <span className="muted" style={{ fontSize: "0.78rem", marginTop: "0.25rem" }}>
+            {isOutgoing
+              ? "This amount is owed to the supplier and will appear on Payables."
+              : "This amount is owed by the customer and will appear on Receivables."}
+          </span>
+        ) : null}
       </label>
 
       <label className="field">
@@ -345,11 +370,15 @@ export function PaymentForm({
 
       <div className="full">
         <button className="btn btn-primary" type="submit">
-          {mode === "outgoing" || isSupplier
-            ? "Record outgoing payment"
-            : mode === "incoming"
-              ? "Record incoming payment"
-              : "Save payment"}
+          {isDeferred
+            ? isOutgoing
+              ? "Record deferred payable"
+              : "Record deferred receivable"
+            : mode === "outgoing" || isSupplier
+              ? "Record outgoing payment"
+              : mode === "incoming"
+                ? "Record incoming payment"
+                : "Save payment"}
         </button>
       </div>
     </form>

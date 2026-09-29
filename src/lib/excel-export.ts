@@ -185,7 +185,9 @@ export function downloadExcel(opts: {
     { name: "xl/_rels/workbook.xml.rels", data: encoder.encode(WORKBOOK_RELS) },
     { name: "xl/worksheets/sheet1.xml", data: encoder.encode(sheetXml(opts.headers, opts.rows)) },
   ]);
-  const blob = new Blob([bytes], {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  const blob = new Blob([copy], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);

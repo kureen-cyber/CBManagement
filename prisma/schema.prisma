@@ -195,15 +195,18 @@ model CompanyMember {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  companyId String
-  name      String
-  email     String?
-  phone     String?
-  address   String?
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(cuid())
+  companyId   String
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  dateOfBirth DateTime?
+  /// Country of residence
+  country     String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   quotations Quotation[]

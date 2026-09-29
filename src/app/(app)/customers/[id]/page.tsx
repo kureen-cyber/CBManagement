@@ -116,7 +116,15 @@ export default async function CustomerDetailPage({
     <div className="stack">
       <PageHeader
         title={customer.name}
-        description={[customer.phone, customer.email, customer.address].filter(Boolean).join(" · ")}
+        description={[
+          customer.phone,
+          customer.email,
+          customer.address,
+          customer.country,
+          customer.dateOfBirth ? `Born ${formatDate(customer.dateOfBirth)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={
           <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
             <EditCustomerButton
@@ -126,6 +134,8 @@ export default async function CustomerDetailPage({
                 phone: customer.phone,
                 email: customer.email,
                 address: customer.address,
+                dateOfBirth: customer.dateOfBirth?.toISOString() ?? null,
+                country: customer.country,
                 notes: customer.notes,
               }}
             />

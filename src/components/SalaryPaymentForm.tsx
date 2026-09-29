@@ -8,6 +8,7 @@ import {
   OWNER_POSITION_LABEL,
   OWNER_SYSTEM_ROLE,
 } from "@/lib/owner-drawings";
+import { appTodayIsoDate } from "@/lib/timezone";
 
 type EmployeeOption = {
   id: string;
@@ -87,7 +88,7 @@ export function SalaryPaymentForm({ employees }: { employees: EmployeeOption[] }
       </label>
       <label className="field">
         Date
-        <input name="paidAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+        <input name="paidAt" type="date" defaultValue={appTodayIsoDate()} />
       </label>
       <div className="full">
         <button className="btn btn-primary" type="submit">

@@ -10,7 +10,7 @@ import { AddEntityTab } from "@/components/AddEntityTab";
 import { EditInvoiceButton } from "@/components/EditInvoiceButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appDateKey } from "@/lib/timezone";
 import { excludeSystemCustomers } from "@/lib/owner-drawings";
 
 export const dynamic = "force-dynamic";
@@ -96,7 +96,7 @@ export default async function InvoicesPage({
             <input
               name="dueDate"
               type="date"
-              defaultValue={new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}
+              defaultValue={appDateKey(new Date(Date.now() + 14 * 86400000))}
             />
             <span className="muted" style={{ fontSize: "0.8rem" }}>
               For job invoices, due date follows the job engagement end date when set.
@@ -187,7 +187,7 @@ export default async function InvoicesPage({
                             taxAmount: inv.taxAmount,
                             amountPaid: inv.amountPaid,
                             notes: inv.notes,
-                            dueDate: inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : null,
+                            dueDate: inv.dueDate ? appDateKey(inv.dueDate) : null,
                             quotationNumber: quote?.number ?? null,
                             quotationTotal: quote?.total ?? null,
                             lines: inv.lines.map((l) => ({

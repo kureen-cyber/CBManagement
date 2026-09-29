@@ -13,7 +13,7 @@ import {
 } from "@/app/actions";
 import { AddEntityTab } from "@/components/AddEntityTab";
 import { Panel } from "@/components/ui";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appTodayIsoDate } from "@/lib/timezone";
 
 type SupplyItem = {
   id: string;
@@ -510,7 +510,7 @@ export function SupplierDetailClient({
                 <input
                   name="purchasedAt"
                   type="date"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  defaultValue={appTodayIsoDate()}
                 />
               </label>
               <label className="field full">

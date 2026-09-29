@@ -290,19 +290,42 @@ export function InventoryClient({
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => {
+      const hay = [
+        p.name,
+        p.sku,
+        p.category,
+        ...(p.variables || []).flatMap((v) => [v.name, ...v.options.map((o) => `${o.label} ${o.sku || ""}`)]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [products, searchQuery]);
 
   const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageProducts = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return products.slice(start, start + pageSize);
-  }, [products, currentPage, pageSize]);
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
 
   useEffect(() => {
     setProducts(initialProducts);
     setPage(1);
   }, [initialProducts]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -411,8 +434,11 @@ export function InventoryClient({
 
   return (
     <div className="stack">
-      {canManage ? (
-        <div className="inventory-top-tabs" role="tablist">
+      {!canManage ? (
+        <div className="info-banner">Stock levels only — inventory changes require POS register 1.</div>
+      ) : null}
+      <div className="inventory-top-tabs" role="tablist">
+        {canManage ? (
           <button
             type="button"
             role="tab"
@@ -422,10 +448,33 @@ export function InventoryClient({
           >
             Add inventory
           </button>
-        </div>
-      ) : (
-        <div className="info-banner">Stock levels only — inventory changes require POS register 1.</div>
-      )}
+        ) : null}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={showSearch}
+          className={showSearch ? "settings-subtab active" : "settings-subtab"}
+          onClick={() =>
+            setShowSearch((open) => {
+              if (open) setSearchQuery("");
+              return !open;
+            })
+          }
+        >
+          Search
+        </button>
+      </div>
+      {showSearch ? (
+        <input
+          className="report-search"
+          style={{ marginTop: 0, maxWidth: 420 }}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search name, SKU, category, or variant…"
+          aria-label="Search inventory"
+          autoFocus
+        />
+      ) : null}
 
       {message && !showAdd ? (
         <div className="badge badge-ok" style={{ alignSelf: "flex-start" }}>
@@ -810,10 +859,14 @@ export function InventoryClient({
           <p className="muted" style={{ margin: 0 }}>
             No inventory items yet.
           </p>
+        ) : filteredProducts.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>
+            No items match that search.
+          </p>
         ) : null}
       </div>
 
-      {products.length > pageSize ? (
+      {filteredProducts.length > pageSize ? (
         <div
           className="row"
           style={{
@@ -825,7 +878,7 @@ export function InventoryClient({
         >
           <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
             Showing {(currentPage - 1) * pageSize + 1}–
-            {Math.min(currentPage * pageSize, products.length)} of {products.length}
+            {Math.min(currentPage * pageSize, filteredProducts.length)} of {filteredProducts.length}
           </p>
           <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
             <button

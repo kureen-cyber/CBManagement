@@ -13,6 +13,7 @@ import {
 import { EmployeeFormFields, type EmployeeFormValues } from "@/components/EmployeeFormFields";
 import { formatTTD, fromCents } from "@/lib/money";
 import { PAY_FREQUENCIES, EMPLOYMENT_BASIS_OPTIONS, PRONOUN_OPTIONS, type EmploymentBasis, type EmployeePronoun, type PayFrequency } from "@/lib/employee-banks";
+import { appDateKey, endOfAppMonth, startOfAppMonth } from "@/lib/timezone";
 
 type TabId = "profile" | "job-letter" | "payslip";
 
@@ -26,11 +27,9 @@ function printHtml(html: string) {
 }
 
 function monthBounds(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: appDateKey(startOfAppMonth(date)),
+    end: appDateKey(endOfAppMonth(date)),
   };
 }
 

@@ -6,7 +6,7 @@ import { requireCompany } from "@/lib/company";
 import { CustomerSummaryDiagram } from "@/components/CustomerSummaryDiagram";
 import { EditCustomerButton } from "@/components/EditCustomerButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appDateKey } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +134,7 @@ export default async function CustomerDetailPage({
                 phone: customer.phone,
                 email: customer.email,
                 address: customer.address,
-                dateOfBirth: customer.dateOfBirth?.toISOString() ?? null,
+                dateOfBirth: customer.dateOfBirth ? appDateKey(customer.dateOfBirth) : null,
                 country: customer.country,
                 notes: customer.notes,
               }}

@@ -7,7 +7,7 @@ import { EmployeeActionTabs } from "@/components/EmployeeActionTabs";
 import { EmployeePayslipRecords } from "@/components/EmployeePayslipRecords";
 import { EmployeeTimeClock } from "@/components/EmployeeTimeClock";
 import { PageHeader, Panel } from "@/components/ui";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appDateKey } from "@/lib/timezone";
 import { receiptHeaderText } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -68,8 +68,8 @@ export default async function EmployeeDetailPage({
           hourlyRate: fromCents(employee.hourlyRate),
           phone: employee.phone || "",
           email: employee.email || "",
-          dateOfEngagement: employee.dateOfEngagement?.toISOString(),
-          dateOfTermination: employee.dateOfTermination?.toISOString(),
+          dateOfEngagement: employee.dateOfEngagement ? appDateKey(employee.dateOfEngagement) : "",
+          dateOfTermination: employee.dateOfTermination ? appDateKey(employee.dateOfTermination) : "",
           nisNumber: employee.nisNumber || "",
           payeNumber: employee.payeNumber || "",
           bankAccountNumber: employee.bankAccountNumber || "",
@@ -80,7 +80,7 @@ export default async function EmployeeDetailPage({
         jobLetterDefaults={{
           employeeName: `${employee.firstName} ${employee.lastName}`,
           jobTitle: employee.role || "",
-          startDate: employee.dateOfEngagement?.toISOString().slice(0, 10) || "",
+          startDate: employee.dateOfEngagement ? appDateKey(employee.dateOfEngagement) : "",
           companyName: receiptHeaderText(company),
           companyPhone: company.businessContactNumber || "",
           companyEmail: company.businessEmail || "",

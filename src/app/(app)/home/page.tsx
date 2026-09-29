@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { getBusinessType } from "@/lib/session-business";
@@ -9,6 +8,7 @@ import { isRetailOnly, isServiceOnly } from "@/lib/business-type";
 import { parseHomeLayout } from "@/lib/settings";
 import { PageHeader, Panel } from "@/components/ui";
 import { RetailDashboard } from "@/components/RetailDashboard";
+import { endOfAppDay, endOfAppMonth, startOfAppDay, startOfAppMonth } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +23,10 @@ export default async function DashboardPage() {
   }
 
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
+  const todayStart = startOfAppDay(now);
+  const todayEnd = endOfAppDay(now);
+  const monthStart = startOfAppMonth(now);
+  const monthEnd = endOfAppMonth(now);
   const showPos = !isServiceOnly(businessType);
   const showService = businessType !== "RETAIL";
 

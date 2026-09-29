@@ -10,20 +10,14 @@ import {
   buildPayslipHtml,
   type PayslipLine,
 } from "@/lib/employee-documents";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, parseFormDate, endOfAppDay } from "@/lib/timezone";
 import type { EmploymentBasis, EmployeePronoun, PayFrequency } from "@/lib/employee-banks";
 import { DEFAULT_RECEIPT_FOOTER } from "@/lib/settings";
 
 function parseDateOnly(value: string): Date {
-  const d = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(d.getTime())) throw new Error("Invalid date");
+  const d = parseFormDate(value);
+  if (!d) throw new Error("Invalid date");
   return d;
-}
-
-function endOfDay(d: Date) {
-  const copy = new Date(d);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
 }
 
 function isValidEmail(email: string) {
@@ -133,7 +127,7 @@ async function buildPayslipForPeriod(input: PayslipPeriodInput, companyId: strin
   const branding = await loadCompanyBranding(companyId);
 
   const periodStart = parseDateOnly(input.periodStart);
-  const periodEnd = endOfDay(parseDateOnly(input.periodEnd));
+  const periodEnd = endOfAppDay(parseDateOnly(input.periodEnd));
   if (periodEnd < periodStart) throw new Error("Period end must be on or after period start");
 
   const entries = await prisma.timeEntry.findMany({

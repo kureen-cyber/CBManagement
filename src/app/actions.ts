@@ -20,6 +20,7 @@ import {
 import { nextCategoryColor, PRODUCT_IMAGE_MAX_BYTES, RECEIPT_UPLOAD_MAX_BYTES } from "@/lib/settings";
 import { parseSupplyLinesJson, quotationEquipmentExpenseAmount } from "@/lib/supply-lines";
 import { jobPaymentsComplete, resolveJobStatus } from "@/lib/job-status";
+import { appTodayIsoDate, parseFormDate, parseFormDateOrNow } from "@/lib/timezone";
 import {
   isOwnerDrawingsCustomer,
   isOwnerEmployee,
@@ -85,10 +86,7 @@ function dollarsToCents(value: FormDataEntryValue | null): number {
 }
 
 function optionalFormDate(value: FormDataEntryValue | null): Date | null {
-  const raw = String(value || "").trim();
-  if (!raw) return null;
-  const d = new Date(`${raw}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return parseFormDate(value);
 }
 
 function optionalFormString(value: FormDataEntryValue | null): string | null {
@@ -98,12 +96,8 @@ function optionalFormString(value: FormDataEntryValue | null): string | null {
 
 function customerResidenceFromForm(formData: FormData) {
   const dateOfBirth = optionalFormDate(formData.get("dateOfBirth"));
-  if (dateOfBirth) {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    if (dateOfBirth > today) {
-      throw new Error("Date of birth cannot be in the future");
-    }
+  if (dateOfBirth && appTodayIsoDate(dateOfBirth) > appTodayIsoDate()) {
+    throw new Error("Date of birth cannot be in the future");
   }
   return {
     dateOfBirth,
@@ -647,7 +641,7 @@ export async function createSupplierPurchase(formData: FormData) {
     : Math.round(unitCost * quantity);
 
   const purchasedAtRaw = String(formData.get("purchasedAt") || "").trim();
-  const purchasedAt = purchasedAtRaw ? new Date(purchasedAtRaw) : new Date();
+  const purchasedAt = purchasedAtRaw ? parseFormDateOrNow(purchasedAtRaw) : new Date();
 
   await prisma.supplierPurchase.create({
     data: {
@@ -1102,7 +1096,7 @@ export async function createExpense(formData: FormData) {
       category: String(formData.get("category") || "Other"),
       description: String(formData.get("description") || "") || null,
       amount: dollarsToCents(formData.get("amount")),
-      date: new Date(String(formData.get("date") || new Date().toISOString())),
+      date: parseFormDateOrNow(formData.get("date")),
       paymentMethod: String(formData.get("paymentMethod") || "CASH"),
       jobId,
       ...(receiptData !== undefined ? { receiptData } : {}),
@@ -1122,8 +1116,8 @@ export async function updateExpense(formData: FormData) {
   if (!existing) throw new Error("Expense not found");
 
   const dateRaw = String(formData.get("date") || "").trim();
-  const date = dateRaw ? new Date(`${dateRaw}T12:00:00`) : existing.date;
-  if (Number.isNaN(date.getTime())) throw new Error("Invalid date");
+  const date = dateRaw ? parseFormDate(dateRaw) : existing.date;
+  if (!date || Number.isNaN(date.getTime())) throw new Error("Invalid date");
 
   let receiptData: string | null | undefined;
   try {
@@ -1586,7 +1580,7 @@ export async function createInvoice(formData: FormData) {
   if (!customer) throw new Error("Customer not found");
 
   let due: Date | null = formData.get("dueDate")
-    ? new Date(String(formData.get("dueDate")))
+    ? parseFormDate(formData.get("dueDate"))
     : null;
 
   if (jobId) {
@@ -1741,8 +1735,7 @@ export async function recordPayment(formData: FormData) {
       ? DEFERRED_PAYMENT_CODE
       : rawMethod;
   const isDeferred = method === DEFERRED_PAYMENT_CODE;
-  const paidAtRaw = new Date(String(formData.get("paidAt") || new Date().toISOString()));
-  const paidAt = Number.isNaN(paidAtRaw.getTime()) ? new Date() : paidAtRaw;
+  const paidAt = parseFormDateOrNow(formData.get("paidAt"));
 
   if (payeeType === "supplier") {
     if (invoiceId || saleId) {
@@ -1958,7 +1951,7 @@ export async function recordSalaryPayment(formData: FormData) {
   const payeeId = String(formData.get("payeeId") || "");
   const amount = dollarsToCents(formData.get("amount"));
   const method = String(formData.get("method") || "BANK");
-  const paidAt = new Date(String(formData.get("paidAt") || new Date().toISOString()));
+  const paidAt = parseFormDateOrNow(formData.get("paidAt"));
 
   if (amount <= 0) throw new Error("Amount must be greater than zero");
   if (!payeeId) throw new Error("Select an employee");
@@ -2027,7 +2020,7 @@ export async function addTimeEntry(formData: FormData) {
     data: {
       employeeId,
       jobId,
-      date: new Date(String(formData.get("date") || new Date().toISOString())),
+      date: parseFormDateOrNow(formData.get("date")),
       hours: Number(formData.get("hours") || 0),
       overtimeHours: Number(formData.get("overtimeHours") || 0),
       hourlyRate: employee.hourlyRate,

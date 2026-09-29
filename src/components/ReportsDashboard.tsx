@@ -6,10 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import type { ResolvedDateRange } from "@/lib/date-range";
 import { formatTTD, fromCents } from "@/lib/money";
+import { downloadExcel, type ExcelCell } from "@/lib/excel-export";
 import { Panel } from "@/components/ui";
 import { DocumentBranding } from "@/components/DocumentBranding";
 import type { CompanyBranding } from "@/lib/settings";
-import { formatAppDate, formatAppDateTime } from "@/lib/timezone";
+import { formatAppDate, formatAppDateTime, APP_UTC_OFFSET } from "@/lib/timezone";
 
 export type SaleLineReport = {
   id: string;
@@ -60,6 +61,20 @@ export type ReportsData = {
     isService: boolean;
   }[];
   salesByCategory: { category: string; qty: number; amount: number }[];
+  expenseLines: { category: string; description: string | null; amount: number; date: string }[];
+  receivableRows: {
+    source: string;
+    number: string;
+    customerName: string;
+    balance: number;
+    dueDate: string | null;
+  }[];
+  payableRows: {
+    supplierName: string;
+    description: string;
+    amount: number;
+    purchasedAt: string;
+  }[];
   receipts: {
     id: string;
     soldAt: string;
@@ -397,11 +412,53 @@ function SearchBar({
 }) {
   return (
     <input
-      className="report-search"
+      className="report-search no-print"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
     />
+  );
+}
+
+function reportFileSlug(periodLabel: string, tab: string) {
+  const period = periodLabel.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+  return `cbmanagement-${tab}-${period || "report"}`;
+}
+
+function ReportActions({
+  title,
+  filename,
+  sheetName,
+  headers,
+  rows,
+}: {
+  title: string;
+  filename: string;
+  sheetName: string;
+  headers: string[];
+  rows: ExcelCell[][];
+}) {
+  return (
+    <div className="row report-export-bar no-print" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        onClick={() =>
+          downloadExcel({
+            filename,
+            sheetName,
+            headers,
+            rows,
+          })
+        }
+        aria-label={`Export ${title} report`}
+      >
+        Export report
+      </button>
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.print()}>
+        Print
+      </button>
+    </div>
   );
 }
 
@@ -555,7 +612,7 @@ export function ReportsDashboard({
 
   return (
     <div className="stack reports-dashboard">
-      <Panel className="reports-hero">
+      <Panel className="reports-hero no-print">
         {branding ? (
           <div style={{ marginBottom: "1rem" }}>
             <DocumentBranding company={branding} documentTitle="Reports" />
@@ -596,7 +653,7 @@ export function ReportsDashboard({
         </div>
       </Panel>
 
-      <div className="settings-tabs report-tabs" role="tablist">
+      <div className="settings-tabs report-tabs no-print" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -687,8 +744,30 @@ export function ReportsDashboard({
 
       {tab === "expenses" ? (
         <Panel className="report-tab-panel">
-          <h3>Expenses</h3>
-          <p className="muted">Where money went this period.</p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Expenses</h3>
+              <p className="muted">Where money went this period.</p>
+            </div>
+            <ReportActions
+              title="Expenses"
+              filename={reportFileSlug(periodLabel, "expenses")}
+              sheetName="Expenses"
+              headers={["Date", "Category", "Description", "Amount (TTD)"]}
+              rows={[
+                ...data.expenseLines.map((e) => [
+                  formatAppDate(e.date),
+                  e.category,
+                  e.description || "",
+                  fromCents(e.amount),
+                ]),
+                ["Total", "", "", fromCents(data.expenses)],
+              ]}
+            />
+          </div>
           <DonutChart
             slices={
               expenseSlices.length
@@ -712,22 +791,127 @@ export function ReportsDashboard({
 
       {tab === "receivables" ? (
         <Panel className="report-tab-panel">
-          <h3>Accounts receivable</h3>
-          <p className="muted">Money customers still owe you on open invoices.</p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Accounts receivable</h3>
+              <p className="muted">Money customers still owe you on open invoices and POS balances.</p>
+            </div>
+            <ReportActions
+              title="Receivables"
+              filename={reportFileSlug(periodLabel, "receivables")}
+              sheetName="Receivables"
+              headers={["Type", "Reference", "Customer", "Due", "Balance (TTD)"]}
+              rows={[
+                ...data.receivableRows.map((r) => [
+                  r.source === "POS" ? "POS" : "Service",
+                  r.number,
+                  r.customerName,
+                  r.dueDate ? formatAppDate(r.dueDate) : "",
+                  fromCents(r.balance),
+                ]),
+                ["Total", "", "", "", fromCents(data.receivables)],
+              ]}
+            />
+          </div>
           <div className="report-stat purple" style={{ maxWidth: 320, marginTop: "0.75rem" }}>
             <div className="label">Outstanding</div>
             <div className="value money">{formatTTD(data.receivables)}</div>
+          </div>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Reference</th>
+                  <th>Customer</th>
+                  <th>Due</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.receivableRows.map((r) => (
+                  <tr key={`${r.source}-${r.number}`}>
+                    <td>{r.source === "POS" ? "POS" : "Service"}</td>
+                    <td>{r.number}</td>
+                    <td>{r.customerName}</td>
+                    <td>{r.dueDate ? formatAppDate(r.dueDate) : "—"}</td>
+                    <td className="money">{formatTTD(r.balance)}</td>
+                  </tr>
+                ))}
+                {data.receivableRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      No outstanding receivables.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </Panel>
       ) : null}
 
       {tab === "payables" ? (
         <Panel className="report-tab-panel">
-          <h3>Accounts payable</h3>
-          <p className="muted">Amounts owed to suppliers from purchase records.</p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Accounts payable</h3>
+              <p className="muted">Amounts owed to suppliers from purchase records and deferred outgoing payments.</p>
+            </div>
+            <ReportActions
+              title="Payables"
+              filename={reportFileSlug(periodLabel, "payables")}
+              sheetName="Payables"
+              headers={["Supplier", "Description", "Date", "Amount (TTD)"]}
+              rows={[
+                ...data.payableRows.map((r) => [
+                  r.supplierName,
+                  r.description,
+                  formatAppDate(r.purchasedAt),
+                  fromCents(r.amount),
+                ]),
+                ["Total", "", "", fromCents(data.payables)],
+              ]}
+            />
+          </div>
           <div className="report-stat purple" style={{ maxWidth: 320, marginTop: "0.75rem" }}>
             <div className="label">Outstanding</div>
             <div className="value money">{formatTTD(data.payables)}</div>
+          </div>
+          <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Description</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.payableRows.map((r) => (
+                  <tr key={`${r.supplierName}-${r.purchasedAt}-${r.description}`}>
+                    <td>{r.supplierName}</td>
+                    <td>{r.description}</td>
+                    <td>{formatAppDate(r.purchasedAt)}</td>
+                    <td className="money">{formatTTD(r.amount)}</td>
+                  </tr>
+                ))}
+                {data.payableRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      No payables recorded yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </Panel>
       ) : null}
@@ -755,10 +939,42 @@ export function ReportsDashboard({
 
       {tab === "by-item" ? (
         <Panel className="report-tab-panel">
-          <h3>Sales by item</h3>
-          <p className="muted">
-            Item name, sold variant, category, qty sold, net sales, cost of goods, and gross profit.
-          </p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Sales by item</h3>
+              <p className="muted">
+                Item name, sold variant, category, qty sold, net sales, cost of goods, and gross profit.
+              </p>
+            </div>
+            <ReportActions
+              title="Sales by item"
+              filename={reportFileSlug(periodLabel, "sales-by-item")}
+              sheetName="Sales by item"
+              headers={[
+                "Item name",
+                "Variant",
+                "Category",
+                "Type",
+                "Qty sold",
+                "Net sales (TTD)",
+                "Cost of goods (TTD)",
+                "Gross profit (TTD)",
+              ]}
+              rows={filteredItems.map((r) => [
+                r.name,
+                r.variant || "",
+                r.category,
+                r.isService ? "Service" : "Retail",
+                r.qty,
+                fromCents(r.netSales),
+                fromCents(r.cogs),
+                fromCents(r.grossProfit),
+              ])}
+            />
+          </div>
           <SearchBar
             value={itemQuery}
             onChange={setItemQuery}
@@ -809,10 +1025,56 @@ export function ReportsDashboard({
 
       {tab === "by-category" ? (
         <Panel className="report-tab-panel">
-          <h3>Search by category</h3>
-          <p className="muted">
-            Expand a category to see items sold, quantities, and sales for this period.
-          </p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Search by category</h3>
+              <p className="muted">
+                Expand a category to see items sold, quantities, and sales for this period.
+              </p>
+            </div>
+            <ReportActions
+              title="Sales by category"
+              filename={reportFileSlug(periodLabel, "sales-by-category")}
+              sheetName="Sales by category"
+              headers={[
+                "Category",
+                "Item",
+                "Variant",
+                "Qty sold",
+                "Sales (TTD)",
+                "Cost of goods (TTD)",
+                "Gross profit (TTD)",
+              ]}
+              rows={filteredCategories.flatMap((r) => {
+                const items = itemsByCategory.get(r.category) || [];
+                const categoryCogs = items.reduce((s, i) => s + i.cogs, 0);
+                const categoryGp = items.reduce((s, i) => s + i.grossProfit, 0);
+                return [
+                  [
+                    r.category,
+                    "",
+                    "",
+                    r.qty,
+                    fromCents(r.amount),
+                    fromCents(categoryCogs),
+                    fromCents(categoryGp),
+                  ],
+                  ...items.map((item) => [
+                    r.category,
+                    item.name,
+                    item.variant || "",
+                    item.qty,
+                    fromCents(item.netSales),
+                    fromCents(item.cogs),
+                    fromCents(item.grossProfit),
+                  ]),
+                ];
+              })}
+            />
+          </div>
           <SearchBar value={categoryQuery} onChange={setCategoryQuery} placeholder="Search category…" />
           <div style={{ marginTop: "1rem" }}>
             <DonutChart
@@ -981,11 +1243,56 @@ export function ReportsDashboard({
 
       {tab === "sales-summary" ? (
         <Panel className="report-tab-panel">
-          <h3>Sales summary</h3>
-          <p className="muted">
-            Daily gross sales, refunds, discounts, net sales, cost of goods, and gross profit for{" "}
-            <strong>{periodLabel}</strong>.
-          </p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}
+          >
+            <div>
+              <h3>Sales summary</h3>
+              <p className="muted">
+                Daily gross sales, refunds, discounts, net sales, cost of goods, and gross profit for{" "}
+                <strong>{periodLabel}</strong>.
+              </p>
+            </div>
+            <ReportActions
+              title="Sales summary"
+              filename={reportFileSlug(periodLabel, "sales-summary")}
+              sheetName="Sales summary"
+              headers={[
+                "Date",
+                "Gross sales (TTD)",
+                "Refunds (TTD)",
+                "Discounts (TTD)",
+                "Net sales (TTD)",
+                "Cost of goods (TTD)",
+                "Gross profit (TTD)",
+              ]}
+              rows={[
+                ...data.salesSummaryByDay.map((r) => [
+                  formatAppDate(`${r.date}T12:00:00${APP_UTC_OFFSET}`),
+                  fromCents(r.grossSales),
+                  fromCents(r.refunds),
+                  fromCents(r.discounts),
+                  fromCents(r.netSales),
+                  fromCents(r.cogs),
+                  fromCents(r.grossProfit),
+                ]),
+                ...(data.salesSummaryByDay.length
+                  ? [
+                      [
+                        "Total",
+                        fromCents(data.grossSales),
+                        fromCents(data.refunds),
+                        fromCents(data.discounts),
+                        fromCents(data.netSales),
+                        fromCents(data.cogs),
+                        fromCents(data.grossProfit),
+                      ],
+                    ]
+                  : []),
+              ]}
+            />
+          </div>
           <div className="table-wrap list-dense" style={{ marginTop: "1rem" }}>
             <table className="data">
               <thead>
@@ -1002,7 +1309,7 @@ export function ReportsDashboard({
               <tbody>
                 {data.salesSummaryByDay.map((r) => (
                   <tr key={r.date}>
-                    <td>{formatAppDate(`${r.date}T12:00:00`)}</td>
+                    <td>{formatAppDate(`${r.date}T12:00:00${APP_UTC_OFFSET}`)}</td>
                     <td className="money">{formatTTD(r.grossSales)}</td>
                     <td className="money">{formatTTD(r.refunds)}</td>
                     <td className="money">{formatTTD(r.discounts)}</td>

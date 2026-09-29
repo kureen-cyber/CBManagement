@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { fromCents } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { parseVariableOptions } from "@/lib/product-variables";
+import { appTodayIsoDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export async function GET() {
   }
 
   const csvBody = [header.join(","), ...rows].join("\n");
-  const filename = `cbmanagement-stock-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `cbmanagement-stock-${appTodayIsoDate()}.csv`;
 
   return new NextResponse(csvBody, {
     status: 200,

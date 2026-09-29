@@ -1,18 +1,17 @@
 import Link from "next/link";
-import { startOfDay, endOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { formatTTD } from "@/lib/money";
 import { requireCompany } from "@/lib/company";
 import { crmCustomerCountWhere } from "@/lib/owner-drawings";
 import { parsePlanTier, receiptVisibleSince } from "@/lib/tier";
 import { PageHeader, Panel } from "@/components/ui";
-import { formatAppDateTime } from "@/lib/timezone";
+import { endOfAppDay, formatAppDateTime, startOfAppDay } from "@/lib/timezone";
 
 export async function RetailDashboard() {
   const { companyId, company } = await requireCompany();
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
+  const todayStart = startOfAppDay(now);
+  const todayEnd = endOfAppDay(now);
   const since = receiptVisibleSince(parsePlanTier(company.planTier));
 
   const [salesToday, saleCount, customerCount, products, recentSales] = await Promise.all([

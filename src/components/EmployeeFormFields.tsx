@@ -1,4 +1,5 @@
 import { EMPLOYEE_BANKS } from "@/lib/employee-banks";
+import { appDateInputValue } from "@/lib/timezone";
 
 export type EmployeeFormValues = {
   firstName?: string;
@@ -18,9 +19,7 @@ export type EmployeeFormValues = {
 };
 
 function dateInputValue(value?: string | Date | null) {
-  if (!value) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return value.slice(0, 10);
+  return appDateInputValue(value);
 }
 
 export function EmployeeFormFields({

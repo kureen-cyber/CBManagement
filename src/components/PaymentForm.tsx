@@ -5,6 +5,7 @@ import { recordPayment } from "@/app/actions";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD, fromCents } from "@/lib/money";
 import { DEFERRED_PAYMENT_CODE, DEFERRED_PAYMENT_LABEL } from "@/lib/receivables";
+import { appTodayIsoDate } from "@/lib/timezone";
 
 type InvoiceOption = {
   id: string;
@@ -154,7 +155,7 @@ export function PaymentForm({
   const payeeLabel =
     mode === "incoming" ? "Customer" : mode === "outgoing" ? "Supplier" : "Customer / supplier";
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = appTodayIsoDate();
 
   return (
     <form

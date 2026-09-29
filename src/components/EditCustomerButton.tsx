@@ -4,21 +4,14 @@ import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateCustomer } from "@/app/actions";
 import { CountrySelect } from "@/components/CountrySelect";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { appDateInputValue, appTodayIsoDate } from "@/lib/timezone";
 
 function dateInputValue(value?: string | Date | null) {
-  if (!value) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return value.slice(0, 10);
+  return appDateInputValue(value);
 }
 
 function todayIsoDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return appTodayIsoDate();
 }
 
 export function EditCustomerButton({

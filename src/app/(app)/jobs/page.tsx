@@ -10,7 +10,9 @@ import { syncCompanyJobStatuses } from "@/app/actions";
 import { needsEngagementPeriod } from "@/lib/job-status";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
+import { JobsActiveExport, JobsActivePrintDocument } from "@/components/JobsActiveExport";
 import { formatAppDate } from "@/lib/timezone";
+import { receiptHeaderText } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -30,25 +32,69 @@ export default async function JobsPage({
     orderBy: { createdAt: "desc" },
     include: { customer: true, quotation: { select: { id: true, number: true } } },
   });
+  const activeJobs = await prisma.job.findMany({
+    where: { companyId, status: "ACTIVE" },
+    orderBy: { createdAt: "desc" },
+    include: {
+      customer: true,
+      quotation: { select: { number: true } },
+      employeeAssignments: {
+        include: { employee: { select: { firstName: true, lastName: true } } },
+      },
+    },
+  });
   const profits = await Promise.all(
     jobs.map(async (j) => ({ id: j.id, ...(await getJobProfitability(j.id, companyId)) })),
   );
   const profitMap = Object.fromEntries(profits.map((p) => [p.id, p]));
+  const activeProfits = await Promise.all(
+    activeJobs.map(async (j) => ({ id: j.id, ...(await getJobProfitability(j.id, companyId)) })),
+  );
+  const activeProfitMap = Object.fromEntries(activeProfits.map((p) => [p.id, p]));
+  const activeExportRows = activeJobs.map((j) => {
+    const p = activeProfitMap[j.id];
+    return {
+      number: j.number,
+      title: j.title,
+      customerName: j.customer.name,
+      quotationNumber: j.quotation?.number ?? null,
+      startDate: j.startDate ? formatAppDate(j.startDate) : "Not set",
+      endDate: j.endDate ? formatAppDate(j.endDate) : "Not set",
+      contract: j.contractValue,
+      labour: p?.labourCost ?? 0,
+      materials: p?.materialsCost ?? 0,
+      expenses: p?.expensesCost ?? 0,
+      profit: p?.profit ?? 0,
+      status: j.status,
+      notes: j.notes || "",
+      employees: j.employeeAssignments
+        .map((a) => `${a.employee.firstName} ${a.employee.lastName}`.trim())
+        .filter(Boolean)
+        .join(", "),
+    };
+  });
 
   return (
     <div className="stack">
-      <PageHeader
-        title="Jobs / Projects"
-        description={`${range.label} · jobs created when you accept a quotation.`}
+      <div className="no-print">
+        <PageHeader
+          title="Jobs / Projects"
+          description={`${range.label} · jobs created when you accept a quotation.`}
+          actions={<JobsActiveExport jobs={activeExportRows} />}
+        />
+      </div>
+      <JobsActivePrintDocument
+        companyName={receiptHeaderText(company)}
+        jobs={activeExportRows}
       />
-      <Panel style={{ padding: "1.25rem" }}>
+      <Panel className="no-print" style={{ padding: "1.25rem" }}>
         <PeriodSelector basePath="/jobs" range={range} isFree={isFreeTier(planTier)} />
       </Panel>
-      <p className="muted" style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.45 }}>
+      <p className="muted no-print" style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.45 }}>
         Profit on each job = <strong>contract − labour − materials − expenses</strong>. Open a job to
         see the breakdown.
       </p>
-      <Panel className="table-wrap list-dense">
+      <Panel className="table-wrap list-dense no-print">
         <table className="data">
           <thead>
             <tr>

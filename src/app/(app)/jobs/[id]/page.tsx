@@ -213,6 +213,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         overview={overview}
         jobId={job.id}
         jobNumber={job.number}
+        notes={job.notes || ""}
         receipts={job.receipts.map((r) => ({
           id: r.id,
           label: r.label,

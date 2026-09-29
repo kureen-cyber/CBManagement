@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createProduct } from "@/app/actions";
 import { formatTTD } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
+import { UnitSelect } from "@/components/UnitSelect";
 import type { InventoryViewMode } from "@/lib/settings";
 import {
   isOptionLowStock,
@@ -578,7 +579,7 @@ export function InventoryClient({
               ) : null}
               <label className="field">
                 Unit
-                <input name="unit" defaultValue="each" />
+                <UnitSelect name="unit" defaultValue="each" required />
               </label>
               <label className="field">
                 Unit cost

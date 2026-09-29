@@ -19,11 +19,24 @@ export const NAV_ITEMS = [
   { href: "/ai-assistant", label: "AI Assistant" },
 ] as const;
 
+/** Units shown as a dropdown on Inventory and Supplier item forms. */
+export const ITEM_UNITS = ["each", "lb", "kg"] as const;
+
+export type ItemUnit = (typeof ITEM_UNITS)[number];
+
+export function unitSelectOptions(current?: string | null): string[] {
+  const value = String(current || "").trim();
+  if (value && !(ITEM_UNITS as readonly string[]).includes(value)) {
+    return [value, ...ITEM_UNITS];
+  }
+  return [...ITEM_UNITS];
+}
+
 /** Common units for supplier procurement lines and inventory. */
 export const SUPPLY_UNITS = [
   "each",
-  "kg",
   "lb",
+  "kg",
   "g",
   "case",
   "dozen",

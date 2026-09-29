@@ -5,6 +5,7 @@ import { updateProduct } from "@/app/actions";
 import { fromCents } from "@/lib/money";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import { CategoryInput } from "@/components/CategoryInput";
+import { UnitSelect } from "@/components/UnitSelect";
 import type { InventoryProduct } from "@/components/InventoryClient";
 import {
   sumDraftStock,
@@ -163,7 +164,7 @@ export function EditProductModal({
           ) : null}
           <label className="field">
             Unit
-            <input name="unit" defaultValue={product.unit} />
+            <UnitSelect name="unit" defaultValue={product.unit || "each"} required />
           </label>
           <label className="field">
             Unit cost

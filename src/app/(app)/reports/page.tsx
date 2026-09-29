@@ -1,4 +1,3 @@
-import { format, eachDayOfInterval, startOfDay } from "date-fns";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
@@ -11,6 +10,7 @@ import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { PageHeader } from "@/components/ui";
 import { ReportsDashboard } from "@/components/ReportsDashboard";
 import { payablesTotal, fetchOutstandingPayables } from "@/lib/payables";
+import { fetchOutstandingReceivables } from "@/lib/receivables";
 import { isIncomingPayment } from "@/lib/payment-direction";
 import {
   parseVariableOptions,
@@ -18,6 +18,7 @@ import {
   resolveSaleUnitCost,
   type ProductVariableDef,
 } from "@/lib/product-variables";
+import { APP_UTC_OFFSET, appDateKey, eachAppDateKey, formatAppDateInZone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export default async function ReportsPage({
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
   const { start: rangeStart, end: rangeEnd, label: periodLabel, clamped } = range;
 
-  const [expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales, payablesRows] =
+  const [expenses, invoices, expenseRows, paymentRows, saleLines, salesInRange, openSales, payablesRows, receivableRows] =
     await Promise.all([
       prisma.expense.aggregate({
         _sum: { amount: true },
@@ -88,7 +89,8 @@ export default async function ReportsPage({
       }),
       prisma.expense.findMany({
         where: { companyId, date: { gte: rangeStart, lte: rangeEnd } },
-        select: { category: true, amount: true, date: true },
+        select: { category: true, description: true, amount: true, date: true },
+        orderBy: { date: "desc" },
       }),
       prisma.payment.findMany({
         where: { companyId, paidAt: { gte: rangeStart, lte: rangeEnd } },
@@ -148,6 +150,7 @@ export default async function ReportsPage({
         select: { total: true, amountPaid: true },
       }),
       fetchOutstandingPayables(companyId),
+      fetchOutstandingReceivables(companyId),
     ]);
 
   const expenseTotal = expenses._sum.amount ?? 0;
@@ -287,18 +290,18 @@ export default async function ReportsPage({
   }
   const incomeByCategory = [...incomeByCategoryMap.values()].sort((a, b) => b.amount - a.amount);
 
-  const dayKeys = eachDayOfInterval({
-    start: startOfDay(rangeStart),
-    end: startOfDay(rangeEnd),
-  });
+  const dayKeys = eachAppDateKey(rangeStart, rangeEnd);
   const dailyMap = new Map<string, number>();
-  for (const d of dayKeys) dailyMap.set(format(d, "yyyy-MM-dd"), 0);
+  for (const key of dayKeys) dailyMap.set(key, 0);
   for (const sale of salesInRange) {
-    const key = format(sale.soldAt, "yyyy-MM-dd");
+    const key = appDateKey(sale.soldAt);
     dailyMap.set(key, (dailyMap.get(key) ?? 0) + sale.total);
   }
   const dailyEarnings = [...dailyMap.entries()].map(([key, amount]) => ({
-    label: format(new Date(`${key}T12:00:00`), "dd MMM"),
+    label: formatAppDateInZone(`${key}T12:00:00${APP_UTC_OFFSET}`, {
+      day: "2-digit",
+      month: "short",
+    }),
     amount,
     date: key,
   }));
@@ -312,7 +315,7 @@ export default async function ReportsPage({
   };
   const daySummaryMap = new Map<string, DaySummary>();
   function dayBucket(dt: Date): DaySummary {
-    const key = format(dt, "yyyy-MM-dd");
+    const key = appDateKey(dt);
     let row = daySummaryMap.get(key);
     if (!row) {
       row = { date: key, grossSales: 0, refunds: 0, discounts: 0, cogs: 0 };
@@ -420,6 +423,25 @@ export default async function ReportsPage({
             }))
             .sort((a, b) => b.netSales - a.netSales),
           salesByCategory: [...categoryMap.values()].sort((a, b) => b.amount - a.amount),
+          expenseLines: expenseRows.map((e) => ({
+            category: e.category,
+            description: e.description,
+            amount: e.amount,
+            date: e.date.toISOString(),
+          })),
+          receivableRows: receivableRows.map((r) => ({
+            source: r.source,
+            number: r.number,
+            customerName: r.customerName,
+            balance: r.balance,
+            dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+          })),
+          payableRows: payablesRows.map((r) => ({
+            supplierName: r.supplierName,
+            description: r.description,
+            amount: r.amount,
+            purchasedAt: r.purchasedAt.toISOString(),
+          })),
           receipts,
           saleLines: saleLines.map((l) => ({
             id: l.id,

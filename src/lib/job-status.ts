@@ -1,3 +1,5 @@
+import { appDateKey } from "@/lib/timezone";
+
 /** Job lifecycle statuses driven by engagement dates + invoice payments. */
 
 export const JOB_STATUSES = [
@@ -21,12 +23,6 @@ export const JOB_STATUS_LABELS: Record<string, string> = {
   ON_HOLD: "On hold",
   CANCELLED: "Cancelled",
 };
-
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
 
 export function needsEngagementPeriod(job: {
   startDate: Date | null;
@@ -52,9 +48,9 @@ export function resolveJobStatus(opts: {
   const { startDate, endDate, paymentsComplete } = opts;
   if (!startDate || !endDate) return "UPDATE_ENGAGEMENT_PERIOD";
 
-  const now = startOfDay(opts.now ?? new Date());
-  const start = startOfDay(startDate);
-  const end = startOfDay(endDate);
+  const now = appDateKey(opts.now ?? new Date());
+  const start = appDateKey(startDate);
+  const end = appDateKey(endDate);
 
   if (now < start) return "PENDING";
   if (now < end) return "ACTIVE";

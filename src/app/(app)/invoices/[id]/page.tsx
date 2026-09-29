@@ -11,7 +11,7 @@ import { EditInvoiceButton } from "@/components/EditInvoiceButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PrintButton } from "@/components/PrintButton";
 import { EmailDocumentButton } from "@/components/EmailDocumentButton";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appDateKey } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -173,7 +173,7 @@ export default async function InvoiceViewPage({
                   taxAmount: invoice.taxAmount,
                   amountPaid: invoice.amountPaid,
                   notes: invoice.notes,
-                  dueDate: invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : null,
+                  dueDate: invoice.dueDate ? appDateKey(invoice.dueDate) : null,
                   quotationNumber: quote?.number ?? null,
                   quotationTotal: quote?.total ?? null,
                   lines: invoice.lines.map((l) => ({

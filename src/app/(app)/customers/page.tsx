@@ -8,7 +8,7 @@ import { CountrySelect } from "@/components/CountrySelect";
 import { DeleteCustomerButton } from "@/components/DeleteCustomerButton";
 import { EditCustomerButton } from "@/components/EditCustomerButton";
 import { PageHeader, Panel } from "@/components/ui";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { appDateKey, appTodayIsoDate } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,7 @@ export default async function CustomersPage() {
   });
   const { excludeSystemCustomers } = await import("@/lib/owner-drawings");
   const visibleCustomers = excludeSystemCustomers(customers);
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const today = appTodayIsoDate();
 
   return (
     <div className="stack">
@@ -124,7 +119,7 @@ export default async function CustomersPage() {
                           phone: c.phone,
                           email: c.email,
                           address: c.address,
-                          dateOfBirth: c.dateOfBirth?.toISOString() ?? null,
+                          dateOfBirth: c.dateOfBirth ? appDateKey(c.dateOfBirth) : null,
                           country: c.country,
                           notes: c.notes,
                         }}

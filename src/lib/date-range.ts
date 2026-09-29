@@ -6,7 +6,13 @@ import {
   type PlanTier,
   type ReportPeriodId,
 } from "@/lib/tier";
-import { formatAppDate, formatAppMonthYear } from "@/lib/timezone";
+import {
+  APP_UTC_OFFSET,
+  addAppCalendarDays,
+  appDateKey,
+  formatAppDate,
+  formatAppMonthYear,
+} from "@/lib/timezone";
 
 export type DateRangeParams = {
   period?: string;
@@ -31,16 +37,13 @@ export type ResolvedDateRange = {
 };
 
 export function toIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return appDateKey(d);
 }
 
 export function parseIsoDate(value: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
   if (!m) return null;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00${APP_UTC_OFFSET}`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -54,13 +57,11 @@ export function parseMonthKey(value: string): { year: number; month: number } | 
 }
 
 export function monthKeyFromDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return appDateKey(d).slice(0, 7);
 }
 
 function endOfDay(d: Date): Date {
-  const e = new Date(d);
-  e.setHours(23, 59, 59, 999);
-  return e;
+  return new Date(`${appDateKey(d)}T23:59:59.999${APP_UTC_OFFSET}`);
 }
 
 function clampRangeForTier(
@@ -69,9 +70,8 @@ function clampRangeForTier(
   end: Date,
 ): { start: Date; end: Date; clamped: boolean } {
   if (!isFreeTier(tier)) return { start, end, clamped: false };
-  const maxStart = new Date(end);
-  maxStart.setDate(maxStart.getDate() - (FREE_TIER_MAX_TRANSACTION_DAYS - 1));
-  maxStart.setHours(0, 0, 0, 0);
+  const maxStartKey = addAppCalendarDays(appDateKey(end), -(FREE_TIER_MAX_TRANSACTION_DAYS - 1));
+  const maxStart = new Date(`${maxStartKey}T00:00:00${APP_UTC_OFFSET}`);
   if (start >= maxStart) return { start, end, clamped: false };
   return { start: maxStart, end, clamped: true };
 }
@@ -105,8 +105,11 @@ export function resolvePageDateRange(
   const monthParsed = params.month ? parseMonthKey(params.month) : null;
   if (monthParsed) {
     const { year, month } = monthParsed;
-    const start = new Date(year, month, 1, 0, 0, 0, 0);
-    const end = endOfDay(new Date(year, month + 1, 0));
+    const mm = String(month + 1).padStart(2, "0");
+    const start = new Date(`${year}-${mm}-01T00:00:00${APP_UTC_OFFSET}`);
+    const nextY = month === 11 ? year + 1 : year;
+    const nextM = String(month === 11 ? 1 : month + 2).padStart(2, "0");
+    const end = new Date(new Date(`${nextY}-${nextM}-01T00:00:00${APP_UTC_OFFSET}`).getTime() - 1);
     const { start: cs, end: ce, clamped } = clampRangeForTier(tier, start, end);
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     return {

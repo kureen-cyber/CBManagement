@@ -2612,7 +2612,11 @@ input:focus, select:focus, textarea:focus {
   .app-shell .mobile-topbar,
   .no-print,
   .financial-reports-nav,
-  .settings-subtab {
+  .settings-subtab,
+  .report-tabs,
+  .reports-hero,
+  .report-export-bar,
+  .report-search {
     display: none !important;
   }
 

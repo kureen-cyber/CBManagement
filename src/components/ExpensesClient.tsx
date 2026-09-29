@@ -7,7 +7,7 @@ import { AddEntityTab } from "@/components/AddEntityTab";
 import { CategoryInput } from "@/components/CategoryInput";
 import { formatTTD } from "@/lib/money";
 import { Panel } from "@/components/ui";
-import { formatAppDate } from "@/lib/timezone";
+import { formatAppDate, appDateInputValue, appTodayIsoDate } from "@/lib/timezone";
 
 type ExpenseRow = {
   id: string;
@@ -130,7 +130,7 @@ export function ExpensesClient({
               <input
                 name="date"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={appTodayIsoDate()}
               />
             </label>
             <label className="field">
@@ -185,7 +185,7 @@ export function ExpensesClient({
                       <input type="hidden" name="id" value={e.id} />
                       <label className="field">
                         Purchase date
-                        <input name="date" type="date" required defaultValue={e.date.slice(0, 10)} />
+                        <input name="date" type="date" required defaultValue={appDateInputValue(e.date)} />
                       </label>
                       <label className="field full">
                         Replace receipt

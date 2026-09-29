@@ -1,5 +1,13 @@
 /** Plan tiers for CBManagement feature gating. */
 
+import {
+  APP_UTC_OFFSET,
+  addAppCalendarDays,
+  appDateKey,
+  endOfAppDay,
+  startOfAppMonth,
+} from "@/lib/timezone";
+
 export const PLAN_TIERS = ["FREE_RETAIL", "STANDARD"] as const;
 export type PlanTier = (typeof PLAN_TIERS)[number];
 
@@ -110,10 +118,8 @@ export function isPathAllowedForTier(tier: PlanTier, pathname: string): boolean 
 
 export function receiptVisibleSince(tier: PlanTier, now = new Date()): Date | null {
   if (!isFreeTier(tier)) return null;
-  const d = new Date(now);
-  d.setDate(d.getDate() - FREE_TIER_MAX_TRANSACTION_DAYS);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const cutoffIso = addAppCalendarDays(appDateKey(now), -FREE_TIER_MAX_TRANSACTION_DAYS);
+  return new Date(`${cutoffIso}T00:00:00${APP_UTC_OFFSET}`);
 }
 
 export function parseReportPeriod(value: unknown): ReportPeriodId {
@@ -127,22 +133,19 @@ export function resolveReportRange(
   periodId: ReportPeriodId,
   now = new Date(),
 ): { start: Date; end: Date; label: string; clamped: boolean } {
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
+  const end = endOfAppDay(now);
 
   const period = REPORT_PERIODS.find((p) => p.id === periodId) || REPORT_PERIODS[2]!;
   let clamped = false;
   let days: number;
 
   if (period.days === "month") {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const start = startOfAppMonth(now);
     const spanDays = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
     if (isFreeTier(tier) && spanDays > FREE_TIER_MAX_TRANSACTION_DAYS) {
-      const capped = new Date(end);
-      capped.setDate(capped.getDate() - (FREE_TIER_MAX_TRANSACTION_DAYS - 1));
-      capped.setHours(0, 0, 0, 0);
+      const cappedIso = addAppCalendarDays(appDateKey(end), -(FREE_TIER_MAX_TRANSACTION_DAYS - 1));
       return {
-        start: capped,
+        start: new Date(`${cappedIso}T00:00:00${APP_UTC_OFFSET}`),
         end,
         label: `Last ${FREE_TIER_MAX_TRANSACTION_DAYS} days (month capped)`,
         clamped: true,
@@ -157,9 +160,8 @@ export function resolveReportRange(
     clamped = true;
   }
 
-  const start = new Date(end);
-  start.setDate(start.getDate() - (days - 1));
-  start.setHours(0, 0, 0, 0);
+  const startIso = addAppCalendarDays(appDateKey(end), -(days - 1));
+  const start = new Date(`${startIso}T00:00:00${APP_UTC_OFFSET}`);
 
   return {
     start,

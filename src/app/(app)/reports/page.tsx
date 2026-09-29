@@ -1,4 +1,5 @@
 import { format, eachDayOfInterval, startOfDay } from "date-fns";
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { requireCompany } from "@/lib/company";
 import {
@@ -373,6 +374,7 @@ export default async function ReportsPage({
         title="Reports"
         description={`${periodLabel} · sales summary, by item, and income mix.`}
       />
+      <Suspense fallback={<div className="muted">Loading reports…</div>}>
       <ReportsDashboard
         planTier={planTier}
         periodLabel={periodLabel}
@@ -437,6 +439,7 @@ export default async function ReportsPage({
           salesSummaryByDay,
         }}
       />
+      </Suspense>
     </div>
   );
 }

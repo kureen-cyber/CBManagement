@@ -27,12 +27,42 @@ import { formatAppDateTimeInZone } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
+function firstQueryValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] || null;
+  return value || null;
+}
+
+function reportsReturnHref(raw: string | null): string | null {
+  if (!raw) return null;
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith("/reports")) return null;
+  if (decoded.startsWith("//") || decoded.includes("\\") || decoded.includes("://")) return null;
+  return decoded;
+}
+
+function receiptBackLink(from: string | null, returnTo: string | null) {
+  const reportsHref = reportsReturnHref(returnTo) || (from === "reports" ? "/reports?tab=receipts" : null);
+  if (reportsHref) {
+    return { href: reportsHref, label: "Back to receipts" };
+  }
+  return { href: "/pos", label: "Back to POS" };
+}
+
 export default async function ReceiptPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string | string[]; returnTo?: string | string[] }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
+  const back = receiptBackLink(firstQueryValue(query.from), firstQueryValue(query.returnTo));
   const { companyId, company } = await requireCompany();
   const planTier = parsePlanTier(company.planTier);
   const since = receiptVisibleSince(planTier);
@@ -69,8 +99,8 @@ export default async function ReceiptPage({
             {FREE_TIER_MAX_TRANSACTION_DAYS} days. This receipt is older and is no longer
             available to view or print.
           </p>
-          <Link className="btn btn-secondary" href="/pos">
-            Back to POS
+          <Link className="btn btn-secondary" href={back.href}>
+            {back.label}
           </Link>
         </Panel>
       </div>
@@ -122,8 +152,8 @@ export default async function ReceiptPage({
               posRegisterId={access.registerId}
               disabled={!canVoid}
             />
-            <Link className="btn btn-secondary" href="/pos">
-              Back to POS
+            <Link className="btn btn-secondary" href={back.href}>
+              {back.label}
             </Link>
           </>
         }

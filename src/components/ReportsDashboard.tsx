@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import type { ResolvedDateRange } from "@/lib/date-range";
 import { formatTTD, fromCents } from "@/lib/money";
@@ -109,6 +110,12 @@ const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "sales-summary", label: "Sales summary", color: "#0f766e" },
   { id: "refunds", label: "Refunds", color: "#b42318" },
 ];
+
+const TAB_IDS = new Set(TABS.map((t) => t.id));
+
+function parseReportTab(value: string | null): TabId {
+  return value && TAB_IDS.has(value as TabId) ? (value as TabId) : "overview";
+}
 
 const CHART_COLORS = ["#0a6b6e", "#c45c26", "#1f7a4d", "#5b4db8", "#0e7cc0", "#b45309", "#db2777", "#0f766e"];
 const LINE_COLOR = "#0a6b6e";
@@ -417,12 +424,28 @@ export function ReportsDashboard({
   isFree: boolean;
   branding?: CompanyBranding;
 }) {
-  const [tab, setTab] = useState<TabId>("overview");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = parseReportTab(searchParams.get("tab"));
   const [itemQuery, setItemQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [refundQuery, setRefundQuery] = useState("");
   const [receiptQuery, setReceiptQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  function selectTab(next: TabId) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "overview") params.delete("tab");
+    else params.set("tab", next);
+    const q = params.toString();
+    router.replace(q ? `/reports?${q}` : "/reports", { scroll: false });
+  }
+
+  const receiptsReturnTo = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "receipts");
+    return `/reports?${params.toString()}`;
+  }, [searchParams]);
 
   const overviewSlices = useMemo(
     () => [
@@ -582,7 +605,7 @@ export function ReportsDashboard({
             aria-selected={tab === t.id}
             className={tab === t.id ? "settings-tab active" : "settings-tab"}
             style={tab === t.id ? { boxShadow: `inset 0 -2px 0 ${t.color}`, color: t.color } : undefined}
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
           >
             {t.label}
           </button>
@@ -934,7 +957,10 @@ export function ReportsDashboard({
                     <td>{r.type}</td>
                     <td className="money">{formatTTD(r.total)}</td>
                     <td>
-                      <Link className="btn btn-secondary btn-sm" href={`/pos/receipt/${r.id}`}>
+                      <Link
+                        className="btn btn-secondary btn-sm"
+                        href={`/pos/receipt/${r.id}?from=reports&returnTo=${encodeURIComponent(receiptsReturnTo)}`}
+                      >
                         View
                       </Link>
                     </td>

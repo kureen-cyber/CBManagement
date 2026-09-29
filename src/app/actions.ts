@@ -1417,6 +1417,7 @@ export async function acceptAndConvertQuotation(quotationId: string) {
       title: quote.title || `Job from ${quote.number}`,
       status: "UPDATE_ENGAGEMENT_PERIOD",
       contractValue: quote.total,
+      notes: quote.notes,
       materials: quote.materialsCost
         ? {
             create: {
@@ -1999,6 +2000,23 @@ export async function createJob(formData: FormData) {
     },
   });
   revalidatePath("/jobs");
+}
+
+export async function updateJobNotes(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const jobId = String(formData.get("jobId") || "").trim();
+  if (!jobId) throw new Error("Missing job");
+
+  const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+  if (!job) throw new Error("Job not found");
+
+  const notes = String(formData.get("notes") || "").trim() || null;
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { notes },
+  });
+  revalidatePath("/jobs");
+  revalidatePath(`/jobs/${jobId}`);
 }
 
 export async function addTimeEntry(formData: FormData) {

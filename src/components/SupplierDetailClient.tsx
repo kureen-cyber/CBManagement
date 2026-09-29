@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatTTD, fromCents } from "@/lib/money";
-import { SUPPLY_UNITS, SUPPLY_TYPES, isBuiltInSupplyType, supplyTypeLabel } from "@/lib/constants";
+import { SUPPLY_TYPES, isBuiltInSupplyType, supplyTypeLabel } from "@/lib/constants";
+import { UnitSelect } from "@/components/UnitSelect";
 import {
   createSupplierItem,
   createSupplierPurchase,
@@ -291,17 +292,7 @@ export function SupplierDetailClient({
               </label>
               <label className="field">
                 Unit
-                <input
-                  name="unit"
-                  list="supply-unit-suggestions"
-                  defaultValue="each"
-                  placeholder="each, kg, case…"
-                />
-                <datalist id="supply-unit-suggestions">
-                  {SUPPLY_UNITS.map((u) => (
-                    <option key={u} value={u} />
-                  ))}
-                </datalist>
+                <UnitSelect name="unit" defaultValue="each" required />
               </label>
               <label className="field full">
                 Notes
@@ -366,7 +357,7 @@ export function SupplierDetailClient({
                           </label>
                           <label className="field">
                             Unit
-                            <input name="unit" defaultValue={item.unit} />
+                            <UnitSelect name="unit" defaultValue={item.unit || "each"} required />
                           </label>
                           <label className="field full">
                             Notes
@@ -481,17 +472,12 @@ export function SupplierDetailClient({
               </label>
               <label className="field">
                 Unit
-                <input
+                <UnitSelect
                   name="unit"
                   key={`unit-${purchaseItemId}`}
                   defaultValue={selectedCatalog?.unit || "each"}
-                  list="purchase-unit-suggestions"
+                  required
                 />
-                <datalist id="purchase-unit-suggestions">
-                  {SUPPLY_UNITS.map((u) => (
-                    <option key={u} value={u} />
-                  ))}
-                </datalist>
               </label>
               <label className="field">
                 Cost per unit (TT$)

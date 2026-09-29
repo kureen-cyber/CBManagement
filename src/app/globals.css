@@ -2626,3 +2626,37 @@ input:focus, select:focus, textarea:focus {
     max-width: none !important;
   }
 }
+
+.print-only {
+  display: none;
+}
+
+.jobs-print-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+
+  .jobs-print-doc h1 {
+    margin: 0 0 0.35rem;
+    font-size: 1.35rem;
+  }
+
+  .jobs-print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 0 0 1.15rem;
+    padding: 0 0 0.85rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .jobs-print-card p {
+    margin: 0.25rem 0;
+    font-size: 0.92rem;
+    line-height: 1.4;
+  }
+}

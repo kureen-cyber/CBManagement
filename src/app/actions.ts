@@ -1606,6 +1606,94 @@ export async function createInvoice(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function updateInvoice(formData: FormData) {
+  const { companyId } = await requireCompany();
+  const id = String(formData.get("invoiceId") || "").trim();
+  if (!id) throw new Error("Missing invoice");
+
+  const invoice = await prisma.invoice.findFirst({
+    where: { id, companyId },
+  });
+  if (!invoice) throw new Error("Invoice not found");
+  if (invoice.status === "VOID" || invoice.status === "CANCELLED") {
+    throw new Error("This invoice cannot be edited");
+  }
+
+  let parsed: { description?: string; quantity?: number | string; unitPrice?: number | string }[] =
+    [];
+  try {
+    parsed = JSON.parse(String(formData.get("linesJson") || "[]"));
+  } catch {
+    throw new Error("Could not read invoice lines");
+  }
+  if (!Array.isArray(parsed) || !parsed.length) {
+    throw new Error("Add at least one line");
+  }
+
+  const lines = parsed.map((row, i) => {
+    const description = String(row.description || "").trim() || `Line ${i + 1}`;
+    const quantity = Number(row.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error("Each line needs a quantity greater than zero");
+    }
+    const unitPrice = toCents(Number(row.unitPrice) || 0);
+    if (unitPrice < 0) throw new Error("Prices cannot be negative");
+    return {
+      description,
+      quantity,
+      unitPrice,
+      lineTotal: Math.round(unitPrice * quantity),
+    };
+  });
+
+  const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
+  const taxAmount = Math.max(0, dollarsToCents(formData.get("taxAmount")));
+  const total = subtotal + taxAmount;
+  if (total < invoice.amountPaid) {
+    throw new Error("Total cannot be less than the amount already paid");
+  }
+
+  const dueDate = optionalFormDate(formData.get("dueDate"));
+  const notes = optionalFormString(formData.get("notes"));
+
+  const status =
+    invoice.amountPaid >= total && total > 0
+      ? "PAID"
+      : invoice.amountPaid > 0
+        ? "PARTIAL"
+        : invoice.status === "PAID"
+          ? "SENT"
+          : invoice.status;
+
+  await prisma.$transaction([
+    prisma.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } }),
+    prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        dueDate,
+        notes,
+        subtotal,
+        taxAmount,
+        total,
+        status,
+        lines: { create: lines },
+      },
+    }),
+  ]);
+
+  if (invoice.jobId) {
+    await syncJobStatus(invoice.jobId, companyId);
+    revalidatePath(`/jobs/${invoice.jobId}`);
+    revalidatePath("/jobs");
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoice.id}`);
+  revalidatePath("/receivables");
+  revalidatePath("/payments");
+  revalidatePath("/");
+}
+
 export async function recordPayment(formData: FormData) {
   const { companyId } = await requireCompany();
   const invoiceId = String(formData.get("invoiceId") || "") || null;

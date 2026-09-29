@@ -7,6 +7,7 @@ import { isFreeTier, parsePlanTier } from "@/lib/tier";
 import { readDateRangeFromSearchParams } from "@/lib/date-range";
 import { createInvoice } from "@/app/actions";
 import { AddEntityTab } from "@/components/AddEntityTab";
+import { EditInvoiceButton } from "@/components/EditInvoiceButton";
 import { PageHeader, Panel, StatusBadge } from "@/components/ui";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { formatAppDate } from "@/lib/timezone";
@@ -36,10 +37,11 @@ export default async function InvoicesPage({
           select: {
             id: true,
             number: true,
-            quotation: { select: { id: true, number: true } },
+            quotation: { select: { id: true, number: true, total: true } },
           },
         },
-        quotation: { select: { id: true, number: true } },
+        quotation: { select: { id: true, number: true, total: true } },
+        lines: true,
       },
     }),
   ]);
@@ -172,9 +174,32 @@ export default async function InvoicesPage({
                     <StatusBadge status={inv.status} />
                   </td>
                   <td>
-                    <Link className="btn btn-secondary btn-sm" href={`/invoices/${inv.id}`}>
-                      View
-                    </Link>
+                    <div className="row" style={{ gap: "0.4rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <Link className="btn btn-secondary btn-sm" href={`/invoices/${inv.id}`}>
+                        View
+                      </Link>
+                      {inv.status !== "VOID" && inv.status !== "CANCELLED" ? (
+                        <EditInvoiceButton
+                          invoice={{
+                            id: inv.id,
+                            number: inv.number,
+                            status: inv.status,
+                            taxAmount: inv.taxAmount,
+                            amountPaid: inv.amountPaid,
+                            notes: inv.notes,
+                            dueDate: inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : null,
+                            quotationNumber: quote?.number ?? null,
+                            quotationTotal: quote?.total ?? null,
+                            lines: inv.lines.map((l) => ({
+                              id: l.id,
+                              description: l.description,
+                              quantity: l.quantity,
+                              unitPrice: l.unitPrice,
+                            })),
+                          }}
+                        />
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

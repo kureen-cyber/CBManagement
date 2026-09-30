@@ -1,5 +1,6 @@
 import { formatTTD } from "@/lib/money";
 import type { MonthlyIncomeStatement } from "@/lib/monthly-income-statement";
+import { appYearMonth } from "@/lib/timezone";
 
 function cellClass(kind: string) {
   if (kind === "total" || kind === "result") return "money is-total";
@@ -11,14 +12,17 @@ export function MonthlyIncomeStatementTable({
 }: {
   statement: MonthlyIncomeStatement;
 }) {
+  const start = statement.startedAt ? appYearMonth(statement.startedAt) : null;
+  const firstMonth =
+    start && start.year === statement.year ? Math.max(0, start.monthIndex) : 0;
+  const visibleLabels = statement.monthLabels.slice(firstMonth);
+  const colSpan = visibleLabels.length + 2;
+
   return (
     <div className="stack income-statement">
       <div className="income-statement-header">
         <div className="income-statement-business">{statement.businessName}</div>
-        <h3 style={{ margin: "0.35rem 0 0" }}>Monthly Income Statement</h3>
-        <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.88rem" }}>
-          For the Month Ended: {statement.year}
-        </p>
+        <h3>Monthly Income Statement — {statement.year}</h3>
       </div>
 
       <div className="table-wrap income-statement-scroll">
@@ -26,7 +30,7 @@ export function MonthlyIncomeStatementTable({
           <thead>
             <tr>
               <th className="income-statement-label-col">Line</th>
-              {statement.monthLabels.map((label) => (
+              {visibleLabels.map((label) => (
                 <th key={label} className="income-statement-month">
                   {label}
                 </th>
@@ -39,12 +43,13 @@ export function MonthlyIncomeStatementTable({
               if (row.kind === "section") {
                 return (
                   <tr key={row.id} className="income-statement-section">
-                    <td colSpan={14}>
+                    <td colSpan={colSpan}>
                       <strong>{row.label}</strong>
                     </td>
                   </tr>
                 );
               }
+              const months = (row.months || []).slice(firstMonth);
               return (
                 <tr
                   key={row.id}
@@ -57,13 +62,8 @@ export function MonthlyIncomeStatementTable({
                   }
                   title={row.formula || undefined}
                 >
-                  <td>
-                    {row.label}
-                    {row.formula ? (
-                      <span className="muted income-statement-formula"> = {row.formula}</span>
-                    ) : null}
-                  </td>
-                  {(row.months || []).map((cents, i) => (
+                  <td>{row.label}</td>
+                  {months.map((cents, i) => (
                     <td key={`${row.id}-${i}`} className={cellClass(row.kind)}>
                       {formatTTD(cents)}
                     </td>
@@ -75,14 +75,6 @@ export function MonthlyIncomeStatementTable({
           </tbody>
         </table>
       </div>
-      <p className="muted" style={{ margin: 0, fontSize: "0.78rem" }}>
-        Hover formula rows for the calculation used. Opening inventory is quantity × unit cost at
-        month start for every stocked item — variant rows use each option&apos;s cost; items
-        without variants use the product unit cost. Goods already sold after that date are added
-        back. Closing inventory is the same at month end. Purchases include supplier purchases and
-        inventory received; direct labour from completed time clock entries; salaries include
-        payslips and salary/wage expenses.
-      </p>
     </div>
   );
 }

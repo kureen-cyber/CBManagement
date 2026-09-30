@@ -536,31 +536,55 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 
 .income-statement-header {
   text-align: center;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.income-statement-header h3 {
+  margin: 0.1rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .income-statement-business {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
 }
 
 .income-statement-scroll {
   overflow-x: auto;
 }
 
+.income-statement-panel {
+  gap: 0.45rem;
+}
+
+.income-statement-start-note {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.income-statement.stack {
+  gap: 0.35rem;
+}
+
 .income-statement-table {
-  min-width: 1100px;
-  font-size: 0.9rem;
+  min-width: 0;
+  font-size: 0.72rem;
+}
+
+.income-statement-scroll .income-statement-table {
+  min-width: 720px;
 }
 
 .income-statement-table th,
 .income-statement-table td {
   white-space: nowrap;
-  padding: 0.65rem 0.85rem;
+  padding: 0.14rem 0.35rem !important;
+  line-height: 1.2;
 }
 
 .income-statement-label-col {
-  min-width: 240px;
+  min-width: 148px;
   position: sticky;
   left: 0;
   background: var(--surface);
@@ -572,22 +596,27 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
   left: 0;
   background: var(--surface);
   z-index: 1;
+  white-space: normal;
+  max-width: 11.5rem;
 }
 
 .income-statement-month {
   text-align: right !important;
-  min-width: 84px;
+  min-width: 64px;
 }
 
 .income-statement-table td.money {
   text-align: right;
+  font-size: 0.72rem;
 }
 
-.income-statement-section td {
+tr.income-statement-section td {
   background: var(--sea-soft);
-  font-size: 0.92rem;
-  padding-top: 0.75rem !important;
-  padding-bottom: 0.75rem !important;
+  font-size: 0.7rem;
+  padding-top: 0.22rem !important;
+  padding-bottom: 0.22rem !important;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .income-statement-total td,
@@ -600,15 +629,11 @@ table.data tr:hover td { background: rgba(230, 244, 244, 0.55); }
 .income-statement-result td:first-child {
   font-weight: 800;
   background: rgba(230, 244, 244, 0.65);
-  border-top: 2px solid var(--sea);
+  border-top: 1px solid var(--sea);
 }
 
 .income-statement-formula {
-  display: block;
-  font-weight: 500;
-  font-size: 0.75rem;
-  white-space: normal;
-  margin-top: 0.15rem;
+  display: none;
 }
 
 .badge {

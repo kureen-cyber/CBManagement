@@ -10,6 +10,11 @@ import {
   parseVariableOptions,
   resolveSaleUnitCost,
 } from "@/lib/product-variables";
+import {
+  appYearMonth,
+  endOfAppYear,
+  startOfAppCalendarMonth,
+} from "@/lib/timezone";
 
 export const INCOME_STATEMENT_MONTHS = [
   "Jan",
@@ -48,6 +53,7 @@ export type IncomeStatementLineId =
   | "maintenance"
   | "insurance"
   | "subscription"
+  | "bankCharges"
   | "miscellaneousExpenses"
   | "totalOperatingExpenses"
   | "netProfit"
@@ -71,16 +77,23 @@ export type IncomeStatementRow = {
   formula?: string;
 };
 
+export type IncomeStatementSetup = {
+  setAt: Date;
+  startAt: Date;
+  cashOnHandCents: number;
+  reserveCents: number;
+  openingInventoryCents: number;
+};
+
 export type MonthlyIncomeStatement = {
   businessName: string;
   year: number;
   monthLabels: string[];
   rows: IncomeStatementRow[];
+  configured: boolean;
+  startedAt: Date | null;
+  setAt: Date | null;
 };
-
-function monthIndex(d: Date) {
-  return d.getMonth();
-}
 
 function emptyMonths() {
   return Array.from({ length: 12 }, () => 0);
@@ -90,62 +103,89 @@ function sumMonths(months: number[]) {
   return months.reduce((s, v) => s + v, 0);
 }
 
-function addToMonth(target: number[], d: Date, amount: number) {
-  const i = monthIndex(d);
-  if (i >= 0 && i < 12) target[i]! += amount;
-}
-
 function matchCategory(category: string, patterns: RegExp[]) {
   const c = category.trim().toLowerCase();
   return patterns.some((p) => p.test(c));
 }
 
-/** Inventory received in-period (not via supplier invoice) counts as Purchases for COGS. */
-function isInventoryPurchaseMovement(type: string, quantity: number) {
+/** Stock quantity increases after the statement is set count as Purchases. */
+function isPostSetupStockPurchase(type: string, quantity: number) {
   if (quantity <= 0) return false;
   const t = type.toUpperCase();
-  return t === "OPENING" || t === "PURCHASE" || t === "ADJUSTMENT";
+  return t === "PURCHASE" || t === "ADJUSTMENT" || t === "OPENING";
 }
 
-/**
- * Build a 12-month income statement for a calendar year.
- *
- * Formulas:
- * - Total Revenue = Sales Revenue + Service Income + Other Income
- * - Total COGS = Opening Inventory + Purchases + Direct Labour − Closing Inventory
- * - Gross Profit = Total Revenue − Total COGS
- * - Total Operating Expenses = sum of operating expense lines
- * - Net Profit = Gross Profit − Total Operating Expenses
- * - Cash on Hand (Beginning) = prior month Cash Position − prior month Reserves
- * - Total Revenue = Sales Revenue + Service Income + Other Income
- * - Total Cash Position (under revenue) = Total Revenue + Cash on Hand Beginning
- * - Reserve = money-mix % of that month's Total Revenue only; if monthly cash outflows
- *   exceed available cash (beginning + revenue), the shortfall reduces that month's reserve
- * - Below net profit: Loan, Capital, Reserve, Owner's Withdrawal, Total Cash Paid Out, Cash Position
- */
-export async function fetchMonthlyIncomeStatement(
-  companyId: string,
-  year: number,
-  businessName: string,
-): Promise<MonthlyIncomeStatement> {
-  const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
-  const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-  const monthStarts = Array.from({ length: 12 }, (_, m) => new Date(year, m, 1, 0, 0, 0, 0));
+/** Matches inventory-valuation inbound moves that are undone when reconstructing as-of stock. */
+function isReversibleInboundMove(type: string, quantity: number) {
+  if (quantity <= 0) return false;
+  const t = type.toUpperCase();
+  return t === "PURCHASE" || t === "ADJUSTMENT";
+}
 
-  const { fetchMonthEndCashBalances } = await import("@/lib/bank-ledger");
+function moveUnitCostCents(
+  move: { productId: string; unitCost: number; quantity: number },
+  productById: Map<string, ValuedProduct>,
+) {
+  if (move.unitCost > 0) return move.unitCost;
+  const product = productById.get(move.productId);
+  return product ? effectiveProductUnitCost(product, product.variables) : 0;
+}
 
-  const [
-    companyProducts,
-    stockMoves,
-    saleLines,
-    payments,
-    purchases,
-    timeEntries,
-    expenses,
-    payslips,
-    company,
-    cashBalances,
-  ] = await Promise.all([
+function inboundMoveValueCents(
+  move: { productId: string; unitCost: number; quantity: number; type: string },
+  productById: Map<string, ValuedProduct>,
+  predicate: (type: string, quantity: number) => boolean,
+) {
+  if (!predicate(move.type, move.quantity)) return 0;
+  const unitCost = moveUnitCostCents(move, productById);
+  if (unitCost <= 0) return 0;
+  return Math.round(move.quantity * unitCost);
+}
+
+export function incomeStatementSetupFromCompany(company: {
+  incomeStatementSetAt?: Date | null;
+  incomeStatementStartAt?: Date | null;
+  incomeStatementCashOnHandCents?: number | null;
+  incomeStatementReserveCents?: number | null;
+  incomeStatementOpeningInventoryCents?: number | null;
+}): IncomeStatementSetup | null {
+  if (!company.incomeStatementSetAt || !company.incomeStatementStartAt) return null;
+  return {
+    setAt: company.incomeStatementSetAt,
+    startAt: company.incomeStatementStartAt,
+    cashOnHandCents: Math.max(0, company.incomeStatementCashOnHandCents ?? 0),
+    reserveCents: Math.max(0, company.incomeStatementReserveCents ?? 0),
+    openingInventoryCents: Math.max(0, company.incomeStatementOpeningInventoryCents ?? 0),
+  };
+}
+
+type ProductRow = {
+  id: string;
+  stockQty: number;
+  unitCost: number;
+  variables: { name: string; options: string }[];
+};
+
+function toValuedProducts(
+  products: ProductRow[],
+  costMoves: { productId: string; unitCost: number; createdAt: Date }[],
+): ValuedProduct[] {
+  return fillUnitCostFromMovements(
+    products.map((p) => ({
+      id: p.id,
+      stockQty: p.stockQty,
+      unitCost: p.unitCost,
+      variables: p.variables.map((v) => ({
+        name: v.name,
+        options: parseVariableOptions(v.options),
+      })),
+    })),
+    costMoves,
+  );
+}
+
+async function loadTrackedInventory(companyId: string) {
+  const [companyProducts, stockMoves, saleLines] = await Promise.all([
     prisma.product.findMany({
       where: { companyId, isService: false, trackStock: true },
       select: {
@@ -156,10 +196,7 @@ export async function fetchMonthlyIncomeStatement(
       },
     }),
     prisma.stockMovement.findMany({
-      where: {
-        createdAt: { gte: yearStart },
-        product: { companyId, isService: false, trackStock: true },
-      },
+      where: { product: { companyId, isService: false, trackStock: true } },
       select: {
         productId: true,
         quantity: true,
@@ -171,11 +208,7 @@ export async function fetchMonthlyIncomeStatement(
     }),
     prisma.saleLine.findMany({
       where: {
-        sale: {
-          companyId,
-          status: "COMPLETED",
-          soldAt: { gte: yearStart },
-        },
+        sale: { companyId, status: "COMPLETED" },
       },
       select: {
         productId: true,
@@ -195,8 +228,168 @@ export async function fetchMonthlyIncomeStatement(
         sale: { select: { soldAt: true, isRefund: true } },
       },
     }),
+  ]);
+
+  const valuedProducts = toValuedProducts(companyProducts, stockMoves);
+  const productById = new Map(valuedProducts.map((p) => [p.id, p]));
+  const inventorySales = saleLines.map((line) => ({
+    productId: line.productId,
+    quantity: line.quantity,
+    variantLabel: line.variantLabel,
+    soldAt: line.sale.soldAt,
+    isRefund: line.sale.isRefund,
+    isService: Boolean(line.product?.isService),
+  }));
+
+  return { valuedProducts, productById, stockMoves, saleLines, inventorySales };
+}
+
+/**
+ * Opening inventory at setup: on-hand at the 1st of the setup month, plus stock
+ * logged from that 1st through the moment the owner sets the statement.
+ */
+export async function snapshotOpeningInventoryCents(
+  companyId: string,
+  startAt: Date,
+  setAt: Date,
+): Promise<number> {
+  const { valuedProducts, productById, stockMoves, inventorySales } =
+    await loadTrackedInventory(companyId);
+  const asOfMonthStart = inventoryValueAsOfCents(
+    valuedProducts,
+    startAt,
+    inventorySales,
+    stockMoves,
+  );
+  let inboundFromFirst = 0;
+  for (const move of stockMoves) {
+    if (move.createdAt < startAt || move.createdAt > setAt) continue;
+    inboundFromFirst += inboundMoveValueCents(move, productById, isReversibleInboundMove);
+  }
+  return Math.max(0, asOfMonthStart + inboundFromFirst);
+}
+
+function emptyStatement(
+  businessName: string,
+  year: number,
+  extra?: Partial<MonthlyIncomeStatement>,
+): MonthlyIncomeStatement {
+  const yy = String(year).slice(-2);
+  return {
+    businessName,
+    year,
+    monthLabels: INCOME_STATEMENT_MONTHS.map((label) => `${label}-${yy}`),
+    rows: [],
+    configured: false,
+    startedAt: null,
+    setAt: null,
+    ...extra,
+  };
+}
+
+/**
+ * Build a 12-month income statement for a calendar year.
+ *
+ * The statement does not auto-create from historical app data. After the owner
+ * sets cash on hand, reserve/escrow, and opening inventory:
+ * - Calculations begin on the 1st of that month (Trinidad time)
+ * - Existing inventory (including stock logged from that 1st) is opening inventory
+ * - Purchases after setup are stock quantity increases plus in-period supplier buys
+ */
+export async function fetchMonthlyIncomeStatement(
+  companyId: string,
+  year: number,
+  businessName: string,
+): Promise<MonthlyIncomeStatement> {
+  const company = await prisma.company.findUniqueOrThrow({
+    where: { id: companyId },
+    select: {
+      moneyMixReservePct: true,
+      incomeStatementSetAt: true,
+      incomeStatementStartAt: true,
+      incomeStatementCashOnHandCents: true,
+      incomeStatementReserveCents: true,
+      incomeStatementOpeningInventoryCents: true,
+    },
+  });
+
+  const setup = incomeStatementSetupFromCompany(company);
+  const yy = String(year).slice(-2);
+  const monthLabels = INCOME_STATEMENT_MONTHS.map((label) => `${label}-${yy}`);
+
+  if (!setup) {
+    return emptyStatement(businessName, year);
+  }
+
+  const startParts = appYearMonth(setup.startAt);
+  if (!startParts) {
+    return emptyStatement(businessName, year, {
+      configured: true,
+      startedAt: setup.startAt,
+      setAt: setup.setAt,
+    });
+  }
+
+  const { year: startYear, monthIndex: startMonthIdx } = startParts;
+  if (year < startYear) {
+    return {
+      ...emptyStatement(businessName, year, {
+        configured: true,
+        startedAt: setup.startAt,
+        setAt: setup.setAt,
+      }),
+      rows: buildRows({
+        cashOnHandBeginning: emptyMonths(),
+        salesRevenue: emptyMonths(),
+        serviceIncome: emptyMonths(),
+        otherIncome: emptyMonths(),
+        totalRevenue: emptyMonths(),
+        totalCashPositionUnderRevenue: emptyMonths(),
+        openingInventory: emptyMonths(),
+        purchasesMonths: emptyMonths(),
+        directLabour: emptyMonths(),
+        closingInventory: emptyMonths(),
+        totalCogs: emptyMonths(),
+        grossProfit: emptyMonths(),
+        rentExpense: emptyMonths(),
+        utilities: emptyMonths(),
+        salariesWages: emptyMonths(),
+        transportation: emptyMonths(),
+        officeSupplies: emptyMonths(),
+        marketingAdvertising: emptyMonths(),
+        maintenance: emptyMonths(),
+        insurance: emptyMonths(),
+        subscription: emptyMonths(),
+        bankCharges: emptyMonths(),
+        miscellaneousExpenses: emptyMonths(),
+        totalOperatingExpenses: emptyMonths(),
+        netProfit: emptyMonths(),
+        loanPrincipalPayment: emptyMonths(),
+        capitalPurchase: emptyMonths(),
+        reserveEscrow: emptyMonths(),
+        ownersWithdrawal: emptyMonths(),
+        totalCashPaidOut: emptyMonths(),
+        cashPosition: emptyMonths(),
+        reservePct: Number(company.moneyMixReservePct) || 0,
+      }),
+    };
+  }
+
+  const yearEnd = endOfAppYear(year);
+  const monthCount = (year - startYear) * 12 + (11 - startMonthIdx) + 1;
+  const reservePct = Number(company.moneyMixReservePct) || 0;
+
+  const [
+    inventory,
+    payments,
+    purchases,
+    timeEntries,
+    expenses,
+    payslips,
+  ] = await Promise.all([
+    loadTrackedInventory(companyId),
     prisma.payment.findMany({
-      where: { companyId, paidAt: { gte: yearStart, lte: yearEnd } },
+      where: { companyId, paidAt: { gte: setup.startAt, lte: yearEnd } },
       select: {
         amount: true,
         paidAt: true,
@@ -212,7 +405,7 @@ export async function fetchMonthlyIncomeStatement(
       },
     }),
     prisma.supplierPurchase.findMany({
-      where: { companyId, purchasedAt: { gte: yearStart, lte: yearEnd } },
+      where: { companyId, purchasedAt: { gte: setup.startAt, lte: yearEnd } },
       select: {
         totalCost: true,
         purchasedAt: true,
@@ -222,7 +415,7 @@ export async function fetchMonthlyIncomeStatement(
     prisma.timeEntry.findMany({
       where: {
         employee: { companyId },
-        date: { gte: yearStart, lte: yearEnd },
+        date: { gte: setup.startAt, lte: yearEnd },
         clockOutAt: { not: null },
       },
       select: {
@@ -234,98 +427,80 @@ export async function fetchMonthlyIncomeStatement(
       },
     }),
     prisma.expense.findMany({
-      where: { companyId, date: { gte: yearStart, lte: yearEnd } },
+      where: { companyId, date: { gte: setup.startAt, lte: yearEnd } },
       select: { category: true, amount: true, date: true },
     }),
     prisma.employeePayslip.findMany({
       where: {
         companyId,
-        periodEnd: { gte: yearStart, lte: yearEnd },
+        periodEnd: { gte: setup.startAt, lte: yearEnd },
       },
       select: { grossPay: true, periodEnd: true },
     }),
-    prisma.company.findUniqueOrThrow({
-      where: { id: companyId },
-      select: { moneyMixReservePct: true },
-    }),
-    fetchMonthEndCashBalances(companyId, year),
   ]);
 
-  const reservePct = Number(company.moneyMixReservePct) || 0;
-  const cashPosition = cashBalances.monthEnds;
-  const yearStartCash = cashBalances.yearStartBalance;
+  const { valuedProducts, productById, stockMoves, saleLines, inventorySales } = inventory;
 
-  const valuedProducts: ValuedProduct[] = fillUnitCostFromMovements(
-    companyProducts.map((p) => ({
-      id: p.id,
-      stockQty: p.stockQty,
-      unitCost: p.unitCost,
-      variables: p.variables.map((v) => ({
-        name: v.name,
-        options: parseVariableOptions(v.options),
-      })),
-    })),
-    stockMoves,
-  );
-  const productById = new Map(valuedProducts.map((p) => [p.id, p]));
+  const zeros = () => Array.from({ length: monthCount }, () => 0);
+  const salesRevenue = zeros();
+  const serviceIncome = zeros();
+  const otherIncome = zeros();
+  const purchasesMonths = zeros();
+  const directLabour = zeros();
+  const rentExpense = zeros();
+  const utilities = zeros();
+  const salariesWages = zeros();
+  const transportation = zeros();
+  const officeSupplies = zeros();
+  const marketingAdvertising = zeros();
+  const maintenance = zeros();
+  const insurance = zeros();
+  const subscription = zeros();
+  const bankCharges = zeros();
+  const miscellaneousExpenses = zeros();
+  const loanPrincipalPayment = zeros();
+  const capitalPurchase = zeros();
+  const ownersWithdrawal = zeros();
+  const salesCogs = zeros();
 
-  const inventorySales = saleLines.map((line) => ({
-    productId: line.productId,
-    quantity: line.quantity,
-    variantLabel: line.variantLabel,
-    soldAt: line.sale.soldAt,
-    isRefund: line.sale.isRefund,
-    isService: Boolean(line.product?.isService),
-  }));
+  const slotOf = (d: Date): number | null => {
+    if (d < setup.startAt) return null;
+    const parts = appYearMonth(d);
+    if (!parts) return null;
+    const idx = (parts.year - startYear) * 12 + parts.monthIndex - startMonthIdx;
+    if (idx < 0 || idx >= monthCount) return null;
+    return idx;
+  };
 
-  const salesRevenue = emptyMonths();
-  const serviceIncome = emptyMonths();
-  const otherIncome = emptyMonths();
-  const purchasesMonths = emptyMonths();
-  const directLabour = emptyMonths();
-  const rentExpense = emptyMonths();
-  const utilities = emptyMonths();
-  const salariesWages = emptyMonths();
-  const transportation = emptyMonths();
-  const officeSupplies = emptyMonths();
-  const marketingAdvertising = emptyMonths();
-  const maintenance = emptyMonths();
-  const insurance = emptyMonths();
-  const subscription = emptyMonths();
-  const miscellaneousExpenses = emptyMonths();
-  const loanPrincipalPayment = emptyMonths();
-  const capitalPurchase = emptyMonths();
-  const reserveEscrow = emptyMonths();
-  const ownersWithdrawal = emptyMonths();
+  const addToSlot = (target: number[], d: Date, amount: number) => {
+    const i = slotOf(d);
+    if (i == null) return;
+    target[i]! += amount;
+  };
 
   for (const line of saleLines) {
-    if (line.sale.soldAt > yearEnd) continue;
+    const soldAt = line.sale.soldAt;
+    if (soldAt < setup.startAt || soldAt > yearEnd) continue;
     const service = Boolean(line.product?.isService);
-    if (service) addToMonth(serviceIncome, line.sale.soldAt, line.lineTotal);
-    else addToMonth(salesRevenue, line.sale.soldAt, line.lineTotal);
+    if (service) addToSlot(serviceIncome, soldAt, line.lineTotal);
+    else addToSlot(salesRevenue, soldAt, line.lineTotal);
   }
 
-  // Inventory received via Inventory/POS stock (not supplier invoices) still belongs in Purchases.
   for (const move of stockMoves) {
-    if (!isInventoryPurchaseMovement(move.type, move.quantity)) continue;
-    const product = productById.get(move.productId);
-    const unitCost =
-      move.unitCost > 0
-        ? move.unitCost
-        : product
-          ? effectiveProductUnitCost(product, product.variables)
-          : 0;
-    if (unitCost <= 0) continue;
-    addToMonth(purchasesMonths, move.createdAt, Math.round(move.quantity * unitCost));
+    if (move.createdAt <= setup.setAt) continue;
+    if (move.createdAt > yearEnd) continue;
+    const value = inboundMoveValueCents(move, productById, isPostSetupStockPurchase);
+    if (value <= 0) continue;
+    addToSlot(purchasesMonths, move.createdAt, value);
   }
 
   for (const pay of payments) {
     if (isOwnerDrawingPayment(pay)) {
-      addToMonth(ownersWithdrawal, pay.paidAt, pay.amount);
+      addToSlot(ownersWithdrawal, pay.paidAt, pay.amount);
       continue;
     }
     if (pay.employeeId || isSalaryPayment(pay)) {
-      addToMonth(salariesWages, pay.paidAt, pay.amount);
+      addToSlot(salariesWages, pay.paidAt, pay.amount);
       continue;
     }
     if (pay.supplierId) {
@@ -335,41 +510,45 @@ export async function fetchMonthlyIncomeStatement(
     const isPos = ref.includes("pos") || Boolean(pay.reference?.startsWith("POS"));
     if (isPos) continue;
     if (pay.invoiceId) {
-      addToMonth(serviceIncome, pay.paidAt, pay.amount);
+      addToSlot(serviceIncome, pay.paidAt, pay.amount);
     } else if (!isSalaryPayment(pay)) {
-      addToMonth(otherIncome, pay.paidAt, pay.amount);
+      addToSlot(otherIncome, pay.paidAt, pay.amount);
     }
   }
 
   for (const purchase of purchases) {
+    if (purchase.purchasedAt <= setup.setAt) continue;
     const supplyType = purchase.supplierItem?.supplyType || "MATERIAL";
     if (supplyType === "EQUIPMENT") {
-      addToMonth(capitalPurchase, purchase.purchasedAt, purchase.totalCost);
+      addToSlot(capitalPurchase, purchase.purchasedAt, purchase.totalCost);
       continue;
     }
     if (supplyType === "EQUIPMENT_RENTAL") {
-      addToMonth(maintenance, purchase.purchasedAt, purchase.totalCost);
+      addToSlot(maintenance, purchase.purchasedAt, purchase.totalCost);
       continue;
     }
-    addToMonth(purchasesMonths, purchase.purchasedAt, purchase.totalCost);
+    addToSlot(purchasesMonths, purchase.purchasedAt, purchase.totalCost);
   }
 
   for (const entry of timeEntries) {
     const rate = entry.hourlyRate > 0 ? entry.hourlyRate : entry.employee.hourlyRate;
     const pay =
       rate > 0 ? Math.round(entry.hours * rate) : Math.max(0, entry.paymentAmount ?? 0);
-    addToMonth(directLabour, entry.date, pay);
+    addToSlot(directLabour, entry.date, pay);
   }
 
   for (const slip of payslips) {
-    addToMonth(salariesWages, slip.periodEnd, slip.grossPay);
+    addToSlot(salariesWages, slip.periodEnd, slip.grossPay);
   }
 
   for (const expense of expenses) {
     const amount = expense.amount;
     const cat = expense.category || "";
+    if (expense.date <= setup.setAt && matchCategory(cat, [/^materials?$/i, /^stock$/i])) {
+      continue;
+    }
     if (matchCategory(cat, [/loan\s*principal|principal\s*payment|loan\s*payment/i])) {
-      addToMonth(loanPrincipalPayment, expense.date, amount);
+      addToSlot(loanPrincipalPayment, expense.date, amount);
     } else if (
       matchCategory(cat, [
         /capital\s*purchase|capital\s*expend|capex/i,
@@ -377,50 +556,51 @@ export async function fetchMonthlyIncomeStatement(
         /^equipment\s+purchase/i,
       ])
     ) {
-      // Quote→invoice equipment and explicit capital expenses (not rentals).
-      addToMonth(capitalPurchase, expense.date, amount);
+      addToSlot(capitalPurchase, expense.date, amount);
     } else if (matchCategory(cat, [/reserve|escrow/i])) {
-      // Reserve/escrow expense cash-outs stay in miscellaneous; the Reserve line is
-      // computed from bank money-mix % × cash position (compounded monthly).
-      addToMonth(miscellaneousExpenses, expense.date, amount);
+      addToSlot(miscellaneousExpenses, expense.date, amount);
     } else if (matchCategory(cat, [/owner.?s?\s*withdraw|owner.?s?\s*draw|drawings?/i])) {
-      addToMonth(ownersWithdrawal, expense.date, amount);
+      addToSlot(ownersWithdrawal, expense.date, amount);
     } else if (matchCategory(cat, [/^rent\b/i, /lease/i])) {
-      addToMonth(rentExpense, expense.date, amount);
+      addToSlot(rentExpense, expense.date, amount);
     } else if (matchCategory(cat, [/utilit/i, /electric/i, /water/i, /internet/i])) {
-      addToMonth(utilities, expense.date, amount);
+      addToSlot(utilities, expense.date, amount);
     } else if (matchCategory(cat, [/salary|salaries|wage|payroll|staff/i])) {
-      addToMonth(salariesWages, expense.date, amount);
+      addToSlot(salariesWages, expense.date, amount);
     } else if (matchCategory(cat, [/transport|fuel|delivery|shipping/i])) {
-      addToMonth(transportation, expense.date, amount);
+      addToSlot(transportation, expense.date, amount);
     } else if (matchCategory(cat, [/office|supplies|stationery/i])) {
-      addToMonth(officeSupplies, expense.date, amount);
+      addToSlot(officeSupplies, expense.date, amount);
     } else if (matchCategory(cat, [/market|advert|promo|promotion/i])) {
-      addToMonth(marketingAdvertising, expense.date, amount);
+      addToSlot(marketingAdvertising, expense.date, amount);
     } else if (matchCategory(cat, [/mainten|repair|equipment\s*rental/i])) {
-      addToMonth(maintenance, expense.date, amount);
+      addToSlot(maintenance, expense.date, amount);
     } else if (matchCategory(cat, [/insur/i])) {
-      addToMonth(insurance, expense.date, amount);
+      addToSlot(insurance, expense.date, amount);
     } else if (matchCategory(cat, [/subscri/i])) {
-      addToMonth(subscription, expense.date, amount);
+      addToSlot(subscription, expense.date, amount);
+    } else if (matchCategory(cat, [/bank\s*(charges?|fees?)/i])) {
+      addToSlot(bankCharges, expense.date, amount);
     } else if (matchCategory(cat, [/^materials?$/i, /^stock$/i])) {
-      addToMonth(purchasesMonths, expense.date, amount);
+      if (expense.date > setup.setAt) addToSlot(purchasesMonths, expense.date, amount);
     } else {
-      addToMonth(miscellaneousExpenses, expense.date, amount);
+      addToSlot(miscellaneousExpenses, expense.date, amount);
     }
   }
 
-  const openingInventory = emptyMonths();
-  const closingInventory = emptyMonths();
-  for (let m = 0; m < 12; m++) {
-    const nextMonthStart = new Date(year, m + 1, 1, 0, 0, 0, 0);
-    openingInventory[m] = inventoryValueAsOfCents(
-      valuedProducts,
-      monthStarts[m]!,
-      inventorySales,
-      stockMoves,
-    );
-    closingInventory[m] = inventoryValueAsOfCents(
+  const openingInventory = zeros();
+  const closingInventory = zeros();
+  for (let i = 0; i < monthCount; i++) {
+    const calendarOffset = startMonthIdx + i;
+    const slotYear = startYear + Math.floor(calendarOffset / 12);
+    const slotMonth = calendarOffset % 12;
+    const monthStart = startOfAppCalendarMonth(slotYear, slotMonth);
+    const nextMonthStart = startOfAppCalendarMonth(slotYear, slotMonth + 1);
+    openingInventory[i] =
+      i === 0
+        ? setup.openingInventoryCents
+        : inventoryValueAsOfCents(valuedProducts, monthStart, inventorySales, stockMoves);
+    closingInventory[i] = inventoryValueAsOfCents(
       valuedProducts,
       nextMonthStart,
       inventorySales,
@@ -428,99 +608,172 @@ export async function fetchMonthlyIncomeStatement(
     );
   }
 
-  // Sales-based COGS (qty × unit cost) — used when the inventory identity understates cost
-  // (e.g. missing unit costs on movements / opening stock entered without cost).
-  const salesCogs = emptyMonths();
   for (const line of saleLines) {
     if (!line.product || line.product.isService) continue;
+    const soldAt = line.sale.soldAt;
+    if (soldAt < setup.startAt || soldAt > yearEnd) continue;
     const variables = line.product.variables.map((v) => ({
       name: v.name,
       options: parseVariableOptions(v.options),
     }));
     const unitCost = resolveSaleUnitCost(line.product, variables, line.variantLabel);
     if (unitCost <= 0) continue;
-    if (line.sale.soldAt > yearEnd) continue;
     const sign = line.lineTotal < 0 || line.sale.isRefund ? -1 : 1;
-    addToMonth(salesCogs, line.sale.soldAt, Math.round(unitCost * line.quantity) * sign);
+    addToSlot(salesCogs, soldAt, Math.round(unitCost * line.quantity) * sign);
   }
 
-  const totalRevenue = emptyMonths();
-  const totalCogs = emptyMonths();
-  const grossProfit = emptyMonths();
-  const totalOperatingExpenses = emptyMonths();
-  const netProfit = emptyMonths();
-  const cashOnHandBeginning = emptyMonths();
-  const totalCashPositionUnderRevenue = emptyMonths();
-  const reserveEscrowCalc = emptyMonths();
-  const totalCashPaidOut = emptyMonths();
+  const totalRevenue = zeros();
+  const totalCogs = zeros();
+  const grossProfit = zeros();
+  const totalOperatingExpenses = zeros();
+  const netProfit = zeros();
+  const cashOnHandBeginning = zeros();
+  const totalCashPositionUnderRevenue = zeros();
+  const reserveEscrow = zeros();
+  const totalCashPaidOut = zeros();
+  const cashPosition = zeros();
 
-  for (let m = 0; m < 12; m++) {
-    totalRevenue[m] =
-      salesRevenue[m]! + serviceIncome[m]! + otherIncome[m]!;
-    // Total COGS = Opening + Purchases + Direct Labour − Closing
+  for (let i = 0; i < monthCount; i++) {
+    totalRevenue[i] = salesRevenue[i]! + serviceIncome[i]! + otherIncome[i]!;
     const inventoryCogs =
-      openingInventory[m]! +
-      purchasesMonths[m]! +
-      directLabour[m]! -
-      closingInventory[m]!;
-    // If inventory identity is zero/negative but goods were sold with a known cost,
-    // use sold-goods cost so Gross Profit is not overstated.
-    totalCogs[m] =
+      openingInventory[i]! + purchasesMonths[i]! + directLabour[i]! - closingInventory[i]!;
+    totalCogs[i] =
       inventoryCogs > 0
         ? inventoryCogs
-        : salesCogs[m]! > 0
-          ? salesCogs[m]! + directLabour[m]!
+        : salesCogs[i]! > 0
+          ? salesCogs[i]! + directLabour[i]!
           : inventoryCogs;
-    grossProfit[m] = totalRevenue[m]! - totalCogs[m]!;
-    totalOperatingExpenses[m] =
-      rentExpense[m]! +
-      utilities[m]! +
-      salariesWages[m]! +
-      transportation[m]! +
-      officeSupplies[m]! +
-      marketingAdvertising[m]! +
-      maintenance[m]! +
-      insurance[m]! +
-      subscription[m]! +
-      miscellaneousExpenses[m]!;
-    netProfit[m] = grossProfit[m]! - totalOperatingExpenses[m]!;
+    grossProfit[i] = totalRevenue[i]! - totalCogs[i]!;
+    totalOperatingExpenses[i] =
+      rentExpense[i]! +
+      utilities[i]! +
+      salariesWages[i]! +
+      transportation[i]! +
+      officeSupplies[i]! +
+      marketingAdvertising[i]! +
+      maintenance[i]! +
+      insurance[i]! +
+      subscription[i]! +
+      bankCharges[i]! +
+      miscellaneousExpenses[i]!;
+    netProfit[i] = grossProfit[i]! - totalOperatingExpenses[i]!;
 
-    // Beginning cash = prior month-end cash position minus prior reserves (unreserved cash).
-    cashOnHandBeginning[m] =
-      m === 0
-        ? yearStartCash
-        : (cashPosition[m - 1] ?? 0) - (reserveEscrowCalc[m - 1] ?? 0);
+    cashOnHandBeginning[i] =
+      i === 0 ? setup.cashOnHandCents : cashPosition[i - 1]!;
 
-    totalCashPositionUnderRevenue[m] = totalRevenue[m]! + cashOnHandBeginning[m]!;
+    totalCashPositionUnderRevenue[i] = totalRevenue[i]! + cashOnHandBeginning[i]!;
 
-    // Reserves = % of this month's total revenue only (not beginning cash).
-    const plannedReserve = Math.round(totalRevenue[m]! * (reservePct / 100));
     const cashOutBeforeReserve =
-      totalOperatingExpenses[m]! +
-      loanPrincipalPayment[m]! +
-      capitalPurchase[m]! +
-      ownersWithdrawal[m]!;
-    const availableCash = cashOnHandBeginning[m]! + totalRevenue[m]!;
-    const shortfall = Math.max(0, cashOutBeforeReserve - availableCash);
-    // If outflows exceed available cash, dip into this month's planned reserves first.
-    reserveEscrowCalc[m] = Math.max(0, plannedReserve - shortfall);
+      totalOperatingExpenses[i]! +
+      loanPrincipalPayment[i]! +
+      capitalPurchase[i]! +
+      ownersWithdrawal[i]!;
 
-    totalCashPaidOut[m] =
-      totalOperatingExpenses[m]! +
-      loanPrincipalPayment[m]! +
-      capitalPurchase[m]! +
-      reserveEscrowCalc[m]! +
-      ownersWithdrawal[m]!;
+    if (i === 0) {
+      // Owner-entered escrow is already held — show it, but do not treat it as a new outflow.
+      reserveEscrow[i] = setup.reserveCents;
+      totalCashPaidOut[i] = cashOutBeforeReserve;
+    } else {
+      const plannedReserve = Math.round(totalRevenue[i]! * (reservePct / 100));
+      const availableCash = cashOnHandBeginning[i]! + totalRevenue[i]!;
+      const shortfall = Math.max(0, cashOutBeforeReserve - availableCash);
+      reserveEscrow[i] = Math.max(0, plannedReserve - shortfall);
+      totalCashPaidOut[i] = cashOutBeforeReserve + reserveEscrow[i]!;
+    }
+
+    cashPosition[i] =
+      cashOnHandBeginning[i]! + totalRevenue[i]! - totalCashPaidOut[i]!;
   }
 
-  // Expose calculated reserves on the existing reserveEscrow series
-  for (let m = 0; m < 12; m++) {
-    reserveEscrow[m] = reserveEscrowCalc[m]!;
-  }
+  const toYearMonths = (series: number[]) => {
+    const out = emptyMonths();
+    for (let i = 0; i < monthCount; i++) {
+      const calendarOffset = startMonthIdx + i;
+      const slotYear = startYear + Math.floor(calendarOffset / 12);
+      if (slotYear !== year) continue;
+      out[calendarOffset % 12] = series[i]!;
+    }
+    return out;
+  };
 
-  const yy = String(year).slice(-2);
-  const monthLabels = INCOME_STATEMENT_MONTHS.map((label) => `${label}-${yy}`);
+  return {
+    businessName,
+    year,
+    monthLabels,
+    configured: true,
+    startedAt: setup.startAt,
+    setAt: setup.setAt,
+    rows: buildRows({
+      cashOnHandBeginning: toYearMonths(cashOnHandBeginning),
+      salesRevenue: toYearMonths(salesRevenue),
+      serviceIncome: toYearMonths(serviceIncome),
+      otherIncome: toYearMonths(otherIncome),
+      totalRevenue: toYearMonths(totalRevenue),
+      totalCashPositionUnderRevenue: toYearMonths(totalCashPositionUnderRevenue),
+      openingInventory: toYearMonths(openingInventory),
+      purchasesMonths: toYearMonths(purchasesMonths),
+      directLabour: toYearMonths(directLabour),
+      closingInventory: toYearMonths(closingInventory),
+      totalCogs: toYearMonths(totalCogs),
+      grossProfit: toYearMonths(grossProfit),
+      rentExpense: toYearMonths(rentExpense),
+      utilities: toYearMonths(utilities),
+      salariesWages: toYearMonths(salariesWages),
+      transportation: toYearMonths(transportation),
+      officeSupplies: toYearMonths(officeSupplies),
+      marketingAdvertising: toYearMonths(marketingAdvertising),
+      maintenance: toYearMonths(maintenance),
+      insurance: toYearMonths(insurance),
+      subscription: toYearMonths(subscription),
+      bankCharges: toYearMonths(bankCharges),
+      miscellaneousExpenses: toYearMonths(miscellaneousExpenses),
+      totalOperatingExpenses: toYearMonths(totalOperatingExpenses),
+      netProfit: toYearMonths(netProfit),
+      loanPrincipalPayment: toYearMonths(loanPrincipalPayment),
+      capitalPurchase: toYearMonths(capitalPurchase),
+      reserveEscrow: toYearMonths(reserveEscrow),
+      ownersWithdrawal: toYearMonths(ownersWithdrawal),
+      totalCashPaidOut: toYearMonths(totalCashPaidOut),
+      cashPosition: toYearMonths(cashPosition),
+      reservePct,
+    }),
+  };
+}
 
+function buildRows(input: {
+  cashOnHandBeginning: number[];
+  salesRevenue: number[];
+  serviceIncome: number[];
+  otherIncome: number[];
+  totalRevenue: number[];
+  totalCashPositionUnderRevenue: number[];
+  openingInventory: number[];
+  purchasesMonths: number[];
+  directLabour: number[];
+  closingInventory: number[];
+  totalCogs: number[];
+  grossProfit: number[];
+  rentExpense: number[];
+  utilities: number[];
+  salariesWages: number[];
+  transportation: number[];
+  officeSupplies: number[];
+  marketingAdvertising: number[];
+  maintenance: number[];
+  insurance: number[];
+  subscription: number[];
+  bankCharges: number[];
+  miscellaneousExpenses: number[];
+  totalOperatingExpenses: number[];
+  netProfit: number[];
+  loanPrincipalPayment: number[];
+  capitalPurchase: number[];
+  reserveEscrow: number[];
+  ownersWithdrawal: number[];
+  totalCashPaidOut: number[];
+  cashPosition: number[];
+  reservePct: number;
+}): IncomeStatementRow[] {
   const line = (
     id: IncomeStatementLineId,
     label: string,
@@ -544,127 +797,90 @@ export async function fetchMonthlyIncomeStatement(
     total: null,
   });
 
-  const rows: IncomeStatementRow[] = [
-    section("sec-revenue", "Revenue (Income)"),
+  return [
+    section("sec-revenue", "Revenue"),
     line(
       "cashOnHandBeginning",
-      "Cash on Hand (Beginning of Month)",
-      cashOnHandBeginning,
+      "Cash on Hand",
+      input.cashOnHandBeginning,
       "line",
-      "Prior month Cash Position − prior month Reserves (January uses year-start bank balance)",
+      "Owner-entered cash in the first month; then prior Cash Position",
     ),
-    line("salesRevenue", "Sales Revenue", salesRevenue),
-    line("serviceIncome", "Service Income", serviceIncome),
-    line("otherIncome", "Other Income", otherIncome),
+    line("salesRevenue", "Sales Revenue", input.salesRevenue),
+    line("serviceIncome", "Service Income", input.serviceIncome),
+    line("otherIncome", "Other Income", input.otherIncome),
     line(
       "totalRevenue",
       "Total Revenue",
-      totalRevenue,
+      input.totalRevenue,
       "total",
-      "Sales Revenue + Service Income + Other Income",
+      "Sales + Service + Other",
     ),
     line(
       "totalCashPosition",
       "Total Cash Position",
-      totalCashPositionUnderRevenue,
+      input.totalCashPositionUnderRevenue,
       "result",
-      "Total Revenue + Cash on Hand (Beginning of Month)",
+      "Total Revenue + Cash on Hand",
     ),
-    section("sec-cogs", "Cost of Goods Sold (COGS)"),
+    section("sec-cogs", "COGS"),
     line(
       "openingInventory",
       "Opening Inventory",
-      openingInventory,
+      input.openingInventory,
       "line",
-      "On-hand qty × unit cost at month start for variants and items without variants (current stock plus goods sold since then)",
+      "All stock on hand when the statement was set, including inventory logged from the 1st of that month",
     ),
-    line("purchases", "Purchases", purchasesMonths),
-    line("directLabour", "Direct Labour", directLabour),
     line(
-      "closingInventory",
-      "Closing Inventory",
-      closingInventory,
+      "purchases",
+      "Purchases",
+      input.purchasesMonths,
       "line",
-      "On-hand qty × unit cost at month end for variants and items without variants",
+      "Stock quantity increases and supplier purchases after the statement was set",
     ),
+    line("directLabour", "Direct Labour", input.directLabour),
+    line("closingInventory", "Closing Inventory", input.closingInventory),
     line(
       "totalCogs",
       "Total COGS",
-      totalCogs,
+      input.totalCogs,
       "total",
-      "Opening Inventory + Purchases + Direct Labour − Closing Inventory",
+      "Opening + Purchases + Direct Labour − Closing",
     ),
-    line(
-      "grossProfit",
-      "Gross Profit",
-      grossProfit,
-      "result",
-      "Total Revenue − Total COGS",
-    ),
+    line("grossProfit", "Gross Profit", input.grossProfit, "result", "Total Revenue − Total COGS"),
     section("sec-opex", "Operating Expenses"),
-    line("rentExpense", "Rent Expense", rentExpense),
-    line("utilities", "Utilities", utilities),
-    line("salariesWages", "Salaries/Wages", salariesWages),
-    line("transportation", "Transportation", transportation),
-    line("officeSupplies", "Office Supplies", officeSupplies),
-    line("marketingAdvertising", "Marketing/Advertising", marketingAdvertising),
-    line("maintenance", "Maintenance", maintenance),
-    line("insurance", "Insurance", insurance),
-    line("subscription", "Subscription", subscription),
-    line("miscellaneousExpenses", "Miscellaneous Expenses", miscellaneousExpenses),
+    line("rentExpense", "Rent", input.rentExpense),
+    line("utilities", "Utilities", input.utilities),
+    line("salariesWages", "Salaries/Wages", input.salariesWages),
+    line("transportation", "Transportation", input.transportation),
+    line("officeSupplies", "Office Supplies", input.officeSupplies),
+    line("marketingAdvertising", "Marketing", input.marketingAdvertising),
+    line("maintenance", "Maintenance", input.maintenance),
+    line("insurance", "Insurance", input.insurance),
+    line("subscription", "Subscriptions", input.subscription),
+    line("bankCharges", "Bank Charges", input.bankCharges),
+    line("miscellaneousExpenses", "Miscellaneous", input.miscellaneousExpenses),
     line(
       "totalOperatingExpenses",
       "Total Operating Expenses",
-      totalOperatingExpenses,
+      input.totalOperatingExpenses,
       "total",
-      "Sum of operating expense lines",
     ),
-    line(
-      "netProfit",
-      "Net Profit (or Loss)",
-      netProfit,
-      "result",
-      "Gross Profit − Total Operating Expenses",
-    ),
-    section("sec-below-net", "Below net profit"),
-    line("loanPrincipalPayment", "Loan Principal Payment", loanPrincipalPayment),
-    line("capitalPurchase", "Capital Purchase", capitalPurchase),
+    line("netProfit", "Net Profit", input.netProfit, "result", "Gross Profit − Operating Expenses"),
+    section("sec-below-net", "Cash out"),
+    line("loanPrincipalPayment", "Loan Principal", input.loanPrincipalPayment),
+    line("capitalPurchase", "Capital Purchase", input.capitalPurchase),
     line(
       "reserveEscrow",
-      "Reserve and/or Escrow",
-      reserveEscrow,
+      "Reserve / Escrow",
+      input.reserveEscrow,
       "line",
-      `${reservePct}% of Total Revenue for the month; reduced if outflows exceed Cash on Hand Beginning + Total Revenue`,
+      `Owner-entered in the first month; then ${input.reservePct}% of Total Revenue`,
     ),
-    line(
-      "ownersWithdrawal",
-      "Owner's Withdrawal",
-      ownersWithdrawal,
-      "line",
-      "Owner drawings and owner withdrawal expenses",
-    ),
-    line(
-      "totalCashPaidOut",
-      "Total Cash Paid Out",
-      totalCashPaidOut,
-      "total",
-      "Total Operating Expenses + Loan Principal + Capital Purchase + Reserve + Owner's Withdrawal",
-    ),
-    line(
-      "cashPosition",
-      "Cash Position",
-      cashPosition,
-      "result",
-      "Remaining funds in the bank at month end",
-    ),
+    line("ownersWithdrawal", "Owner's Withdrawal", input.ownersWithdrawal),
+    line("totalCashPaidOut", "Total Cash Paid Out", input.totalCashPaidOut, "total"),
+    line("cashPosition", "Cash Position", input.cashPosition, "result"),
   ];
-
-  return {
-    businessName,
-    year,
-    monthLabels,
-    rows,
-  };
 }
 
 export type SingleMonthIncomeStatement = {

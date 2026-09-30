@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { requireCompany } from "@/lib/company";
 import { sendEmail } from "@/lib/email";
 import { isValidEmail } from "@/lib/document-email";
-import { formatTTD } from "@/lib/money";
+import { formatTTD, toCents } from "@/lib/money";
 import {
   extractSingleMonth,
   fetchMonthlyIncomeStatement,
   INCOME_STATEMENT_MONTHS,
+  incomeStatementSetupFromCompany,
+  snapshotOpeningInventoryCents,
 } from "@/lib/monthly-income-statement";
 import { receiptHeaderText } from "@/lib/settings";
+import { formatAppMonthYear, startOfAppMonth } from "@/lib/timezone";
 import { prisma } from "@/lib/prisma";
 import type { MoneyMixPlan } from "@/lib/money-mix";
 
@@ -38,12 +41,57 @@ function buildIncomeStatementHtml(opts: {
 </body></html>`;
 }
 
+export async function setIncomeStatement(input: {
+  cashOnHand: number;
+  reserveEscrow: number;
+}) {
+  const { companyId, company } = await requireCompany();
+  if (incomeStatementSetupFromCompany(company)) {
+    return { error: "Income statement is already set for this company" };
+  }
+
+  const cashOnHandCents = toCents(Number(input.cashOnHand) || 0);
+  const reserveCents = toCents(Number(input.reserveEscrow) || 0);
+  if (cashOnHandCents < 0 || reserveCents < 0) {
+    return { error: "Cash on hand and reserve cannot be negative" };
+  }
+
+  const setAt = new Date();
+  const startAt = startOfAppMonth(setAt);
+  const openingInventoryCents = await snapshotOpeningInventoryCents(
+    companyId,
+    startAt,
+    setAt,
+  );
+
+  await prisma.company.update({
+    where: { id: companyId },
+    data: {
+      incomeStatementSetAt: setAt,
+      incomeStatementStartAt: startAt,
+      incomeStatementCashOnHandCents: cashOnHandCents,
+      incomeStatementReserveCents: reserveCents,
+      incomeStatementOpeningInventoryCents: openingInventoryCents,
+    },
+  });
+
+  revalidatePath("/financial-reports");
+  return {
+    ok: true as const,
+    startLabel: formatAppMonthYear(startAt),
+    openingInventoryCents,
+  };
+}
+
 export async function emailIncomeStatement(input: {
   year: number;
   month: number;
   toEmail: string;
 }) {
   const { companyId, company } = await requireCompany();
+  if (!incomeStatementSetupFromCompany(company)) {
+    return { error: "Set the income statement before emailing it" };
+  }
   const to = String(input.toEmail || "").trim().toLowerCase();
   if (!isValidEmail(to)) return { error: "Enter a valid email address" };
 

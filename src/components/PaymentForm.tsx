@@ -223,7 +223,7 @@ export function PaymentForm({
             defaultValue="Materials"
             suggestions={categorySuggestions}
             listId="operational-expense-category-suggestions"
-            placeholder="e.g. Materials, Fuel, Packaging"
+            placeholder="e.g. Materials, Fuel, Bank charges"
           />
         </label>
       ) : null}

@@ -17,10 +17,9 @@ export function SingleMonthIncomeStatementTable({
     <div className="stack income-statement" id={printId}>
       <div className="income-statement-header">
         <div className="income-statement-business">{statement.businessName}</div>
-        <h3 style={{ margin: "0.35rem 0 0" }}>Income Statement</h3>
-        <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.88rem" }}>
-          For the month ended {statement.monthLabel} {statement.year}
-        </p>
+        <h3>
+          Income Statement — {statement.monthLabel} {statement.year}
+        </h3>
       </div>
 
       <div className="table-wrap">
@@ -44,12 +43,7 @@ export function SingleMonthIncomeStatementTable({
                 }
                 title={row.formula || undefined}
               >
-                <td>
-                  {row.label}
-                  {row.formula ? (
-                    <span className="muted income-statement-formula"> = {row.formula}</span>
-                  ) : null}
-                </td>
+                <td>{row.label}</td>
                 <td className={cellClass(row.kind)} style={{ textAlign: "right" }}>
                   {formatTTD(row.amount)}
                 </td>

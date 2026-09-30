@@ -52,6 +52,35 @@ export function startOfAppMonth(now = new Date()): Date {
   return new Date(`${y}-${m}-01T00:00:00${APP_UTC_OFFSET}`);
 }
 
+/** Calendar year + 0-based month in Trinidad & Tobago. */
+export function appYearMonth(value: DateInput = new Date()): { year: number; monthIndex: number } | null {
+  const key = appDateKey(value);
+  if (!key) return null;
+  const [y, m] = key.split("-").map(Number);
+  if (!y || !m) return null;
+  return { year: y, monthIndex: m - 1 };
+}
+
+export function startOfAppYear(year: number): Date {
+  return new Date(`${year}-01-01T00:00:00${APP_UTC_OFFSET}`);
+}
+
+export function endOfAppYear(year: number): Date {
+  return new Date(`${year}-12-31T23:59:59.999${APP_UTC_OFFSET}`);
+}
+
+/** `monthIndex` is 0-based; values outside 0–11 roll into adjacent years. */
+export function startOfAppCalendarMonth(year: number, monthIndex: number): Date {
+  const rolled = year * 12 + monthIndex;
+  const y = Math.floor(rolled / 12);
+  const m = ((rolled % 12) + 12) % 12;
+  return new Date(`${y}-${String(m + 1).padStart(2, "0")}-01T00:00:00${APP_UTC_OFFSET}`);
+}
+
+export function endOfAppCalendarMonth(year: number, monthIndex: number): Date {
+  return new Date(startOfAppCalendarMonth(year, monthIndex + 1).getTime() - 1);
+}
+
 export function endOfAppMonth(now = new Date()): Date {
   const start = startOfAppMonth(now);
   const [y, m] = appDateKey(start).split("-").map(Number);

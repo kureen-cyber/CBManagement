@@ -4,6 +4,8 @@ import { receiptHeaderText } from "@/lib/settings";
 import {
   extractSingleMonth,
   fetchMonthlyIncomeStatement,
+  incomeStatementSetupFromCompany,
+  snapshotOpeningInventoryCents,
 } from "@/lib/monthly-income-statement";
 import { fetchBalanceSheet } from "@/lib/balance-sheet";
 import { fetchBankLedger } from "@/lib/bank-ledger";
@@ -12,9 +14,15 @@ import {
   planFromCompany,
   plannedAllocation,
 } from "@/lib/money-mix";
+import {
+  appYearMonth,
+  formatAppMonthYear,
+  startOfAppMonth,
+} from "@/lib/timezone";
 import { PageHeader, Panel } from "@/components/ui";
 import { FinancialReportsHub, type FinancialSection } from "@/components/FinancialReportsHub";
 import { IncomeStatementSection } from "@/components/IncomeStatementSection";
+import { IncomeStatementSetupForm } from "@/components/IncomeStatementSetupForm";
 import { BalanceSheetTable } from "@/components/BalanceSheetTable";
 import { BankSection } from "@/components/BankSection";
 
@@ -52,21 +60,43 @@ export default async function FinancialReportsPage({
   const { companyId, company } = await requireCompany();
   const businessName = receiptHeaderText(company);
   const section = parseSection(params.section);
+  const setup = incomeStatementSetupFromCompany(company);
 
-  const nowYear = new Date().getFullYear();
+  const now = new Date();
+  const nowParts = appYearMonth(now);
+  const nowYear = nowParts?.year ?? now.getFullYear();
+  const nowMonth = (nowParts?.monthIndex ?? now.getMonth()) + 1;
   const statementYear = parseYear(params.year, nowYear);
-  const statementMonth = parseMonth(params.month, new Date().getMonth() + 1);
+  const statementMonth = parseMonth(params.month, nowMonth);
   const years = Array.from({ length: 6 }, (_, i) => nowYear - i);
   if (!years.includes(statementYear)) years.unshift(statementYear);
+  const startYear = setup ? appYearMonth(setup.startAt)?.year : null;
+  const startMonth = setup ? (appYearMonth(setup.startAt)?.monthIndex ?? 0) + 1 : nowMonth;
+  if (startYear && !years.includes(startYear)) years.push(startYear);
+  years.sort((a, b) => b - a);
+
+  const clampedMonth =
+    setup && statementYear === startYear && statementMonth < startMonth
+      ? startMonth
+      : statementMonth;
 
   const yearlyStatement =
-    section === "income"
+    section === "income" && setup
       ? await fetchMonthlyIncomeStatement(companyId, statementYear, businessName)
       : null;
   const monthlyStatement =
     yearlyStatement
-      ? extractSingleMonth(yearlyStatement, statementMonth - 1)
+      ? extractSingleMonth(yearlyStatement, clampedMonth - 1)
       : null;
+
+  const setupPreview =
+    section === "income" && !setup
+      ? await snapshotOpeningInventoryCents(
+          companyId,
+          startOfAppMonth(now),
+          now,
+        )
+      : 0;
 
   const balanceSheet = section === "balance" ? await fetchBalanceSheet(companyId, businessName) : null;
 
@@ -88,13 +118,23 @@ export default async function FinancialReportsPage({
       <Panel style={{ padding: "1.25rem" }}>
         <Suspense fallback={<p className="muted">Loading…</p>}>
           <FinancialReportsHub activeSection={section}>
-            {section === "income" && yearlyStatement && monthlyStatement ? (
+            {section === "income" && !setup ? (
+              <IncomeStatementSetupForm
+                startMonthLabel={formatAppMonthYear(startOfAppMonth(now))}
+                openingInventoryCents={setupPreview}
+              />
+            ) : null}
+
+            {section === "income" && setup && yearlyStatement && monthlyStatement ? (
               <IncomeStatementSection
                 yearlyStatement={yearlyStatement}
                 monthlyStatement={monthlyStatement}
                 statementYear={statementYear}
                 years={years}
-                statementMonth={statementMonth}
+                statementMonth={clampedMonth}
+                startLabel={formatAppMonthYear(setup.startAt)}
+                startYear={startYear ?? statementYear}
+                startMonth={startMonth}
               />
             ) : null}
 

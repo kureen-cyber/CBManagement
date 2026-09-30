@@ -79,6 +79,15 @@ model Company {
   moneyMixGrowthPct    Float @default(20)
   moneyMixReservePct   Float @default(20)
   moneyMixDrawingsPct  Float @default(20)
+  /// When set, income statement auto-calcs from the 1st of this month (Trinidad time)
+  incomeStatementSetAt DateTime?
+  incomeStatementStartAt DateTime?
+  /// Owner-entered operating cash at setup (cents)
+  incomeStatementCashOnHandCents Int @default(0)
+  /// Owner-entered reserve/escrow already held at setup (cents)
+  incomeStatementReserveCents Int @default(0)
+  /// Inventory value treated as opening at setup, including stock logged from month 1st (cents)
+  incomeStatementOpeningInventoryCents Int @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

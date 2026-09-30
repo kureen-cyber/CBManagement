@@ -86,6 +86,7 @@ export const EXPENSE_CATEGORIES = [
   "Office",
   "Stock",
   "Subscription",
+  "Bank charges",
   "Loan Principal Payment",
   "Capital Purchase",
   "Reserve and/or Escrow",

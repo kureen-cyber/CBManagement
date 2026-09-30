@@ -13,8 +13,8 @@ export function IncomeStatementYearSelector({
   const searchParams = useSearchParams();
 
   return (
-    <label className="field" style={{ maxWidth: 180, margin: 0 }}>
-      Statement year
+    <label className="field" style={{ maxWidth: 140, margin: 0, fontSize: "0.78rem" }}>
+      Year
       <select
         value={year}
         onChange={(e) => {

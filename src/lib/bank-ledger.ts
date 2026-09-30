@@ -33,7 +33,7 @@ export function categorizeOutflow(category: string, source: "expense" | "purchas
   if (matchCategory(c, [/market|advert/i])) return "growth";
   if (
     matchCategory(c, [
-      /salary|wage|payroll|rent|utilit|office|transport|maint|insur|fuel|subcontract|equip|loan|capital|reserve|escrow/i,
+      /salary|wage|payroll|rent|utilit|office|transport|maint|insur|fuel|subcontract|equip|loan|capital|reserve|escrow|bank\s*(charges?|fees?)/i,
     ])
   ) {
     return "expenses";

@@ -271,29 +271,34 @@ model SupplierItem {
 
 /// Record of what was actually bought from a supplier (purchase log).
 model SupplierPurchase {
-  id             String        @id @default(cuid())
-  companyId      String
-  supplierId     String
-  supplierItemId String?
+  id               String        @id @default(cuid())
+  companyId        String
+  supplierId       String
+  supplierItemId   String?
   /// Snapshot name (kept if catalog item is later renamed/removed)
-  name           String
-  unit           String        @default("each")
-  quantity       Float         @default(1)
+  name             String
+  unit             String        @default("each")
+  quantity         Float         @default(1)
   /// Cost per unit in cents at time of purchase
-  unitCost       Int           @default(0)
+  unitCost         Int           @default(0)
   /// Total paid in cents (quantity × unitCost unless overridden)
-  totalCost      Int           @default(0)
-  purchasedAt    DateTime      @default(now())
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier       Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  supplierItem   SupplierItem? @relation(fields: [supplierItemId], references: [id])
+  totalCost        Int           @default(0)
+  purchasedAt      DateTime      @default(now())
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  /// When set, this deferred payable was settled by a supplier payment (row kept)
+  settledPaymentId String?
+  settledAt        DateTime?
+  company          Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier         Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierItem     SupplierItem? @relation(fields: [supplierItemId], references: [id])
+  settledPayment   Payment?      @relation(fields: [settledPaymentId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@index([supplierId])
   @@index([supplierItemId])
+  @@index([settledPaymentId])
 }
 
 model Product {
@@ -641,6 +646,10 @@ model Payment {
   invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
   sale       Sale?     @relation(fields: [saleId], references: [id])
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
+  /// Companion expense created with this payment (P&L), if any — cash counted once via Payment
+  linkedExpense Expense?
+  /// Deferred supplier purchase this payment settled (AP), if any
+  settledPurchases SupplierPurchase[]
 
   @@index([companyId])
   @@index([saleId])
@@ -668,13 +677,17 @@ model Expense {
   receiptData       String?
   /// Set when auto-created from quotation conversion
   sourceQuotationId String?
+  /// When set, cash already counted on this Payment — keep expense for P&L category only
+  paymentId         String?   @unique
   company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer          Customer? @relation(fields: [customerId], references: [id])
   job               Job?      @relation(fields: [jobId], references: [id])
   supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  payment           Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@unique([sourceQuotationId, autoExpenseKind])
   @@index([companyId])
+  @@index([paymentId])
 }
 
 model StockMovement {

@@ -43,6 +43,7 @@ export function categorizeOutflow(category: string, source: "expense" | "purchas
 
 export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
   // Cash movements only — supply-log purchases are reference/forecast and are excluded.
+  // Expenses linked to a Payment are P&L companions; cash is counted once on the payment.
   const [payments, expenses, posSales] = await Promise.all([
     prisma.payment.findMany({
       where: { companyId },
@@ -50,12 +51,19 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
       orderBy: { paidAt: "asc" },
     }),
     prisma.expense.findMany({
-      where: { companyId },
+      where: { companyId, paymentId: null },
       orderBy: { date: "asc" },
     }),
     prisma.sale.findMany({
       where: { companyId, status: "COMPLETED", isRefund: false },
       orderBy: { soldAt: "asc" },
+      select: {
+        id: true,
+        number: true,
+        soldAt: true,
+        total: true,
+        amountPaid: true,
+      },
     }),
   ]);
 
@@ -109,14 +117,18 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
   }
 
   for (const s of posSales) {
+    // Prefer Payment rows when present (avoids double-counting cash + AR).
     if (payments.some((p) => p.saleId === s.id)) continue;
+    // Unpaid / deferred balance is AR — only cash actually received belongs here.
+    const cashIn = Math.max(0, Math.min(s.amountPaid, s.total));
+    if (cashIn <= 0) continue;
     raw.push({
       id: `sale-${s.id}`,
       date: s.soldAt,
       description: `POS sale ${s.number}`,
       reference: s.number,
       type: "in",
-      amount: s.total,
+      amount: cashIn,
       category: "POS sales",
     });
   }

@@ -401,7 +401,13 @@ export async function fetchMonthlyIncomeStatement(
     }),
     prisma.expense.findMany({
       where: { companyId, date: { gte: setup.startAt, lte: yearEnd } },
-      select: { category: true, amount: true, date: true },
+      select: {
+        category: true,
+        amount: true,
+        date: true,
+        paymentId: true,
+        payment: { select: { kind: true, employeeId: true, supplierId: true } },
+      },
     }),
   ]);
 
@@ -485,6 +491,17 @@ export async function fetchMonthlyIncomeStatement(
   for (const expense of expenses) {
     const amount = expense.amount;
     const cat = expense.category || "";
+    // Companion of a salary/drawing payment — wages already counted on the Payment.
+    // Supplier-payment companions stay (those payments are skipped for P&L above).
+    if (
+      expense.paymentId &&
+      expense.payment &&
+      (expense.payment.employeeId ||
+        String(expense.payment.kind || "").toUpperCase() === "SALARY") &&
+      !expense.payment.supplierId
+    ) {
+      continue;
+    }
     if (expense.date <= setup.setAt && matchCategory(cat, [/^materials?$/i, /^stock$/i])) {
       continue;
     }

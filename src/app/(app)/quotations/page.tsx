@@ -25,17 +25,12 @@ export default async function QuotationsPage({
   const planTier = parsePlanTier(company.planTier);
   const range = await readDateRangeFromSearchParams(searchParams, planTier);
 
-  const [customers, quotations, supplyItems] = await Promise.all([
+  const [customers, quotations] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.quotation.findMany({
       where: { companyId, createdAt: { gte: range.start, lte: range.end } },
       orderBy: { createdAt: "desc" },
       include: { customer: true },
-    }),
-    prisma.supplierItem.findMany({
-      where: { companyId },
-      orderBy: [{ supplier: { name: "asc" } }, { name: "asc" }],
-      include: { supplier: { select: { name: true } } },
     }),
   ]);
 
@@ -55,17 +50,7 @@ export default async function QuotationsPage({
         />
       </Panel>
       <AddEntityTab label="Add quotation" title="New quotation" wide>
-        <QuotationForm
-          customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
-          supplyCatalog={supplyItems.map((i) => ({
-            id: i.id,
-            name: i.name,
-            unit: i.unit,
-            unitCost: i.unitCost,
-            supplyType: i.supplyType,
-            supplierName: i.supplier.name,
-          }))}
-        />
+        <QuotationForm customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))} />
       </AddEntityTab>
       <Panel className="table-wrap list-dense">
         <table className="data">

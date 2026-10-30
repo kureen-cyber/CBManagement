@@ -9,125 +9,125 @@ datasource db {
 }
 
 model Company {
-  id              String   @id @default(cuid())
-  name            String
-  currency        String   @default("TTD")
-  vatRate         Float    @default(0.125)
+  id                                   String                @id @default(cuid())
+  name                                 String
+  currency                             String                @default("TTD")
+  vatRate                              Float                 @default(0.125)
+  /// Interactive demo company — not for real billing
+  isDemo                               Boolean               @default(false)
   /// When false, VAT is not applied to sales
-  taxEnabled      Boolean  @default(true)
+  taxEnabled                           Boolean               @default(true)
   /// RETAIL | SERVICE | BOTH
-  businessType    String   @default("BOTH")
+  businessType                         String                @default("BOTH")
   /// red-white-black | yellow-parrot | light | dark
-  theme           String   @default("red-white-black")
-  /// card | list — default inventory browsing layout
-  inventoryViewMode String @default("card")
+  theme                                String                @default("red-white-black")
   /// en | es | fr
-  language        String   @default("en")
+  language                             String                @default("en")
   /// RETAIL | RETAIL_SERVICE — home screen item layout
-  homeLayout      String   @default("RETAIL")
+  homeLayout                           String                @default("RETAIL")
   /// Allow printing receipts from POS
-  receiptPrinting Boolean  @default(true)
-  printerName     String?
-  /// Optional logo as data URL (small PNG/JPEG/WebP)
-  receiptLogoData String?
-  /// Business logo for invoices, quotations, and reports
-  businessLogoData String?
-  /// Letterhead image for branded documents and reports
-  letterheadData String?
-  /// Receipt header text; blank falls back to business name
-  receiptHeader   String?
-  /// Receipt footer text; blank falls back to thank-you default
-  receiptFooter   String?
-  /// Business contact and registration (General → Business)
-  businessAddress String?
-  businessContactNumber String?
-  businessEmail String?
-  companyRegistrationNumber String?
-  /// Company stamp image for receipts and documents
-  companyStampData String?
-  /// Show business fields on POS receipts
-  receiptShowBusinessAddress Boolean @default(false)
-  receiptShowContactNumber Boolean @default(false)
-  receiptShowBusinessEmail Boolean @default(false)
-  receiptShowRegistrationNumber Boolean @default(false)
-  receiptShowCompanyStamp Boolean @default(false)
-  /// Show customer name on printed/viewed receipts
-  receiptShowCustomer Boolean @default(true)
-  /// Show sale notes/comments on receipts
-  receiptShowComments Boolean @default(false)
-  /// Honey trade: show persons involved in the sale on receipts
-  receiptHoneyPersons Boolean @default(false)
-  /// Honey trade: print Apiary Number on receipts
-  receiptShowApiaryNumber Boolean @default(false)
-  receiptApiaryNumber String?
-  /// Honey trade: print OPR # on receipts
-  receiptShowOprNumber Boolean @default(false)
-  receiptOprNumber String?
-  /// Receipt language: en | es | fr
-  receiptLanguage String @default("en")
-  /// Feature: save/edit POS tickets before payment
-  featureOpenTickets Boolean @default(false)
-  /// Feature: weekly low-stock email digest
-  featureLowStockEmail Boolean @default(false)
-  /// Feature: warn (and email) when selling out-of-stock items
-  featureOutOfStockWarn Boolean @default(false)
+  receiptPrinting                      Boolean               @default(true)
+  printerName                          String?
+  createdAt                            DateTime              @default(now())
+  updatedAt                            DateTime              @updatedAt
   /// FREE_RETAIL | STANDARD
-  planTier        String   @default("STANDARD")
+  planTier                             String                @default("STANDARD")
+  /// Receipt footer text; blank falls back to thank-you default
+  receiptFooter                        String?
+  /// Receipt header text; blank falls back to business name
+  receiptHeader                        String?
+  /// Receipt language: en | es | fr
+  receiptLanguage                      String                @default("en")
+  /// Optional logo as data URL (small PNG/JPEG/WebP)
+  receiptLogoData                      String?
+  /// Show sale notes/comments on receipts
+  receiptShowComments                  Boolean               @default(false)
+  /// Show customer name on printed/viewed receipts
+  receiptShowCustomer                  Boolean               @default(true)
+  /// Feature: weekly low-stock email digest
+  featureLowStockEmail                 Boolean               @default(false)
+  /// Feature: save/edit POS tickets before payment
+  featureOpenTickets                   Boolean               @default(false)
+  /// Feature: warn (and email) when selling out-of-stock items
+  featureOutOfStockWarn                Boolean               @default(false)
+  receiptApiaryNumber                  String?
+  /// Honey trade: show persons involved in the sale on receipts
+  receiptHoneyPersons                  Boolean               @default(false)
+  receiptOprNumber                     String?
+  /// Honey trade: print Apiary Number on receipts
+  receiptShowApiaryNumber              Boolean               @default(false)
+  /// Honey trade: print OPR # on receipts
+  receiptShowOprNumber                 Boolean               @default(false)
+  /// Business logo for invoices, quotations, and reports
+  businessLogoData                     String?
+  /// Letterhead image for branded documents and reports
+  letterheadData                       String?
+  /// card | list — default inventory browsing layout
+  inventoryViewMode                    String                @default("card")
+  /// Business contact and registration (General → Business)
+  businessAddress                      String?
+  businessContactNumber                String?
+  businessEmail                        String?
+  companyRegistrationNumber            String?
+  /// Company stamp image for receipts and documents
+  companyStampData                     String?
+  /// Show business fields on POS receipts
+  receiptShowBusinessAddress           Boolean               @default(false)
+  receiptShowBusinessEmail             Boolean               @default(false)
+  receiptShowCompanyStamp              Boolean               @default(false)
+  receiptShowContactNumber             Boolean               @default(false)
+  receiptShowRegistrationNumber        Boolean               @default(false)
+  moneyMixDrawingsPct                  Float                 @default(20)
   /// Personal money mix plan (% of bank balance) — should sum to 100
-  moneyMixExpensesPct  Float @default(20)
-  moneyMixMaterialsPct Float @default(20)
-  moneyMixGrowthPct    Float @default(20)
-  moneyMixReservePct   Float @default(20)
-  moneyMixDrawingsPct  Float @default(20)
-  /// When set, income statement auto-calcs from the 1st of this month (Trinidad time)
-  incomeStatementSetAt DateTime?
-  incomeStatementStartAt DateTime?
+  moneyMixExpensesPct                  Float                 @default(20)
+  moneyMixGrowthPct                    Float                 @default(20)
+  moneyMixMaterialsPct                 Float                 @default(20)
+  moneyMixReservePct                   Float                 @default(20)
   /// Owner-entered operating cash at setup (cents)
-  incomeStatementCashOnHandCents Int @default(0)
-  /// Owner-entered reserve/escrow already held at setup (cents)
-  incomeStatementReserveCents Int @default(0)
+  incomeStatementCashOnHandCents       Int                   @default(0)
   /// Inventory value treated as opening at setup, including stock logged from month 1st (cents)
-  incomeStatementOpeningInventoryCents Int @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  members             CompanyMember[]
-  stores              Store[]
-  posRegisters        PosRegister[]
-  paymentTypes        PaymentType[]
-  inventoryCategories InventoryCategory[]
-  variableNames       VariableNameCatalog[]
-  discountPresets     DiscountPreset[]
-  customers           Customer[]
-  suppliers           Supplier[]
-  supplierItems       SupplierItem[]
-  supplierPurchases   SupplierPurchase[]
-  products            Product[]
-  employees           Employee[]
-  employeePayslips    EmployeePayslip[]
-  quotations          Quotation[]
-  jobs                Job[]
-  invoices            Invoice[]
-  payments            Payment[]
-  expenses            Expense[]
-  sales               Sale[]
+  incomeStatementOpeningInventoryCents Int                   @default(0)
+  /// Owner-entered reserve/escrow already held at setup (cents)
+  incomeStatementReserveCents          Int                   @default(0)
+  /// When set, income statement auto-calcs from the 1st of this month (Trinidad time)
+  incomeStatementSetAt                 DateTime?
+  incomeStatementStartAt               DateTime?
+  members                              CompanyMember[]
+  customers                            Customer[]
+  discountPresets                      DiscountPreset[]
+  employees                            Employee[]
+  employeePayslips                     EmployeePayslip[]
+  expenses                             Expense[]
+  inventoryCategories                  InventoryCategory[]
+  invoices                             Invoice[]
+  jobs                                 Job[]
+  payments                             Payment[]
+  paymentTypes                         PaymentType[]
+  posRegisters                         PosRegister[]
+  products                             Product[]
+  quotations                           Quotation[]
+  sales                                Sale[]
+  stores                               Store[]
+  suppliers                            Supplier[]
+  supplierItems                        SupplierItem[]
+  supplierPurchases                    SupplierPurchase[]
+  variableNames                        VariableNameCatalog[]
 }
 
 /// Physical or logical location under a company (POS settings are per store).
 model Store {
-  id                String   @id @default(cuid())
-  companyId         String
-  name              String
+  id                  String              @id @default(cuid())
+  companyId           String
+  name                String
   /// card | list
-  inventoryViewMode String   @default("card")
-  sortOrder         Int      @default(0)
-  active            Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  posRegisters        PosRegister[]
+  inventoryViewMode   String              @default("card")
+  sortOrder           Int                 @default(0)
+  active              Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   inventoryCategories InventoryCategory[]
+  posRegisters        PosRegister[]
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -143,8 +143,7 @@ model PaymentType {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -155,15 +154,14 @@ model PaymentType {
 model InventoryCategory {
   id        String   @id @default(cuid())
   companyId String
-  storeId   String?
   name      String
-  /// Hex colour for category badges (e.g. #C41E3A)
-  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// Hex colour for category badges (e.g. #C41E3A)
+  color     String?
+  storeId   String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, name])
   @@index([companyId])
@@ -174,16 +172,15 @@ model InventoryCategory {
 model PosRegister {
   id        String   @id @default(cuid())
   companyId String
-  storeId   String?
   name      String
-  /// 0 = POS 1 (full access), 1 = POS 2 (limited)
-  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  sales   Sale[]
+  /// 0 = POS 1 (full access), 1 = POS 2 (limited)
+  sortOrder Int      @default(0)
+  storeId   String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  store     Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sales     Sale[]
 
   @@index([companyId])
   @@index([storeId])
@@ -197,80 +194,76 @@ model CompanyMember {
   role      String   @default("OWNER")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
 }
 
 model Customer {
-  id          String    @id @default(cuid())
-  companyId   String
+  id          String      @id @default(cuid())
   name        String
   email       String?
   phone       String?
   address     String?
-  dateOfBirth DateTime?
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  companyId   String
   /// Country of residence
   country     String?
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  quotations Quotation[]
-  invoices   Invoice[]
-  payments   Payment[]
-  jobs       Job[]
-  expenses   Expense[]
-  sales      Sale[]
+  dateOfBirth DateTime?
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  expenses    Expense[]
+  invoices    Invoice[]
+  jobs        Job[]
+  payments    Payment[]
+  quotations  Quotation[]
+  sales       Sale[]
 
   @@index([companyId])
 }
 
 model Supplier {
-  id        String   @id @default(cuid())
-  companyId String
+  id        String             @id @default(cuid())
   name      String
   email     String?
   /// Phone or primary contact line
   phone     String?
   address   String?
+  notes     String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  companyId String
   /// Supplier sales representative
   salesRep  String?
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  products   Product[]
-  expenses   Expense[]
-  items      SupplierItem[]
-  purchases  SupplierPurchase[]
-  payments   Payment[]
+  expenses  Expense[]
+  payments  Payment[]
+  products  Product[]
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     SupplierItem[]
+  purchases SupplierPurchase[]
 
   @@index([companyId])
 }
 
 /// In-house supply cost database per supplier — reference costs for quotations.
 model SupplierItem {
-  id         String   @id @default(cuid())
+  id         String             @id @default(cuid())
   companyId  String
   supplierId String
   name       String
-  /// MATERIAL | EQUIPMENT | EQUIPMENT_RENTAL
-  supplyType String   @default("MATERIAL")
   /// each | kg | lb | case | dozen | m | L | pack · …
-  unit       String   @default("each")
+  unit       String             @default("each")
   /// Reference procurement cost in cents (for quotations)
-  unitCost   Int      @default(0)
+  unitCost   Int                @default(0)
   notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier  Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  purchases SupplierPurchase[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  /// MATERIAL | EQUIPMENT | EQUIPMENT_RENTAL
+  supplyType String             @default("MATERIAL")
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier   Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchases  SupplierPurchase[]
 
   @@index([companyId])
   @@index([supplierId])
@@ -278,26 +271,25 @@ model SupplierItem {
 
 /// Record of what was actually bought from a supplier (purchase log).
 model SupplierPurchase {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   companyId      String
   supplierId     String
   supplierItemId String?
   /// Snapshot name (kept if catalog item is later renamed/removed)
   name           String
-  unit           String   @default("each")
-  quantity       Float    @default(1)
+  unit           String        @default("each")
+  quantity       Float         @default(1)
   /// Cost per unit in cents at time of purchase
-  unitCost       Int      @default(0)
+  unitCost       Int           @default(0)
   /// Total paid in cents (quantity × unitCost unless overridden)
-  totalCost      Int      @default(0)
-  purchasedAt    DateTime @default(now())
+  totalCost      Int           @default(0)
+  purchasedAt    DateTime      @default(now())
   notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  supplierItem SupplierItem? @relation(fields: [supplierItemId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier       Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierItem   SupplierItem? @relation(fields: [supplierItemId], references: [id])
 
   @@index([companyId])
   @@index([supplierId])
@@ -305,38 +297,36 @@ model SupplierPurchase {
 }
 
 model Product {
-  id          String  @id @default(cuid())
-  companyId   String
-  name        String
-  sku         String?
-  description String?
-  /// Retail / service category for POS + reports
-  category    String  @default("General")
-  unit        String  @default("each")
-  unitCost    Int     @default(0)
+  id            String            @id @default(cuid())
+  name          String
+  sku           String?
+  description   String?
+  unit          String            @default("each")
+  unitCost      Int               @default(0)
   /// Fixed price in cents; ignored at POS when variablePrice is true
-  unitPrice   Int     @default(0)
+  unitPrice     Int               @default(0)
+  stockQty      Float             @default(0)
+  minStock      Float             @default(0)
+  trackStock    Boolean           @default(true)
+  isService     Boolean           @default(false)
+  supplierId    String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  /// Retail / service category for POS + reports
+  category      String            @default("General")
+  companyId     String
   /// When true, cashier enters price at POS
-  variablePrice Boolean @default(false)
-  stockQty    Float   @default(0)
-  minStock    Float   @default(0)
-  trackStock  Boolean @default(true)
-  isService   Boolean @default(false)
-  supplierId  String?
+  variablePrice Boolean           @default(false)
   /// Optional product photo as data URL (PNG/JPEG/WebP)
-  imageData   String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier     Supplier?        @relation(fields: [supplierId], references: [id])
-  variables    ProductVariable[]
-  stockMoves   StockMovement[]
-  quoteLines   QuotationLine[]
-  invoiceLines InvoiceLine[]
-  jobMaterials JobMaterial[]
-  saleLines    SaleLine[]
+  imageData     String?
+  invoiceLines  InvoiceLine[]
+  jobMaterials  JobMaterial[]
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier      Supplier?         @relation(fields: [supplierId], references: [id])
+  variables     ProductVariable[]
+  quoteLines    QuotationLine[]
+  saleLines     SaleLine[]
+  stockMoves    StockMovement[]
 
   @@index([companyId])
 }
@@ -351,8 +341,7 @@ model ProductVariable {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
 }
@@ -364,8 +353,7 @@ model VariableNameCatalog {
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -381,41 +369,39 @@ model DiscountPreset {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
   @@index([companyId])
 }
 
 model Employee {
-  id                  String    @id @default(cuid())
-  companyId           String
-  firstName           String
-  lastName            String
-  email               String?
-  phone               String?
-  role                String?
+  id                 String            @id @default(cuid())
+  firstName          String
+  lastName           String
+  email              String?
+  phone              String?
+  role               String?
+  hourlyRate         Int               @default(0)
+  active             Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  companyId          String
+  bankAccountNumber  String?
+  bankBranch         String?
+  bankName           String?
+  dateOfEngagement   DateTime?
+  dateOfTermination  DateTime?
+  nisNumber          String?
+  payeNumber         String?
   /// Default leadership position: OWNER | MANAGER (at most one of each per company)
-  systemRole          String?
-  hourlyRate          Int       @default(0)
-  dateOfEngagement    DateTime?
-  dateOfTermination   DateTime?
-  nisNumber           String?
-  payeNumber          String?
-  bankAccountNumber   String?
-  bankName            String?
-  bankBranch          String?
-  active              Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  timeEntries TimeEntry[]
+  systemRole         String?
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payslips           EmployeePayslip[]
   invoiceAssignments InvoiceEmployee[]
   jobAssignments     JobEmployee[]
-  payslips           EmployeePayslip[]
   payments           Payment[]
+  timeEntries        TimeEntry[]
 
   @@unique([companyId, systemRole])
   @@index([companyId])
@@ -429,89 +415,85 @@ model EmployeePayslip {
   periodEnd    DateTime
   hoursWorked  Float    @default(0)
   grossPay     Int      @default(0)
-  documentHtml String   @db.Text
+  documentHtml String
   createdAt    DateTime @default(now())
-
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([companyId])
 }
 
 model Quotation {
-  id            String    @id @default(cuid())
-  companyId     String
-  number        String
-  customerId    String
-  status        String    @default("DRAFT")
-  title         String?
-  notes         String?
-  labourCost    Int       @default(0)
-  materialsCost Int       @default(0)
-  equipmentCost Int       @default(0)
-  transportCost Int       @default(0)
-  otherCost     Int       @default(0)
-  markupPct     Float     @default(25)
+  id              String          @id @default(cuid())
+  number          String
+  customerId      String
+  status          String          @default("DRAFT")
+  title           String?
+  notes           String?
+  labourCost      Int             @default(0)
+  materialsCost   Int             @default(0)
+  equipmentCost   Int             @default(0)
+  transportCost   Int             @default(0)
+  otherCost       Int             @default(0)
+  markupPct       Float           @default(25)
+  subtotal        Int             @default(0)
+  total           Int             @default(0)
+  validUntil      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  companyId       String
   /// When true, quote uses a fixed selling price (no markup %)
-  fixedPrice    Boolean   @default(false)
+  fixedPrice      Boolean         @default(false)
   /// JSON array of supply-database picks (type, qty, cost) for conversion expenses
   supplyLinesJson String?
-  subtotal      Int       @default(0)
-  total         Int       @default(0)
-  validUntil    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer        @relation(fields: [customerId], references: [id])
-  lines    QuotationLine[]
-  job      Job?
-  invoice  Invoice?
+  invoice         Invoice?
+  job             Job?
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer        @relation(fields: [customerId], references: [id])
+  lines           QuotationLine[]
 
   @@unique([companyId, number])
   @@index([companyId])
 }
 
 model QuotationLine {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   quotationId String
   productId   String?
   description String
-  category    String  @default("MATERIALS")
-  quantity    Float   @default(1)
-  unitCost    Int     @default(0)
-  unitPrice   Int     @default(0)
-  lineTotal   Int     @default(0)
-
-  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  product   Product?  @relation(fields: [productId], references: [id])
+  category    String    @default("MATERIALS")
+  quantity    Float     @default(1)
+  unitCost    Int       @default(0)
+  unitPrice   Int       @default(0)
+  lineTotal   Int       @default(0)
+  product     Product?  @relation(fields: [productId], references: [id])
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
 }
 
 model Job {
-  id            String    @id @default(cuid())
-  companyId     String
-  number        String
-  customerId    String
-  quotationId   String?   @unique
-  title         String
-  status        String    @default("ACTIVE")
-  contractValue Int       @default(0)
-  startDate     DateTime?
-  endDate       DateTime?
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer    Customer      @relation(fields: [customerId], references: [id])
-  quotation   Quotation?    @relation(fields: [quotationId], references: [id])
-  materials   JobMaterial[]
-  timeEntries TimeEntry[]
-  expenses    Expense[]
-  receipts    JobReceipt[]
-  invoices    Invoice[]
+  id                  String        @id @default(cuid())
+  number              String
+  customerId          String
+  quotationId         String?       @unique
+  title               String
+  status              String        @default("ACTIVE")
+  contractValue       Int           @default(0)
+  startDate           DateTime?
+  endDate             DateTime?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  companyId           String
+  expenses            Expense[]
+  invoices            Invoice[]
+  company             Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer            Customer      @relation(fields: [customerId], references: [id])
+  quotation           Quotation?    @relation(fields: [quotationId], references: [id])
   employeeAssignments JobEmployee[]
+  materials           JobMaterial[]
+  receipts            JobReceipt[]
+  timeEntries         TimeEntry[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -522,15 +504,14 @@ model JobEmployee {
   id            String   @id @default(cuid())
   jobId         String
   employeeId    String
+  createdAt     DateTime @default(now())
   /// Job-specific hourly rate in cents (may differ from employee profile)
   hourlyRate    Int      @default(0)
   /// Planned hours for this employee on the job
   hoursRequired Float    @default(0)
-  createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
-
-  job      Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, employeeId])
   @@index([jobId])
@@ -545,23 +526,21 @@ model JobReceipt {
   label       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([jobId])
 }
 
 model JobMaterial {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   jobId     String
   productId String?
   name      String
-  quantity  Float   @default(1)
-  unitCost  Int     @default(0)
-  totalCost Int     @default(0)
-
-  job     Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id])
+  quantity  Float    @default(1)
+  unitCost  Int      @default(0)
+  totalCost Int      @default(0)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id])
 }
 
 model TimeEntry {
@@ -569,48 +548,46 @@ model TimeEntry {
   employeeId    String
   jobId         String?
   date          DateTime
-  /// When set, this entry is a clock punch (open until clockOutAt)
-  clockInAt     DateTime?
-  clockOutAt    DateTime?
   hours         Float     @default(0)
   overtimeHours Float     @default(0)
   hourlyRate    Int
-  /// Manual payment in cents when employee has no hourly rate
-  paymentAmount Int?
   notes         String?
   createdAt     DateTime  @default(now())
-
-  employee Employee @relation(fields: [employeeId], references: [id])
-  job      Job?     @relation(fields: [jobId], references: [id])
+  /// When set, this entry is a clock punch (open until clockOutAt)
+  clockInAt     DateTime?
+  clockOutAt    DateTime?
+  /// Manual payment in cents when employee has no hourly rate
+  paymentAmount Int?
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  job           Job?      @relation(fields: [jobId], references: [id])
 
   @@index([employeeId])
 }
 
 model Invoice {
-  id          String    @id @default(cuid())
-  companyId   String
-  number      String
-  customerId  String
-  jobId       String?
-  quotationId String?   @unique
-  status      String    @default("DRAFT")
-  issueDate   DateTime  @default(now())
-  dueDate     DateTime?
-  subtotal    Int       @default(0)
-  taxAmount   Int       @default(0)
-  total       Int       @default(0)
-  amountPaid  Int       @default(0)
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer  Customer      @relation(fields: [customerId], references: [id])
-  job       Job?          @relation(fields: [jobId], references: [id])
-  quotation Quotation?    @relation(fields: [quotationId], references: [id])
-  lines     InvoiceLine[]
-  payments  Payment[]
+  id                  String            @id @default(cuid())
+  number              String
+  customerId          String
+  jobId               String?
+  quotationId         String?           @unique
+  status              String            @default("DRAFT")
+  issueDate           DateTime          @default(now())
+  dueDate             DateTime?
+  subtotal            Int               @default(0)
+  taxAmount           Int               @default(0)
+  total               Int               @default(0)
+  amountPaid          Int               @default(0)
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  companyId           String
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer            Customer          @relation(fields: [customerId], references: [id])
+  job                 Job?              @relation(fields: [jobId], references: [id])
+  quotation           Quotation?        @relation(fields: [quotationId], references: [id])
   employeeAssignments InvoiceEmployee[]
+  lines               InvoiceLine[]
+  payments            Payment[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -622,9 +599,8 @@ model InvoiceEmployee {
   invoiceId  String
   employeeId String
   createdAt  DateTime @default(now())
-
-  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@unique([invoiceId, employeeId])
   @@index([invoiceId])
@@ -632,41 +608,39 @@ model InvoiceEmployee {
 }
 
 model InvoiceLine {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   invoiceId   String
   productId   String?
   description String
-  quantity    Float   @default(1)
-  unitPrice   Int     @default(0)
-  lineTotal   Int     @default(0)
-
-  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id])
+  quantity    Float    @default(1)
+  unitPrice   Int      @default(0)
+  lineTotal   Int      @default(0)
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
 }
 
 model Payment {
-  id         String   @id @default(cuid())
-  companyId  String
-  /// OPERATIONAL (customer/supplier) | SALARY (employee or Manager/Owner drawings)
-  kind       String   @default("OPERATIONAL")
+  id         String    @id @default(cuid())
   customerId String?
-  employeeId String?
-  supplierId String?
   invoiceId  String?
-  saleId     String?
   amount     Int
-  method     String   @default("BANK")
+  method     String    @default("BANK")
   reference  String?
-  paidAt     DateTime @default(now())
+  paidAt     DateTime  @default(now())
   notes      String?
-  createdAt  DateTime @default(now())
-
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer? @relation(fields: [customerId], references: [id])
-  employee Employee? @relation(fields: [employeeId], references: [id])
-  supplier Supplier? @relation(fields: [supplierId], references: [id])
-  invoice  Invoice?  @relation(fields: [invoiceId], references: [id])
-  sale     Sale?     @relation(fields: [saleId], references: [id])
+  createdAt  DateTime  @default(now())
+  companyId  String
+  saleId     String?
+  employeeId String?
+  /// OPERATIONAL (customer/supplier) | SALARY (employee or Manager/Owner drawings)
+  kind       String    @default("OPERATIONAL")
+  supplierId String?
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
+  sale       Sale?     @relation(fields: [saleId], references: [id])
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
 
   @@index([companyId])
   @@index([saleId])
@@ -676,29 +650,28 @@ model Payment {
 }
 
 model Expense {
-  id            String   @id @default(cuid())
-  companyId     String
-  category      String
-  description   String?
-  amount        Int
-  date          DateTime @default(now())
-  paymentMethod String   @default("CASH")
-  jobId         String?
-  supplierId    String?
-  customerId    String?
-  /// Optional sales receipt as data URL
-  receiptData   String?
-  /// Set when auto-created from quotation conversion
-  sourceQuotationId String?
+  id                String    @id @default(cuid())
+  category          String
+  description       String?
+  amount            Int
+  date              DateTime  @default(now())
+  paymentMethod     String    @default("CASH")
+  jobId             String?
+  supplierId        String?
+  customerId        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  companyId         String
   /// Distinguishes auto expenses from the same quote (EQUIPMENT | EQUIPMENT_RENTAL)
   autoExpenseKind   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  job      Job?      @relation(fields: [jobId], references: [id])
-  supplier Supplier? @relation(fields: [supplierId], references: [id])
-  customer Customer? @relation(fields: [customerId], references: [id])
+  /// Optional sales receipt as data URL
+  receiptData       String?
+  /// Set when auto-created from quotation conversion
+  sourceQuotationId String?
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer          Customer? @relation(fields: [customerId], references: [id])
+  job               Job?      @relation(fields: [jobId], references: [id])
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
 
   @@unique([sourceQuotationId, autoExpenseKind])
   @@index([companyId])
@@ -713,42 +686,40 @@ model StockMovement {
   reference String?
   notes     String?
   createdAt DateTime @default(now())
-
-  product Product @relation(fields: [productId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
 }
 
 model Sale {
-  id            String   @id @default(cuid())
-  companyId     String
-  number        String
-  customerId    String?
-  posRegisterId String?
-  status        String   @default("COMPLETED") // OPEN | COMPLETED | VOID
-  subtotal      Int      @default(0)
-  taxAmount     Int      @default(0)
-  total         Int      @default(0)
-  amountPaid    Int      @default(0)
-  method        String   @default("CASH")
-  dueDate       DateTime?
-  notes         String?
-  /// Names of persons involved (honey sales), when enabled in settings
-  honeyPersons  String?
-  discountPercent Float  @default(0)
-  discountAmount  Int    @default(0)
+  id              String       @id @default(cuid())
+  number          String
+  customerId      String?
+  status          String       @default("COMPLETED")
+  subtotal        Int          @default(0)
+  taxAmount       Int          @default(0)
+  total           Int          @default(0)
+  amountPaid      Int          @default(0)
+  method          String       @default("CASH")
+  notes           String?
+  soldAt          DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  companyId       String
+  posRegisterId   String?
+  updatedAt       DateTime     @default(now()) @updatedAt
+  discountAmount  Int          @default(0)
+  discountPercent Float        @default(0)
   /// True when this sale is a refund of another sale
-  isRefund      Boolean  @default(false)
-  refundOfSaleId String?
-  soldAt        DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
-
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer    Customer?    @relation(fields: [customerId], references: [id])
-  posRegister PosRegister? @relation(fields: [posRegisterId], references: [id])
-  refundOf    Sale?        @relation("SaleRefunds", fields: [refundOfSaleId], references: [id])
-  refunds     Sale[]       @relation("SaleRefunds")
-  lines       SaleLine[]
-  payments    Payment[]
+  isRefund        Boolean      @default(false)
+  refundOfSaleId  String?
+  /// Names of persons involved (honey sales), when enabled in settings
+  honeyPersons    String?
+  dueDate         DateTime?
+  payments        Payment[]
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  posRegister     PosRegister? @relation(fields: [posRegisterId], references: [id])
+  refundOf        Sale?        @relation("SaleRefunds", fields: [refundOfSaleId], references: [id])
+  refunds         Sale[]       @relation("SaleRefunds")
+  lines           SaleLine[]
 
   @@unique([companyId, number])
   @@index([companyId])
@@ -758,16 +729,15 @@ model Sale {
 }
 
 model SaleLine {
-  id          String  @id @default(cuid())
-  saleId      String
-  productId   String?
-  description String
-  quantity    Float   @default(1)
-  unitPrice   Int     @default(0)
-  lineTotal   Int     @default(0)
+  id           String   @id @default(cuid())
+  saleId       String
+  productId    String?
+  description  String
+  quantity     Float    @default(1)
+  unitPrice    Int      @default(0)
+  lineTotal    Int      @default(0)
   /// e.g. Colour: Red — used to restore per-option stock on refunds
   variantLabel String?
-
-  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product? @relation(fields: [productId], references: [id])
+  product      Product? @relation(fields: [productId], references: [id])
+  sale         Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
 }

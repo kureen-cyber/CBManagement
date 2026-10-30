@@ -38,6 +38,9 @@ export default function LandingPage() {
             <Link href="/signup" className="btn btn-primary landing-cta">
               Sign up and start your free 30-day trial
             </Link>
+            <Link href="/demo" className="btn btn-secondary landing-cta">
+              Try interactive demo
+            </Link>
           </div>
         </div>
         <div className="landing-hero-media">
@@ -109,11 +112,17 @@ export default function LandingPage() {
       <section className="landing-section landing-final-cta">
         <h2>Start your free 30-day trial</h2>
         <p className="landing-section-lede">
-          Sign up and run Complete Business Management from one place.
+          Sign up and run Complete Business Management from one place — or explore a seeded
+          sample company first.
         </p>
-        <Link href="/signup" className="btn btn-primary landing-cta">
-          Sign up and start your free 30-day trial
-        </Link>
+        <div className="landing-cta-row" style={{ justifyContent: "center" }}>
+          <Link href="/signup" className="btn btn-primary landing-cta">
+            Sign up and start your free 30-day trial
+          </Link>
+          <Link href="/demo" className="btn btn-secondary landing-cta">
+            Try interactive demo
+          </Link>
+        </div>
       </section>
 
       <footer className="landing-footer">

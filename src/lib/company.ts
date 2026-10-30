@@ -43,8 +43,9 @@ export async function ensureCompanyForUser(user: AuthUser) {
   // Also: if this is the first membership after the tenancy migration and there is
   // exactly one orphan company, claim it so the primary operator keeps historical data.
   // Never auto-claim unmatched orphans once any membership exists — that was the leak.
+  // Never auto-claim the shared interactive demo company.
   const orphans = await prisma.company.findMany({
-    where: { members: { none: {} } },
+    where: { isDemo: false, members: { none: {} } },
     orderBy: { createdAt: "asc" },
   });
   const totalMembers = await prisma.companyMember.count();
@@ -98,25 +99,39 @@ export async function ensureCompanyForUser(user: AuthUser) {
 
 /**
  * Current signed-in company. Prefer this over findFirst.
- * In local demo mode, falls back to a demo company when there is no session.
+ * Supports local NEXT_PUBLIC_DEMO_MODE and the interactive demo session cookie.
  */
 export async function requireCompany() {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   if (!user) {
     const { isDemoModeEnabled } = await import("@/lib/constants");
-    if (isDemoModeEnabled()) {
-      const company = await syncCompanyFromUser(null);
+    const { hasDemoSession, DEMO_USER_ID, DEMO_USER_EMAIL } = await import("@/lib/demo-session");
+    const interactiveDemo = await hasDemoSession();
+    if (isDemoModeEnabled() || interactiveDemo) {
+      const company = interactiveDemo
+        ? await resolveInteractiveDemoCompany()
+        : await syncCompanyFromUser(null);
       return {
-        user: { id: "demo-local", email: "demo@localhost", user_metadata: {} },
+        user: {
+          id: interactiveDemo ? DEMO_USER_ID : "demo-local",
+          email: interactiveDemo ? DEMO_USER_EMAIL : "demo@localhost",
+          user_metadata: { business_name: company.name, business_type: company.businessType },
+        },
         company,
         companyId: company.id,
+        isInteractiveDemo: interactiveDemo,
       };
     }
     throw new Error("Unauthorized");
   }
   const company = await ensureCompanyForUser(user);
-  return { user, company, companyId: company.id };
+  return { user, company, companyId: company.id, isInteractiveDemo: false };
+}
+
+async function resolveInteractiveDemoCompany() {
+  const { ensureDemoCompany } = await import("@/lib/seed-demo-company");
+  return ensureDemoCompany(prisma);
 }
 
 /** @deprecated Use requireCompany() — kept for gradual call-site updates. */
@@ -128,7 +143,22 @@ export async function getCompany() {
 /** Ensure membership exists; only update the user's own company settings. */
 export async function syncCompanyFromUser(user: AuthUser | null) {
   if (!user?.id) {
-    const fallback = await prisma.company.findFirst({ orderBy: { createdAt: "asc" } });
+    const { hasDemoSession } = await import("@/lib/demo-session");
+    if (await hasDemoSession()) {
+      return resolveInteractiveDemoCompany();
+    }
+    const { isDemoModeEnabled } = await import("@/lib/constants");
+    if (isDemoModeEnabled()) {
+      const demo = await prisma.company.findFirst({
+        where: { isDemo: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (demo) return demo;
+    }
+    const fallback = await prisma.company.findFirst({
+      where: { isDemo: false },
+      orderBy: { createdAt: "asc" },
+    });
     if (fallback) return fallback;
     return prisma.company.create({
       data: {
@@ -141,6 +171,7 @@ export async function syncCompanyFromUser(user: AuthUser | null) {
         language: "en",
         homeLayout: "RETAIL",
         receiptPrinting: true,
+        isDemo: false,
       },
     });
   }

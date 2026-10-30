@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isDemoModeEnabled, isSupabaseConfigured } from "@/lib/constants";
+import { DEMO_SESSION_COOKIE, DEMO_SESSION_VALUE } from "@/lib/demo-session";
+
+function hasInteractiveDemoCookie(request: NextRequest) {
+  return request.cookies.get(DEMO_SESSION_COOKIE)?.value === DEMO_SESSION_VALUE;
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -11,9 +16,11 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/login") ||
     path.startsWith("/signup") ||
     path.startsWith("/auth") ||
-    path.startsWith("/api/cron");
+    path.startsWith("/api/cron") ||
+    path === "/demo" ||
+    path.startsWith("/demo/");
 
-  // Local demo: skip auth entirely so the app can be browsed without sign-in.
+  // Local env demo: skip auth entirely so the app can be browsed without sign-in.
   if (isDemoModeEnabled()) {
     if (path.startsWith("/login") || path.startsWith("/signup")) {
       const url = request.nextUrl.clone();
@@ -24,7 +31,18 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Without Supabase: require login unless demo mode is explicitly enabled
+  // Interactive demo session: browse the seeded demo company without a real login.
+  if (hasInteractiveDemoCookie(request)) {
+    if (path.startsWith("/login") || path.startsWith("/signup")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/home";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  // Without Supabase: require login unless a demo path/session is active
   if (!isSupabaseConfigured()) {
     if (!isPublic && !path.startsWith("/_next")) {
       const url = request.nextUrl.clone();

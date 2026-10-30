@@ -199,7 +199,7 @@ export function SupplierDetailClient({
         <>
           <AddEntityTab label="Add supply item" title="Add to supply database" wide>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
-              In-house cost reference for this supplier — used when building quotations. Classify
+              In-house cost reference for quoting and forecasting — not an accounting ledger. Classify
               each item as material, equipment, equipment rental, stock item, or an additional cost
               category you define.
             </p>
@@ -434,10 +434,11 @@ export function SupplierDetailClient({
 
       {tab === "purchases" ? (
         <>
-          <AddEntityTab label="Record purchase" title="Record a purchase" wide>
+          <AddEntityTab label="Record purchase" title="Record a purchase log" wide>
             <p className="muted" style={{ margin: "0 0 1rem", fontSize: "0.88rem" }}>
-              Track what you actually bought from this supplier. Optionally pick from the supply
-              database to fill name and cost.
+              Reference / forecasting log only — does not create expenses, bank outflows, or
+              payables. Optionally pick from the supply database to fill name and cost. Record real
+              supplier payments under Payments.
             </p>
             <form className="form-grid" onSubmit={onAddPurchase} autoComplete="off">
               <input type="hidden" name="supplierId" value={supplierId} />

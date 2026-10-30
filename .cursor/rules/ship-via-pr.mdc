@@ -1,0 +1,17 @@
+---
+description: Always land changes on main via pull request, never direct push
+alwaysApply: true
+---
+
+# Ship to main via PR
+
+When the user asks to push to main (or merge work into main):
+
+1. Create/use a feature branch (`cursor/...` when applicable).
+2. Commit on that branch (only when commit is requested or implied by the ship request).
+3. Push the branch and **create a pull request** into `main` with `gh pr create`.
+4. Then merge the PR into `main` (e.g. `gh pr merge`) and update local `main` with `git pull`.
+
+Do **not** push commits directly to `origin/main` with `git push origin main`.
+
+Return the PR URL when done.

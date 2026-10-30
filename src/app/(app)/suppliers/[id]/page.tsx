@@ -27,7 +27,7 @@ export default async function SupplierDetailPage({
     <div className="stack">
       <PageHeader
         title={supplier.name}
-        description="Supply cost database for quotations, plus a log of what you buy."
+        description="Supply cost database for quotations, plus a reference purchase log."
         actions={
           <Link className="btn btn-secondary" href="/suppliers">
             All suppliers

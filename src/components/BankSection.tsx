@@ -63,6 +63,12 @@ export function BankSection({
 
   return (
     <div className="stack">
+      <p className="muted" style={{ margin: 0, fontSize: "0.88rem", lineHeight: 1.45 }}>
+        Bank is <strong>reference and forecasting</strong>. The ledger mirrors recorded payments,
+        expenses, and POS cash — not supply purchase logs or payslips. Money mix is a planning tool
+        only and does not post accounting entries.
+      </p>
+
       <div className="financial-reports-nav" role="tablist" aria-label="Bank views">
         <button
           type="button"
@@ -127,7 +133,7 @@ export function BankSection({
                 {ledger.movements.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="muted">
-                      No bank movements yet — payments received and expenses recorded will appear here.
+                      No bank movements yet — recorded payments, expenses, and POS sales appear here.
                     </td>
                   </tr>
                 ) : null}
@@ -138,8 +144,9 @@ export function BankSection({
       ) : (
         <>
           <p className="muted" style={{ margin: 0, fontSize: "0.88rem" }}>
-            Set the percentage of your current bank balance you plan to allocate to each area. Compare
-            your plan (left) with how money was actually spent (right).
+            Forecasting only: set how you plan to allocate the current bank balance. Compare your
+            plan (left) with actual recorded spending (right). Saving a plan does not move money or
+            create expenses.
           </p>
 
           <form className="money-mix-form" onSubmit={onSavePlan}>

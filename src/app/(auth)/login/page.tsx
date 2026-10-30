@@ -78,13 +78,22 @@ function LoginForm() {
           Continue in demo mode (no sign-in)
         </Link>
       ) : (
-        <Link
-          href="/signup"
-          className="btn btn-primary"
-          style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
-        >
-          Create account / Sign up
-        </Link>
+        <>
+          <Link
+            href="/signup"
+            className="btn btn-primary"
+            style={{ marginTop: "1rem", width: "100%", textAlign: "center" }}
+          >
+            Create account / Sign up
+          </Link>
+          <Link
+            href="/demo"
+            className="btn btn-secondary"
+            style={{ marginTop: "0.65rem", width: "100%", textAlign: "center" }}
+          >
+            Try interactive demo
+          </Link>
+        </>
       )}
 
       {!configured ? (

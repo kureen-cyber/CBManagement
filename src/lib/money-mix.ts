@@ -65,7 +65,11 @@ export function plannedAllocation(bankBalance: number, plan: MoneyMixPlan): Mone
 export async function actualSpendingMix(companyId: string): Promise<MoneyMixSlice[]> {
   // Actual mix uses recorded cash activity only — not supply-log / payslip forecasts.
   const [expenses, payments] = await Promise.all([
-    prisma.expense.findMany({ where: { companyId }, select: { category: true, amount: true } }),
+    // Skip expenses already represented by a Payment (cash counted once).
+    prisma.expense.findMany({
+      where: { companyId, paymentId: null },
+      select: { category: true, amount: true },
+    }),
     prisma.payment.findMany({
       where: { companyId },
       select: {

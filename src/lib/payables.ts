@@ -21,6 +21,7 @@ export async function fetchOutstandingPayables(companyId: string): Promise<Payab
   const purchases = await prisma.supplierPurchase.findMany({
     where: {
       companyId,
+      settledPaymentId: null,
       OR: [
         { name: { contains: DEFERRED_PAYMENT_LABEL, mode: "insensitive" } },
         { notes: { contains: DEFERRED_PAYMENT_LABEL, mode: "insensitive" } },

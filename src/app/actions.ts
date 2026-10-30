@@ -1797,7 +1797,7 @@ export async function recordPayment(formData: FormData) {
       description,
     ].filter(Boolean);
 
-    await prisma.payment.create({
+    const payment = await prisma.payment.create({
       data: {
         companyId,
         kind: PAYMENT_KIND_OPERATIONAL,
@@ -1810,6 +1810,7 @@ export async function recordPayment(formData: FormData) {
       },
     });
 
+    // P&L category companion — cash is counted once via Payment (linked by paymentId).
     await prisma.expense.create({
       data: {
         companyId,
@@ -1820,9 +1821,32 @@ export async function recordPayment(formData: FormData) {
         paymentMethod: method,
         jobId,
         supplierId: supplier.id,
+        paymentId: payment.id,
         ...(receiptData !== undefined ? { receiptData } : {}),
       },
     });
+
+    // If this pays off a deferred supplier payable, settle it (keep the row).
+    const openPayable = await prisma.supplierPurchase.findFirst({
+      where: {
+        companyId,
+        supplierId: supplier.id,
+        totalCost: amount,
+        settledPaymentId: null,
+        OR: [
+          { name: { contains: DEFERRED_PAYMENT_LABEL, mode: "insensitive" } },
+          { notes: { contains: DEFERRED_PAYMENT_LABEL, mode: "insensitive" } },
+        ],
+      },
+      orderBy: { purchasedAt: "asc" },
+      select: { id: true },
+    });
+    if (openPayable) {
+      await prisma.supplierPurchase.update({
+        where: { id: openPayable.id },
+        data: { settledPaymentId: payment.id, settledAt: paidAt },
+      });
+    }
   } else {
     const customer = await prisma.customer.findFirst({ where: { id: payeeId, companyId } });
     if (!customer) throw new Error("Customer not found");

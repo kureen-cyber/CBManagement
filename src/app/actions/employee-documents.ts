@@ -187,6 +187,7 @@ async function buildPayslipForPeriod(input: PayslipPeriodInput, companyId: strin
   };
 }
 
+/** Saves a payslip document only — does not create a salary payment or expense. */
 export async function createEmployeePayslip(input: PayslipPeriodInput) {
   const { companyId } = await requireCompany();
   const built = await buildPayslipForPeriod(input, companyId);
@@ -204,6 +205,7 @@ export async function createEmployeePayslip(input: PayslipPeriodInput) {
   });
 
   revalidatePath(`/employees/${built.employee.id}`);
+  revalidatePath("/financial-reports");
   return {
     id: payslip.id,
     documentHtml: built.documentHtml,

@@ -42,7 +42,8 @@ export function categorizeOutflow(category: string, source: "expense" | "purchas
 }
 
 export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
-  const [payments, expenses, purchases, posSales] = await Promise.all([
+  // Cash movements only — supply-log purchases are reference/forecast and are excluded.
+  const [payments, expenses, posSales] = await Promise.all([
     prisma.payment.findMany({
       where: { companyId },
       include: { customer: true, invoice: true, sale: true, employee: true, supplier: true },
@@ -51,11 +52,6 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
     prisma.expense.findMany({
       where: { companyId },
       orderBy: { date: "asc" },
-    }),
-    prisma.supplierPurchase.findMany({
-      where: { companyId },
-      include: { supplier: true },
-      orderBy: { purchasedAt: "asc" },
     }),
     prisma.sale.findMany({
       where: { companyId, status: "COMPLETED", isRefund: false },
@@ -134,18 +130,6 @@ export async function fetchBankLedger(companyId: string): Promise<BankLedger> {
       type: "out",
       amount: e.amount,
       category: categorizeOutflow(e.category, "expense"),
-    });
-  }
-
-  for (const p of purchases) {
-    raw.push({
-      id: `pur-${p.id}`,
-      date: p.purchasedAt,
-      description: `${p.name} — ${p.supplier.name}`,
-      reference: p.id.slice(-8).toUpperCase(),
-      type: "out",
-      amount: p.totalCost,
-      category: "materials",
     });
   }
 

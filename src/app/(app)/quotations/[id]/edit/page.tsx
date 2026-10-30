@@ -18,16 +18,11 @@ export default async function QuotationEditPage({
   await enforceTierPath("/quotations");
   const { id } = await params;
   const { companyId } = await requireCompany();
-  const [customers, quote, supplyItems] = await Promise.all([
+  const [customers, quote] = await Promise.all([
     prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     prisma.quotation.findFirst({
       where: { id, companyId },
       include: { lines: true },
-    }),
-    prisma.supplierItem.findMany({
-      where: { companyId },
-      orderBy: [{ supplier: { name: "asc" } }, { name: "asc" }],
-      include: { supplier: { select: { name: true } } },
     }),
   ]);
   if (!quote) notFound();
@@ -60,14 +55,6 @@ export default async function QuotationEditPage({
       <Panel style={{ padding: "1.25rem" }}>
         <QuotationForm
           customers={crmCustomers.map((c) => ({ id: c.id, name: c.name }))}
-          supplyCatalog={supplyItems.map((i) => ({
-            id: i.id,
-            name: i.name,
-            unit: i.unit,
-            unitCost: i.unitCost,
-            supplyType: i.supplyType,
-            supplierName: i.supplier.name,
-          }))}
           initial={{
             id: quote.id,
             customerId: quote.customerId,

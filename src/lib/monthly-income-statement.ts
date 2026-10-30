@@ -294,7 +294,9 @@ function emptyStatement(
  * sets cash on hand, reserve/escrow, and opening inventory:
  * - Calculations begin on the 1st of that month (Trinidad time)
  * - Existing inventory (including stock logged from that 1st) is opening inventory
- * - Purchases after setup are stock quantity increases plus in-period supplier buys
+ * - Purchases after setup are stock quantity increases (inventory movements)
+ * - Supply logs, time clock, and payslips are reference-only and do not post here
+ * - Salaries enter via recorded payments/expenses; not from generating a payslip
  */
 export async function fetchMonthlyIncomeStatement(
   companyId: string,
@@ -379,14 +381,7 @@ export async function fetchMonthlyIncomeStatement(
   const monthCount = (year - startYear) * 12 + (11 - startMonthIdx) + 1;
   const reservePct = Number(company.moneyMixReservePct) || 0;
 
-  const [
-    inventory,
-    payments,
-    purchases,
-    timeEntries,
-    expenses,
-    payslips,
-  ] = await Promise.all([
+  const [inventory, payments, expenses] = await Promise.all([
     loadTrackedInventory(companyId),
     prisma.payment.findMany({
       where: { companyId, paidAt: { gte: setup.startAt, lte: yearEnd } },
@@ -404,38 +399,9 @@ export async function fetchMonthlyIncomeStatement(
         employee: { select: { systemRole: true } },
       },
     }),
-    prisma.supplierPurchase.findMany({
-      where: { companyId, purchasedAt: { gte: setup.startAt, lte: yearEnd } },
-      select: {
-        totalCost: true,
-        purchasedAt: true,
-        supplierItem: { select: { supplyType: true } },
-      },
-    }),
-    prisma.timeEntry.findMany({
-      where: {
-        employee: { companyId },
-        date: { gte: setup.startAt, lte: yearEnd },
-        clockOutAt: { not: null },
-      },
-      select: {
-        date: true,
-        hours: true,
-        hourlyRate: true,
-        paymentAmount: true,
-        employee: { select: { hourlyRate: true } },
-      },
-    }),
     prisma.expense.findMany({
       where: { companyId, date: { gte: setup.startAt, lte: yearEnd } },
       select: { category: true, amount: true, date: true },
-    }),
-    prisma.employeePayslip.findMany({
-      where: {
-        companyId,
-        periodEnd: { gte: setup.startAt, lte: yearEnd },
-      },
-      select: { grossPay: true, periodEnd: true },
     }),
   ]);
 
@@ -514,31 +480,6 @@ export async function fetchMonthlyIncomeStatement(
     } else if (!isSalaryPayment(pay)) {
       addToSlot(otherIncome, pay.paidAt, pay.amount);
     }
-  }
-
-  for (const purchase of purchases) {
-    if (purchase.purchasedAt <= setup.setAt) continue;
-    const supplyType = purchase.supplierItem?.supplyType || "MATERIAL";
-    if (supplyType === "EQUIPMENT") {
-      addToSlot(capitalPurchase, purchase.purchasedAt, purchase.totalCost);
-      continue;
-    }
-    if (supplyType === "EQUIPMENT_RENTAL") {
-      addToSlot(maintenance, purchase.purchasedAt, purchase.totalCost);
-      continue;
-    }
-    addToSlot(purchasesMonths, purchase.purchasedAt, purchase.totalCost);
-  }
-
-  for (const entry of timeEntries) {
-    const rate = entry.hourlyRate > 0 ? entry.hourlyRate : entry.employee.hourlyRate;
-    const pay =
-      rate > 0 ? Math.round(entry.hours * rate) : Math.max(0, entry.paymentAmount ?? 0);
-    addToSlot(directLabour, entry.date, pay);
-  }
-
-  for (const slip of payslips) {
-    addToSlot(salariesWages, slip.periodEnd, slip.grossPay);
   }
 
   for (const expense of expenses) {
@@ -836,7 +777,7 @@ function buildRows(input: {
       "Purchases",
       input.purchasesMonths,
       "line",
-      "Stock quantity increases and supplier purchases after the statement was set",
+      "Stock quantity increases and materials expenses after the statement was set",
     ),
     line("directLabour", "Direct Labour", input.directLabour),
     line("closingInventory", "Closing Inventory", input.closingInventory),

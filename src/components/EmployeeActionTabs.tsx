@@ -522,8 +522,10 @@ export function EmployeeActionTabs({
             {tab === "payslip" ? (
               <div className="stack">
                 <p className="muted" style={{ margin: 0, fontSize: "0.88rem" }}>
-                  Choose the pay period, then load clock records into the table. Enter NIS and PAYE
-                  amounts in the values row — net pay is gross minus those deductions.
+                  Generate payslips manually when you need them. Choose the pay period, load clock
+                  records, then enter NIS and PAYE — net pay is gross minus those deductions. Saving
+                  a payslip creates a document only; it does not post salary to accounting. Record
+                  wage payments under Payments when money is paid.
                 </p>
                 <div className="form-grid">
                   <label className="field">
